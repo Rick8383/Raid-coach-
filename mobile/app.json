@@ -1,0 +1,17 @@
+{
+  "expo": {
+    "name": "RAID Coach",
+    "slug": "raid-coach",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0B1120",
+    "ios": {
+      "bundleIdentifier": "com.raidcoach.app",
+      "supportsTablet": false,
+      "infoPlist": { "UIBackgroundModes": ["fetch"] }
+    },
+    "android": { "package": "com.raidcoach.app" },
+    "extra": { "apiUrl": "http://localhost:8000" }
+  }
+}

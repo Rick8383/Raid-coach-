@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.db
+*.sqlite3
+backend/data/
+
+# Node / Expo
+node_modules/
+.expo/
+dist/
+web-build/
+
+# Env & OS
+.env
+*.log
+.DS_Store

@@ -1,0 +1,81 @@
+name: Backend — Tests & Audits
+on: [push, workflow_dispatch]
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    defaults:
+      run: { working-directory: backend }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Suite pytest (API + persistance + 4 audits 100 samples)
+        run: python -m pytest tests/ -v
+
+  postgres-redis:
+    runs-on: ubuntu-latest
+    defaults:
+      run: { working-directory: backend }
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: test, POSTGRES_DB: raidcoach }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 10s
+          --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements.txt
+      - name: PostgreSQL schema check
+        run: |
+          python - << 'PY'
+          # Vérifie que le DDL canonique est traduisible PostgreSQL
+          from db.schema import SCHEMA_SQL, TABLES
+          pg_sql = (SCHEMA_SQL
+                    .replace("INTEGER PRIMARY KEY", "SERIAL PRIMARY KEY")
+                    .replace("datetime('now')", "now()")
+                    .replace("TEXT NOT NULL DEFAULT (now())", "TIMESTAMPTZ NOT NULL DEFAULT now()"))
+          import psycopg2
+          conn = psycopg2.connect("postgresql://postgres:test@localhost:5432/raidcoach")
+          cur = conn.cursor()
+          cur.execute(pg_sql)
+          conn.commit()
+          cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema='public'")
+          created = {r[0] for r in cur.fetchall()}
+          missing = set(TABLES) - created
+          assert not missing, f"missing: {missing}"
+          print(f"PostgreSQL: {len(created)} tables OK")
+          PY
+      - name: Redis cache check
+        run: |
+          python - << 'PY'
+          import redis
+          from db.database import CacheLayer
+          c = CacheLayer(redis.Redis(host="localhost", port=6379))
+          c.set("test:key", {"ok": True}, 60)
+          assert c.get("test:key")["ok"] is True
+          print("Redis cache: OK")
+          PY
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image API
+        run: docker build -t raid-coach-api backend/
+      - name: Smoke test conteneur
+        run: |
+          docker run -d -p 8000:8000 --name api raid-coach-api
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:8000/health && exit 0 || sleep 1
+          done
+          docker logs api
+          exit 1

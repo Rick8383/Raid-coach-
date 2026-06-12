@@ -1,0 +1,33 @@
+# Stack complète locale : API + PostgreSQL + Redis.
+# Usage : docker compose up --build
+# Note : l'API fonctionne aussi sans Docker (SQLite) via scripts/start_backend.sh
+services:
+  api:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      RAID_COACH_DB: /data/raid_coach.db
+      DATABASE_URL: postgresql://raid:raid@postgres:5432/raidcoach
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - api-data:/data
+    depends_on:
+      - postgres
+      - redis
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: raid
+      POSTGRES_PASSWORD: raid
+      POSTGRES_DB: raidcoach
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+
+volumes:
+  api-data:
+  pg-data:

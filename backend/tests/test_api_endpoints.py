@@ -1,0 +1,223 @@
+"""Tests unitaires API — couvre les 13 endpoints moteurs + 5 endpoints persistance.
+
+Complète les audits build*_audit.py (qui valident les moteurs en profondeur) :
+ici on valide le contrat HTTP réel (statuts, validation Pydantic, formes de réponse).
+"""
+from __future__ import annotations
+
+import importlib
+import os
+import sys
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+os.environ["RAID_COACH_DB"] = ":memory:"
+
+import api.persistence
+import api.main
+
+importlib.reload(api.persistence)
+importlib.reload(api.main)
+
+
+@pytest.fixture(scope="module")
+def client() -> TestClient:
+    return TestClient(api.main.app)
+
+
+# ---------- Santé ----------
+def test_health(client):
+    r = client.get("/health")
+    assert r.status_code == 200
+    assert r.json()["status"] == "ok"
+
+
+# ---------- Coach ----------
+def test_daily_decision_nominal(client):
+    r = client.post("/coach/daily-decision", json={
+        "day_of_week": "wed", "is_work_day": False, "week_type": "big_work",
+        "readiness": 75, "fatigue": 35, "sleep_quality": 80})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["best_action"]
+    assert 0 < body["duration_min"] <= 240
+    assert 0 <= body["intensity_cap"] <= 10
+
+
+def test_daily_decision_sciatic_flare_is_protective(client):
+    r = client.post("/coach/daily-decision", json={
+        "day_of_week": "mon", "is_work_day": True, "week_type": "big_work",
+        "readiness": 90, "fatigue": 10, "sleep_quality": 90,
+        "sciatic_flare": True})
+    assert r.status_code == 200
+    body = r.json()
+    # Jamais de séance lourde pendant une crise sciatique
+    assert body["intensity_cap"] <= 6
+    assert body["safety_notes"]
+
+
+def test_daily_decision_rejects_bad_day(client):
+    r = client.post("/coach/daily-decision", json={
+        "day_of_week": "lundi", "is_work_day": True, "week_type": "big_work",
+        "readiness": 75, "fatigue": 35, "sleep_quality": 80})
+    assert r.status_code == 422
+
+
+def test_weekly_budget(client):
+    r = client.post("/coach/weekly-budget", json={
+        "week_type": "small_work",
+        "sessions": [{"discipline": "run", "duration_min": 60, "intensity": 6}]})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["budget_su"] > 0
+    assert body["remaining_su"] <= body["budget_su"]
+
+
+def test_arbitrate_goals(client):
+    r = client.post("/coach/arbitrate-goals", json={"goals": [
+        {"goal_id": "raid", "name": "Sélection RAID", "discipline": "crossfit",
+         "target_date_weeks": 140, "priority": 1},
+        {"goal_id": "semi", "name": "Semi 1h35", "discipline": "run",
+         "target_date_weeks": 30, "priority": 2}]})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["primary_goal_id"] in {"raid", "semi"}
+    assert set(body["ranked_goal_ids"]) == {"raid", "semi"}
+
+
+# ---------- Run ----------
+def test_hr_profile_tanaka_default(client):
+    r = client.post("/run/hr-profile", json={"age": 31})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["fc_max"] == pytest.approx(208 - 0.7 * 31, abs=2)
+    assert len(body["zones"]) >= 4
+
+
+def test_run_predictions(client):
+    r = client.post("/run/predictions", json={"distance_km": 8, "time_sec": 2400})
+    assert r.status_code == 200
+    body = r.json()
+    assert 10 < body["vma_estimate_kmh"] < 20
+    assert body["predictions"]
+
+
+def test_pace_table_terrain(client):
+    r = client.post("/run/pace-table", json={
+        "vma_kmh": 14, "terrain": "trail", "elevation_gain_m_per_km": 30,
+        "load_kg": 10})
+    assert r.status_code == 200
+    assert r.json()["targets"]
+
+
+def test_pace_table_rejects_unknown_terrain(client):
+    r = client.post("/run/pace-table", json={"vma_kmh": 14, "terrain": "moon"})
+    assert r.status_code == 422
+
+
+# ---------- Strength ----------
+def test_strength_generate(client):
+    r = client.post("/strength/generate", json={
+        "recovery_score": 80, "sleep_quality": 75, "seed": "test-1"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["blocks"]
+    assert body["duration_min"] > 0
+
+
+def test_pr_estimate_epley(client):
+    r = client.post("/strength/pr-estimate", json={
+        "movement_id": "bench_press", "weight_kg": 90, "reps": 5})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["e1rm"] > 90
+    assert body["rm5"] <= body["rm3"] <= body["e1rm"]
+
+
+def test_raid_strength_report_matches_known_profile(client):
+    r = client.post("/raid/strength-report", json={
+        "current": {"pullups_max": 16, "pushups_max": 60, "dips_max": 40,
+                    "leg_raises_max": 18, "rope_climb_5m": 1, "cooper_m": 2850},
+        "bodyweight_kg": 75, "tier": "elite"})
+    assert r.status_code == 200
+    body = r.json()
+    assert 0 <= body["global_readiness_pct"] <= 100
+    assert body["targets"]
+
+
+# ---------- Plans ----------
+def test_auto_plan(client):
+    r = client.post("/plans/auto-generate", json={
+        "goal_type": "raid", "goal_name": "RAID 2029",
+        "duration_weeks": 16, "analytics": {}})
+    assert r.status_code == 200
+    assert r.json()["duration_weeks"] == 16
+
+
+# ---------- Nutrition ----------
+def test_daily_macros(client):
+    r = client.post("/nutrition/daily-macros", json={
+        "weight_kg": 75, "height_cm": 172, "age": 31})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["protein_g"] >= 150  # recomp : 2,2 g/kg minimum
+    assert body["calories"] > 1500
+
+
+def test_selection_day(client):
+    r = client.post("/nutrition/selection-day", json={"weight_kg": 75})
+    assert r.status_code == 200
+    assert r.json()["morning"]
+
+
+# ---------- Persistance (nouveaux endpoints) ----------
+def test_metrics_record_and_latest(client):
+    r = client.post("/metrics/record", json={
+        "date": "2026-06-12", "readiness": 72, "fatigue": 40,
+        "sleep_quality": 70, "sciatic_flare": True})
+    assert r.status_code == 200
+    latest = client.get("/metrics/latest").json()
+    assert latest["metric_date"] == "2026-06-12"
+    assert latest["sciatic_flare"] == 1
+
+
+def test_metrics_record_upsert_same_day(client):
+    client.post("/metrics/record", json={"date": "2026-06-13", "readiness": 50})
+    client.post("/metrics/record", json={"date": "2026-06-13", "readiness": 65})
+    latest = client.get("/metrics/latest").json()
+    assert latest["readiness"] == 65
+
+
+def test_metrics_record_rejects_bad_date(client):
+    r = client.post("/metrics/record", json={"date": "12/06/2026"})
+    assert r.status_code == 422
+
+
+def test_session_complete(client):
+    r = client.post("/sessions/complete", json={
+        "discipline": "run", "session_date": "2026-06-12",
+        "duration_min": 45, "intensity_rpe": 6, "stress_units": 45,
+        "feedback": {"rpe_felt": 6}})
+    assert r.status_code == 200
+    assert r.json()["session_id"] >= 1
+
+
+def test_session_rejects_unknown_discipline(client):
+    r = client.post("/sessions/complete", json={
+        "discipline": "yoga", "session_date": "2026-06-12",
+        "duration_min": 45, "intensity_rpe": 6})
+    assert r.status_code == 422
+
+
+def test_benchmark_record_and_progression(client):
+    for day, val in [("2026-06-01", 16), ("2026-06-12", 17)]:
+        r = client.post("/benchmarks/record", json={
+            "benchmark_id": "pullups_max", "result_value": val,
+            "result_unit": "reps", "test_date": day})
+        assert r.status_code == 200
+    prog = client.get("/benchmarks/pullups_max/progression").json()
+    values = [p["result_value"] for p in prog["results"]]
+    assert values == [16, 17]
