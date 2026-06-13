@@ -3,25 +3,27 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-google-fonts/inter';
 import { BarlowCondensed_700Bold } from '@expo-google-fonts/barlow-condensed';
-import { flushSyncQueue, SessionToday } from './src/api/client';
+import { AthleteProfile, api, flushSyncQueue, SessionToday } from './src/api/client';
 import { CheckinScreen } from './src/screens/CheckinScreen';
 import { TodayScreen } from './src/screens/TodayScreen';
+import { AgendaScreen } from './src/screens/AgendaScreen';
+import { NutritionScreen } from './src/screens/NutritionScreen';
 import { BenchmarksScreen } from './src/screens/BenchmarksScreen';
+import { ProfileScreen } from './src/screens/ProfileScreen';
 import { SessionDetailScreen } from './src/screens/SessionDetailScreen';
 import { readinessLevelFor, colors, typography } from './src/theme/tokens';
 
-// Profil athlète — sera chargé depuis l'API/profil en v2
-const PROFILE = {
-  weight: 75,
-  current: {
-    pullups_max: 16, pushups_max: 60, dips_max: 40, leg_raises_max: 18,
-    rope_climb_5m: 1, bench_ratio: 95, squat_ratio: 110, cooper_m: 2850,
-  },
-};
-
-type Tab = 'today' | 'benchmarks';
+type Tab = 'today' | 'agenda' | 'nutrition' | 'benchmarks' | 'profile';
 type Checkin = { readiness: number; fatigue: number; sleep: number; sciatic: boolean };
 type OpenSession = { data: SessionToday; dateIso: string };
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: 'today', label: 'JOUR' },
+  { key: 'agenda', label: 'AGENDA' },
+  { key: 'nutrition', label: 'NUTRITION' },
+  { key: 'benchmarks', label: 'OBJECTIFS' },
+  { key: 'profile', label: 'PROFIL' },
+];
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -30,6 +32,12 @@ export default function App() {
   const [checkin, setCheckin] = useState<Checkin | null>(null);
   const [tab, setTab] = useState<Tab>('today');
   const [openSession, setOpenSession] = useState<OpenSession | null>(null);
+  const [profile, setProfile] = useState<AthleteProfile | null>(null);
+
+  // Charge le profil réel (avec cache offline) au lancement.
+  useEffect(() => {
+    api.profile().then(setProfile).catch(() => {});
+  }, []);
 
   // Vide la file d'écritures offline au lancement et après chaque check-in.
   useEffect(() => {
@@ -45,42 +53,56 @@ export default function App() {
     );
   }
 
-  return (
-    <SafeAreaProvider>
-      <SafeAreaView style={styles.root}>
-        {!checkin ? (
+  if (!checkin) {
+    return (
+      <SafeAreaProvider>
+        <SafeAreaView style={styles.root}>
           <CheckinScreen onDone={setCheckin} />
-        ) : openSession ? (
+        </SafeAreaView>
+      </SafeAreaProvider>
+    );
+  }
+
+  if (openSession) {
+    return (
+      <SafeAreaProvider>
+        <SafeAreaView style={styles.root}>
           <SessionDetailScreen
             session={openSession.data.session}
             level={readinessLevelFor(checkin.readiness, checkin.sciatic)}
             dateIso={openSession.dateIso}
             onClose={() => setOpenSession(null)}
           />
-        ) : (
-          <>
-            <View style={styles.appbar}>
-              <Text style={styles.brand}>RAID<Text style={styles.brandAccent}> COACH</Text></Text>
-              <Text style={styles.brandSub}>SÉLECTION 2029</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              {tab === 'today'
-                ? <TodayScreen
-                    checkin={checkin}
-                    onOpenSession={(data, dateIso) => setOpenSession({ data, dateIso })} />
-                : <BenchmarksScreen profile={PROFILE} />}
-            </View>
-            <View style={styles.tabbar}>
-              {(['today', 'benchmarks'] as Tab[]).map(t => (
-                <Pressable key={t} style={styles.tab} onPress={() => setTab(t)}>
-                  <Text style={[styles.tabText, tab === t && styles.tabActive]}>
-                    {t === 'today' ? "AUJOURD'HUI" : 'OBJECTIFS'}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </>
-        )}
+        </SafeAreaView>
+      </SafeAreaProvider>
+    );
+  }
+
+  return (
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.root}>
+        <View style={styles.appbar}>
+          <Text style={styles.brand}>RAID<Text style={styles.brandAccent}> COACH</Text></Text>
+          <Text style={styles.brandSub}>SÉLECTION 2029</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          {tab === 'today' && (
+            <TodayScreen
+              checkin={checkin}
+              onOpenSession={(data, dateIso) => setOpenSession({ data, dateIso })} />
+          )}
+          {tab === 'agenda' && <AgendaScreen />}
+          {tab === 'nutrition' && <NutritionScreen profile={profile} />}
+          {tab === 'benchmarks' && <BenchmarksScreen profile={profile} />}
+          {tab === 'profile' && <ProfileScreen profile={profile} onProfile={setProfile} />}
+        </View>
+        <View style={styles.tabbar}>
+          {TABS.map(t => (
+            <Pressable key={t.key} style={styles.tab} onPress={() => setTab(t.key)}>
+              <Text style={[styles.tabText, tab === t.key && styles.tabActive]}>{t.label}</Text>
+            </Pressable>
+          ))}
+        </View>
       </SafeAreaView>
     </SafeAreaProvider>
   );
@@ -103,6 +125,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgElevated,
   },
   tab: { flex: 1, paddingVertical: 14, alignItems: 'center' },
-  tabText: { color: colors.textDisabled, ...typography.label },
+  tabText: { color: colors.textDisabled, fontFamily: typography.label.fontFamily, fontSize: 10, letterSpacing: 0.5, textTransform: 'uppercase' },
   tabActive: { color: colors.signal },
 });

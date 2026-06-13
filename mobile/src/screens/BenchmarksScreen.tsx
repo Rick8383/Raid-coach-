@@ -1,15 +1,16 @@
-/** Benchmarks Sélection : les 2 WODs officiels + progression vers les cibles élite. */
+/** Benchmarks Sélection : progression vers les cibles élite (top 5%). */
 import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { api } from '../api/client';
+import { AthleteProfile, api } from '../api/client';
 import { ReadinessBar } from '../components/ReadinessBar';
 import { colors, spacing, typography } from '../theme/tokens';
 
-export function BenchmarksScreen({ profile }: { profile: any }) {
+export function BenchmarksScreen({ profile }: { profile: AthleteProfile | null }) {
   const [report, setReport] = useState<any>(null);
   useEffect(() => {
+    if (!profile) return;
     api.raidStrengthReport({
-      current: profile.current, bodyweight_kg: profile.weight, tier: 'elite',
+      current: profile.current, bodyweight_kg: profile.weight_kg ?? 75, tier: 'elite',
     }).then(setReport).catch(() => {});
   }, [profile]);
 

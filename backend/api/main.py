@@ -9,6 +9,8 @@ from pydantic import BaseModel, Field
 
 from api.persistence import Store
 from api.services.coach_api import CoachAPI
+# CoachAPI met engines/legacy sur sys.path à l'import → AnalyticsInput accessible
+from build6_analytics_engine.models import AnalyticsInput  # noqa: E402
 
 app = FastAPI(
     title="RAID Coach Elite+ API",
@@ -179,6 +181,55 @@ class BenchmarkRecordIn(BaseModel):
     detail: dict = {}
 
 
+class ProfileUpdateIn(BaseModel):
+    weight_kg: float | None = Field(default=None, ge=40, le=180)
+    target_weight_kg: float | None = Field(default=None, ge=40, le=180)
+    body_fat_pct: float | None = Field(default=None, ge=3, le=50)
+    height_cm: float | None = Field(default=None, ge=140, le=220)
+    fc_max: int | None = Field(default=None, ge=120, le=230)
+    fc_rest: int | None = Field(default=None, ge=30, le=120)
+    vma_kmh: float | None = Field(default=None, ge=8, le=26)
+    main_goal: str | None = None
+    goal_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _analytics_from_store() -> dict:
+    """Dérive un instantané analytics des séances et métriques enregistrées.
+    Renvoie un statut 'warming_up' tant que l'historique est trop court."""
+    sessions = store.sessions.last_n(store.athlete_id, 28)
+    loads = [float(s["stress_units"] or 0) for s in sessions if s["status"] == "done"]
+    metrics = store.db.query(
+        """SELECT readiness, fatigue, sleep_quality FROM daily_metrics
+           WHERE athlete_id = ? ORDER BY metric_date DESC LIMIT 14""",
+        (store.athlete_id,))
+    readiness = [float(m["readiness"]) for m in metrics if m["readiness"] is not None]
+    recovery = [100.0 - float(m["fatigue"]) for m in metrics if m["fatigue"] is not None]
+
+    if len(loads) < 3 or len(readiness) < 3:
+        return {"status": "warming_up",
+                "message": "Pas encore assez de données — enregistre quelques séances et check-ins.",
+                "sessions_logged": len(loads), "metrics_logged": len(readiness)}
+
+    chronic = sum(loads) / len(loads)
+    data = AnalyticsInput(
+        recent_loads=loads[:7], chronic_load=chronic,
+        readiness_scores=readiness, recovery_scores=recovery,
+        performance_scores=readiness,  # proxy en l'absence de score perf dédié
+        weakness_scores={})
+    r = coach.analytics.analyze(data)
+    return {
+        "status": r.global_status,
+        "fitness": round(r.fitness.score, 1),
+        "fatigue": round(r.fatigue.score, 1),
+        "acwr": round(r.fatigue.acute_chronic_ratio, 2),
+        "readiness": round(r.readiness.score, 1),
+        "readiness_trend": r.readiness.trend.value,
+        "risk": r.risk.level.value,
+        "risk_reasons": r.risk.reasons,
+        "sessions_logged": len(loads),
+    }
+
+
 # ---------- Routes ----------
 @app.get("/health")
 def health() -> dict:
@@ -306,3 +357,42 @@ def latest_metrics() -> dict:
 def benchmark_progression(benchmark_id: str) -> dict:
     return {"benchmark_id": benchmark_id,
             "results": store.benchmarks.progression(store.athlete_id, benchmark_id)}
+
+
+# ---------- Profil athlète ----------
+@app.get("/profile")
+def get_profile() -> dict:
+    return store.profile_payload()
+
+
+@app.patch("/profile")
+def update_profile(body: ProfileUpdateIn) -> dict:
+    fields = body.model_dump(exclude_none=True)
+    if fields:
+        store.athletes.update_profile(store.athlete_id, **fields)
+    return store.profile_payload()
+
+
+# ---------- Historique d'entraînement ----------
+@app.get("/sessions/recent")
+def recent_sessions(n: int = 30) -> dict:
+    n = max(1, min(n, 200))
+    return {"sessions": store.sessions.last_n(store.athlete_id, n)}
+
+
+# ---------- Agenda prévisionnel (planning + intention + séances réalisées) ----------
+@app.post("/agenda/week")
+def agenda_week(body: ScheduleIn) -> dict:
+    week = coach.schedule_week(body.model_dump())
+    done = {s["session_date"]: s for s in store.sessions.last_n(store.athlete_id, 60)}
+    for day in week["days"]:
+        rec = done.get(day["date"])
+        day["done"] = ({"discipline": rec["discipline"], "duration_min": rec["duration_min"],
+                        "status": rec["status"]} if rec else None)
+    return week
+
+
+# ---------- Tableau de bord analytics (dérivé des données enregistrées) ----------
+@app.get("/analytics/snapshot")
+def analytics_snapshot() -> dict:
+    return _analytics_from_store()

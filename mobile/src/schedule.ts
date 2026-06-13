@@ -51,11 +51,27 @@ export function isWorkDay(d: Date): boolean {
   return set.has(dayCodeFor(d));
 }
 
+export interface TrainingIntent {
+  focus: 'single' | 'double' | 'swim';
+  label: string;
+  load: 'light' | 'moderate' | 'high';
+}
+
+/** Miroir de engines.schedule.training_intent — intention structurelle du jour. */
+export function trainingIntent(dayCode: DayCode, weekType: WeekType, workDay: boolean): TrainingIntent {
+  if (!workDay && dayCode === 'sun' && weekType === 'small_work') {
+    return { focus: 'swim', label: 'Natation récup + apnée', load: 'light' };
+  }
+  if (workDay) return { focus: 'single', label: 'Séance courte qualité', load: 'moderate' };
+  return { focus: 'double', label: 'Double séance (course + force)', load: 'high' };
+}
+
 export interface DaySchedule {
   date: string;          // YYYY-MM-DD
   dayCode: DayCode;
   weekType: WeekType;
   isWorkDay: boolean;
+  intent: TrainingIntent;
 }
 
 function isoDate(ms: number): string {
@@ -63,11 +79,15 @@ function isoDate(ms: number): string {
 }
 
 export function daySchedule(d: Date): DaySchedule {
+  const weekType = weekTypeFor(d);
+  const dayCode = dayCodeFor(d);
+  const workDay = isWorkDay(d);
   return {
     date: isoDate(utcMidnight(d)),
-    dayCode: dayCodeFor(d),
-    weekType: weekTypeFor(d),
-    isWorkDay: isWorkDay(d),
+    dayCode,
+    weekType,
+    isWorkDay: workDay,
+    intent: trainingIntent(dayCode, weekType, workDay),
   };
 }
 

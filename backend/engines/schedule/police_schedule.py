@@ -69,7 +69,18 @@ class DaySchedule:
             "is_work_day": self.is_work_day,
             # libellé d'entraînement dérivé, pratique pour l'UI
             "training_slot": "service" if self.is_work_day else "off",
+            "intent": training_intent(self.day_of_week, self.week_type, self.is_work_day),
         }
+
+
+def training_intent(day_of_week: str, week_type: str, is_work_day: bool) -> dict:
+    """Intention d'entraînement structurelle d'un jour (sans readiness, pour un
+    agenda prévisionnel). Cohérent avec la logique 'schedule fit' du coach."""
+    if not is_work_day and day_of_week == "sun" and week_type == SMALL_WORK:
+        return {"focus": "swim", "label": "Natation récup + apnée", "load": "light"}
+    if is_work_day:
+        return {"focus": "single", "label": "Séance courte qualité", "load": "moderate"}
+    return {"focus": "double", "label": "Double séance (course + force)", "load": "high"}
 
 
 def day_schedule(d: date) -> DaySchedule:

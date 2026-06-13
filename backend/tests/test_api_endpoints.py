@@ -95,6 +95,77 @@ def test_session_explicit_context_overrides_schedule(client):
     assert r.json()["session"]["phases"]
 
 
+# ---------- Profil athlète ----------
+def test_profile_seeded_with_real_data(client):
+    body = client.get("/profile").json()
+    assert body["height_cm"] == 172.0
+    assert body["main_goal"] == "Sélection RAID 2029"
+    # maxes actuels assemblés depuis les benchmarks
+    assert body["current"]["pullups_max"] == 16.0
+    assert body["current"]["cooper_m"] == 2850.0
+
+
+def test_profile_update_and_reflect(client):
+    r = client.patch("/profile", json={"weight_kg": 74.0, "fc_max": 188})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["weight_kg"] == 74.0
+    assert body["fc_max"] == 188
+
+
+def test_profile_update_rejects_out_of_range(client):
+    r = client.patch("/profile", json={"weight_kg": 999})
+    assert r.status_code == 422
+
+
+def test_profile_current_reflects_new_benchmark(client):
+    client.post("/benchmarks/record", json={
+        "benchmark_id": "pullups_max", "result_value": 18,
+        "result_unit": "reps", "test_date": "2026-07-01"})
+    body = client.get("/profile").json()
+    assert body["current"]["pullups_max"] == 18.0
+
+
+# ---------- Agenda ----------
+def test_agenda_week_has_intent_and_done(client):
+    client.post("/sessions/complete", json={
+        "discipline": "strength", "session_date": "2026-06-17",
+        "duration_min": 60, "intensity_rpe": 7})
+    w = client.post("/agenda/week", json={"date": "2026-06-15"}).json()
+    assert w["week_type"] == "big_work"
+    wed = next(d for d in w["days"] if d["day_of_week"] == "wed")
+    assert wed["intent"]["focus"] == "double"   # mercredi grande semaine = OFF
+    assert wed["done"]["discipline"] == "strength"
+    mon = next(d for d in w["days"] if d["day_of_week"] == "mon")
+    assert mon["intent"]["focus"] == "single"   # lundi grande semaine = service
+
+
+# ---------- Analytics ----------
+def test_analytics_warming_up_then_clear(client):
+    snap = client.get("/analytics/snapshot").json()
+    assert "status" in snap
+    # alimente assez de données puis re-teste
+    for i in range(5):
+        d = f"2026-05-0{i + 1}"
+        client.post("/sessions/complete", json={
+            "discipline": "run", "session_date": d, "duration_min": 55,
+            "intensity_rpe": 6, "stress_units": 50})
+        client.post("/metrics/record", json={"date": d, "readiness": 70, "fatigue": 35})
+    snap2 = client.get("/analytics/snapshot").json()
+    assert snap2["status"] != "warming_up"
+    assert 0 <= snap2["readiness"] <= 100
+    assert snap2["acwr"] >= 0
+
+
+# ---------- Historique ----------
+def test_sessions_recent(client):
+    client.post("/sessions/complete", json={
+        "discipline": "swim", "session_date": "2026-06-14",
+        "duration_min": 40, "intensity_rpe": 4})
+    body = client.get("/sessions/recent?n=10").json()
+    assert any(s["discipline"] == "swim" for s in body["sessions"])
+
+
 # ---------- Coach ----------
 def test_daily_decision_nominal(client):
     r = client.post("/coach/daily-decision", json={
@@ -273,11 +344,12 @@ def test_session_rejects_unknown_discipline(client):
 
 
 def test_benchmark_record_and_progression(client):
-    for day, val in [("2026-06-01", 16), ("2026-06-12", 17)]:
+    # id dédié pour ne pas heurter les benchmarks seedés du profil
+    for day, val in [("2026-06-01", 30), ("2026-06-12", 33)]:
         r = client.post("/benchmarks/record", json={
-            "benchmark_id": "pullups_max", "result_value": val,
+            "benchmark_id": "bench_test_progression", "result_value": val,
             "result_unit": "reps", "test_date": day})
         assert r.status_code == 200
-    prog = client.get("/benchmarks/pullups_max/progression").json()
+    prog = client.get("/benchmarks/bench_test_progression/progression").json()
     values = [p["result_value"] for p in prog["results"]]
-    assert values == [16, 17]
+    assert values == [30, 33]

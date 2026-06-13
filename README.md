@@ -96,7 +96,7 @@ cd mobile && npm run typecheck               # TypeScript strict
 Les audits historiques restent exécutables individuellement :
 `python build1_2_audit.py`, `build12_audit.py`, `build13_audit.py`, `build14_audit.py`.
 
-## Endpoints API (21)
+## Endpoints API (26)
 
 **Moteurs** : `/health` · `/coach/daily-decision` · `/coach/weekly-budget` ·
 `/coach/arbitrate-goals` · `/run/hr-profile` · `/run/predictions` · `/run/pace-table` ·
@@ -104,7 +104,12 @@ Les audits historiques restent exécutables individuellement :
 `/plans/auto-generate` · `/nutrition/daily-macros` · `/nutrition/selection-day`
 
 **Séance & planning** : `POST /coach/session` (décision + séance détaillée prête à
-exécuter, calée sur le planning 3/2/2/3) · `POST /schedule/day` · `POST /schedule/week`
+exécuter, calée sur le planning 3/2/2/3) · `POST /schedule/day` · `POST /schedule/week` ·
+`POST /agenda/week` (semaine + intention par jour + séances réalisées)
+
+**Profil & analytics** : `GET /profile` · `PATCH /profile` (poids, FC, objectif…) ·
+`GET /analytics/snapshot` (forme / fatigue / ACWR / risque, dérivés des données) ·
+`GET /sessions/recent`
 
 **Persistance** : `POST /metrics/record` · `POST /sessions/complete` ·
 `POST /benchmarks/record` · `GET /metrics/latest` · `GET /benchmarks/{id}/progression`
@@ -124,11 +129,20 @@ automatiquement la décision du coach selon que le jour est travaillé ou non.
 ## App mobile — écrans
 
 1. **Check-in** (30 s) : forme, fatigue, sommeil, sciatique.
-2. **Aujourd'hui** : compte à rebours sélection, planning 3/2/2/3 du jour, et la
-   meilleure action — qui ouvre la **séance détaillée**.
+2. **Jour** : compte à rebours sélection, planning 3/2/2/3 du jour, et la meilleure
+   action — qui ouvre la **séance détaillée**.
 3. **Séance détaillée** : phases (échauffement / corps / retour au calme / 2e séance),
    prescription par bloc, bandeau sécurité sciatique, bouton « Terminer » (offline-first).
-4. **Objectifs** : readiness élite et progression vers les cibles sélection.
+4. **Agenda** : navigation semaine par semaine, intention par jour (service / OFF /
+   double), séances réalisées cochées, encart « état de forme » (analytics).
+5. **Nutrition** : macros du jour adaptées au profil et au cyclage glucidique
+   (haut les jours OFF, modéré en service).
+6. **Objectifs** : readiness élite et progression vers les cibles sélection.
+7. **Profil** : données réelles (poids ajustable, FC, VMA, contrainte sciatique, maxes),
+   chargées depuis l'API avec cache offline.
+
+Le profil athlète réel (mensurations + maxes) est seedé en base au premier démarrage
+et alimente tous les écrans — plus aucune valeur en dur dans l'app.
 
 ## Déploiement
 
