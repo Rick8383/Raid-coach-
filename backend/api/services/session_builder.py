@@ -107,7 +107,8 @@ def _run_phases(coach, payload: dict, duration_min: int) -> tuple[str, list]:
 
 def _crossfit_phases(coach, payload: dict) -> tuple[str, list]:
     seed = payload.get("seed", payload.get("day_of_week", "wod"))
-    wod = coach.selection_wod_variant(seed)
+    kind = payload.get("wod_kind", "death_by")  # death_by | time_cap
+    wod = coach.selection_wod_variant(seed, kind)
     items = [{"name": line, "prescription": "", "meta": "", "notes": ""}
              for line in wod["description"]]
     phases = [

@@ -140,6 +140,39 @@ def test_agenda_week_has_intent_and_done(client):
     assert mon["intent"]["focus"] == "single"   # lundi grande semaine = service
 
 
+# ---------- Générateur par discipline ----------
+def test_generate_run(client):
+    r = client.post("/generate", json={"discipline": "run", "seed": "t1"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["discipline"] == "run"
+    assert any(ph["kind"] == "main" and ph["items"] for ph in body["phases"])
+
+
+def test_generate_strength(client):
+    r = client.post("/generate", json={"discipline": "strength", "seed": "t2"})
+    assert r.status_code == 200
+    assert r.json()["discipline"] == "strength"
+
+
+def test_generate_wod(client):
+    r = client.post("/generate", json={"discipline": "crossfit", "seed": "t3", "wod_kind": "time_cap"})
+    assert r.status_code == 200
+    assert r.json()["phases"]
+
+
+def test_generate_rejects_unknown_discipline(client):
+    assert client.post("/generate", json={"discipline": "yoga"}).status_code == 422
+
+
+def test_generate_varies_with_seed(client):
+    titles = set()
+    for i in range(6):
+        r = client.post("/generate", json={"discipline": "strength", "seed": f"s{i}"})
+        titles.add(r.json()["title"])
+    assert len(titles) >= 3  # le seed produit de la variété
+
+
 # ---------- Roadmap (plan annuel) ----------
 def test_roadmap_to_selection(client):
     r = client.post("/roadmap", json={"weeks_to_selection": 142, "current_week": 0})

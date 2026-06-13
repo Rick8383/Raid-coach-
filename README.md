@@ -104,7 +104,9 @@ Les audits historiques restent exécutables individuellement :
 `/plans/auto-generate` · `/nutrition/daily-macros` · `/nutrition/selection-day`
 
 **Séance & planning** : `POST /coach/session` (décision + séance détaillée prête à
-exécuter, calée sur le planning 3/2/2/3) · `POST /schedule/day` · `POST /schedule/week` ·
+exécuter, calée sur le planning 3/2/2/3) · `POST /generate` (générateur dédié par
+discipline : run / strength / crossfit, indépendant de la décision du jour) ·
+`POST /schedule/day` · `POST /schedule/week` ·
 `POST /agenda/week` (semaine + intention par jour + séances réalisées) ·
 `POST /roadmap` (plan annuel rétro-planifié Base/Build/Peak/Taper jusqu'à 2029 + jalons)
 

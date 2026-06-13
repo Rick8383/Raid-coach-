@@ -279,6 +279,30 @@ class CoachAPI:
                 "wod_format": wod.wod_format, "description": list(wod.description),
                 "scoring": wod.scoring, "equipment": list(wod.equipment)}
 
+    # ---- GÉNÉRATEUR PAR DISCIPLINE (bouton dédié de chaque page) ----
+    def generate_discipline(self, payload: dict) -> dict:
+        """Génère une séance complète pour UNE discipline (course/force/wod),
+        indépendamment de la décision quotidienne et des données montre :
+        c'est le bouton 'Générer' propre à chaque page. La variété vient du seed."""
+        discipline = payload.get("discipline", "run")
+        defaults = {
+            "run": (60, 8.0, "Séance course générée"),
+            "strength": (60, 8.0, "Séance force générée"),
+            "crossfit": (30, 9.0, "WOD généré"),
+        }
+        dur_def, cap_def, reason = defaults.get(discipline, defaults["run"])
+        decision = {
+            "best_action": discipline,
+            "secondary_action": None,
+            "duration_min": int(payload.get("duration_min", dur_def)),
+            "intensity_cap": float(payload.get("intensity_cap", cap_def)),
+            "reason": reason,
+            "alternatives": [],
+            "safety_notes": (["sciatique: échauffement lombaire avant toute charge"]
+                             if discipline in ("strength", "crossfit") else []),
+        }
+        return _build_session(self, payload, decision)
+
     # ---- ROADMAP (plan annuel rétro-planifié RCOS B14) ----
     def roadmap(self, payload: dict) -> dict:
         weeks = int(payload["weeks_to_selection"])

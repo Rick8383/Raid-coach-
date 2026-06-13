@@ -4,9 +4,18 @@
  * la file de synchronisation gère les écritures hors connexion.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 
 declare const process: { env: Record<string, string | undefined> };
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
+
+// Ordre de résolution de l'URL de l'API :
+//  1. EXPO_PUBLIC_API_URL (web/dev)  2. app.json → extra.apiUrl (build natif)  3. localhost
+const BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL ??
+  (Constants.expoConfig?.extra?.apiUrl as string | undefined) ??
+  'http://localhost:8000';
+
+export const API_BASE_URL = BASE_URL;
 
 type Json = Record<string, unknown>;
 

@@ -4,7 +4,10 @@ Docs auto-générées: http://localhost:8000/docs
 """
 from __future__ import annotations
 
+import os
+
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from api.persistence import Store
@@ -17,6 +20,18 @@ app = FastAPI(
     version="1.0.0",
     description="Backend API exposant tous les moteurs RAID Coach (B3-B11)",
 )
+
+# CORS : l'app web/mobile appelle l'API depuis une autre origine.
+# CORS_ORIGINS (CSV) en prod ; "*" par défaut pour la beta perso.
+_origins = os.environ.get("CORS_ORIGINS", "*").split(",")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[o.strip() for o in _origins],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 coach = CoachAPI()
 store = Store()
 
@@ -201,6 +216,17 @@ class ProfileUpdateIn(BaseModel):
     goal_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
 
 
+class GenerateIn(BaseModel):
+    discipline: str = Field(pattern="^(run|strength|crossfit)$")
+    duration_min: int | None = Field(default=None, ge=10, le=180)
+    intensity_cap: float | None = Field(default=None, ge=1, le=10)
+    terrain: str = "trail"
+    athlete_level: str = "intermediate"
+    weeks_to_main_goal: int | None = None
+    wod_kind: str = Field(default="death_by", pattern="^(death_by|time_cap)$")
+    seed: str | None = None  # change à chaque clic → séance différente
+
+
 def _analytics_from_store() -> dict:
     """Dérive un instantané analytics des séances et métriques enregistrées.
     Renvoie un statut 'warming_up' tant que l'historique est trop court."""
@@ -340,6 +366,14 @@ def schedule_week(body: ScheduleIn) -> dict:
 @app.post("/roadmap")
 def roadmap(body: RoadmapIn) -> dict:
     return _safe(coach.roadmap, body.model_dump())
+
+
+@app.post("/generate")
+def generate(body: GenerateIn) -> dict:
+    """Bouton 'Générer une séance' propre à chaque page (course/force/wod).
+    Indépendant de la décision du jour et des données montre."""
+    payload = {k: v for k, v in body.model_dump().items() if v is not None}
+    return _safe(coach.generate_discipline, payload)
 
 
 @app.post("/coach/arbitrate-goals")
