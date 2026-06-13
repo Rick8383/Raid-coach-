@@ -140,6 +140,22 @@ def test_agenda_week_has_intent_and_done(client):
     assert mon["intent"]["focus"] == "single"   # lundi grande semaine = service
 
 
+# ---------- Roadmap (plan annuel) ----------
+def test_roadmap_to_selection(client):
+    r = client.post("/roadmap", json={"weeks_to_selection": 142, "current_week": 0})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["selection_week"] == 142
+    assert body["current_phase"] == "base"
+    assert body["blocks"][0]["week_start"] == 0
+    assert any(b["is_current"] for b in body["blocks"])
+    assert any("SÉLECTION" in m for m in body["milestones"])
+
+
+def test_roadmap_rejects_out_of_range(client):
+    assert client.post("/roadmap", json={"weeks_to_selection": 3}).status_code == 422
+
+
 # ---------- Analytics ----------
 def test_analytics_warming_up_then_clear(client):
     snap = client.get("/analytics/snapshot").json()

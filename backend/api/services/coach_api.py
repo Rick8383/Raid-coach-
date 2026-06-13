@@ -24,6 +24,7 @@ from engines.run_engine.run_engine_service import generate_session as _run_gener
 from engines.run_engine.family_registry import RUN_FAMILIES  # noqa: E402
 from engines.selection_wods import SelectionWODGenerator  # noqa: E402
 from engines import schedule as _schedule  # noqa: E402
+from engines.rcos import AnnualPlanner  # noqa: E402
 from api.services.session_builder import build_session as _build_session  # noqa: E402
 
 # Legacy engines (B3-B7)
@@ -50,6 +51,7 @@ class CoachAPI:
         self.analytics = AnalyticsService()
         self.auto_plan_service = AutoPlanGeneratorService()
         self.wod_generator = SelectionWODGenerator()
+        self.annual_planner = AnnualPlanner()
         self._run_family_names = {f.id: f.name for f in RUN_FAMILIES}
 
     # ---- COACH ----
@@ -257,6 +259,30 @@ class CoachAPI:
         return {"wod_id": wod.wod_id, "name": wod.name,
                 "wod_format": wod.wod_format, "description": list(wod.description),
                 "scoring": wod.scoring, "equipment": list(wod.equipment)}
+
+    # ---- ROADMAP (plan annuel rétro-planifié RCOS B14) ----
+    def roadmap(self, payload: dict) -> dict:
+        weeks = int(payload["weeks_to_selection"])
+        weeks = max(8, min(weeks, 220))
+        plan = self.annual_planner.build(weeks)
+        current = payload.get("current_week", 0)
+        cur_block = AnnualPlanner.phase_for_week(plan, current)
+        return {
+            "weeks_total": plan.weeks_total,
+            "selection_week": plan.selection_week,
+            "current_week": current,
+            "current_phase": cur_block.phase.value,
+            "current_focus": cur_block.focus,
+            "blocks": [{
+                "phase": b.phase.value,
+                "week_start": b.week_start,
+                "week_end": b.week_end,
+                "focus": b.focus,
+                "weekly_su": list(b.target_weekly_su),
+                "is_current": b.week_start <= current <= b.week_end,
+            } for b in plan.blocks],
+            "milestones": plan.key_milestones,
+        }
 
     # ---- SCHEDULE (planning police 3/2/2/3) ----
     def schedule_day(self, payload: dict) -> dict:

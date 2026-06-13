@@ -96,7 +96,7 @@ cd mobile && npm run typecheck               # TypeScript strict
 Les audits historiques restent exécutables individuellement :
 `python build1_2_audit.py`, `build12_audit.py`, `build13_audit.py`, `build14_audit.py`.
 
-## Endpoints API (26)
+## Endpoints API (27)
 
 **Moteurs** : `/health` · `/coach/daily-decision` · `/coach/weekly-budget` ·
 `/coach/arbitrate-goals` · `/run/hr-profile` · `/run/predictions` · `/run/pace-table` ·
@@ -105,7 +105,8 @@ Les audits historiques restent exécutables individuellement :
 
 **Séance & planning** : `POST /coach/session` (décision + séance détaillée prête à
 exécuter, calée sur le planning 3/2/2/3) · `POST /schedule/day` · `POST /schedule/week` ·
-`POST /agenda/week` (semaine + intention par jour + séances réalisées)
+`POST /agenda/week` (semaine + intention par jour + séances réalisées) ·
+`POST /roadmap` (plan annuel rétro-planifié Base/Build/Peak/Taper jusqu'à 2029 + jalons)
 
 **Profil & analytics** : `GET /profile` · `PATCH /profile` (poids, FC, objectif…) ·
 `GET /analytics/snapshot` (forme / fatigue / ACWR / risque, dérivés des données) ·
@@ -139,7 +140,8 @@ automatiquement la décision du coach selon que le jour est travaillé ou non.
    (haut les jours OFF, modéré en service).
 6. **Objectifs** : readiness élite et progression vers les cibles sélection.
 7. **Profil** : données réelles (poids ajustable, FC, VMA, contrainte sciatique, maxes),
-   chargées depuis l'API avec cache offline.
+   chargées depuis l'API avec cache offline, + **feuille de route → 2029** (frise des
+   blocs Base/Build/Peak/Taper et jalons benchmarks, plan annuel RCOS).
 
 Le profil athlète réel (mensurations + maxes) est seedé en base au premier démarrage
 et alimente tous les écrans — plus aucune valeur en dur dans l'app.

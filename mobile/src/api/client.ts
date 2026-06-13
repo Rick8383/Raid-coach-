@@ -192,6 +192,25 @@ export interface AnalyticsSnapshot {
   sessions_logged?: number;
 }
 
+export interface RoadmapBlock {
+  phase: string;
+  week_start: number;
+  week_end: number;
+  focus: string;
+  weekly_su: number[];
+  is_current: boolean;
+}
+
+export interface Roadmap {
+  weeks_total: number;
+  selection_week: number;
+  current_week: number;
+  current_phase: string;
+  current_focus: string;
+  blocks: RoadmapBlock[];
+  milestones: string[];
+}
+
 export interface MacroTarget {
   day_type: string;
   calories: number;
@@ -227,6 +246,9 @@ export const api = {
     cachedPost<MacroTarget>('cache:macros', '/nutrition/daily-macros', body, 240),
 
   profile: () => cachedGet<AthleteProfile>('cache:profile', '/profile', 720),
+  roadmap: (weeksToSelection: number, currentWeek = 0) =>
+    cachedPost<Roadmap>('cache:roadmap', '/roadmap',
+      { weeks_to_selection: weeksToSelection, current_week: currentWeek }, 720),
   agendaWeek: (date: string) =>
     cachedPost<AgendaWeek>(`cache:agenda:${date}`, '/agenda/week', { date }, 60),
   analytics: () =>

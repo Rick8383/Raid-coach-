@@ -70,6 +70,11 @@ class ScheduleIn(BaseModel):
     date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
 
 
+class RoadmapIn(BaseModel):
+    weeks_to_selection: int = Field(ge=8, le=220)
+    current_week: int = Field(default=0, ge=0, le=220)
+
+
 class WeeklyBudgetIn(BaseModel):
     week_type: str
     sessions: list[dict] = []
@@ -261,6 +266,11 @@ def schedule_day(body: ScheduleIn) -> dict:
 @app.post("/schedule/week")
 def schedule_week(body: ScheduleIn) -> dict:
     return _safe(coach.schedule_week, body.model_dump())
+
+
+@app.post("/roadmap")
+def roadmap(body: RoadmapIn) -> dict:
+    return _safe(coach.roadmap, body.model_dump())
 
 
 @app.post("/coach/arbitrate-goals")

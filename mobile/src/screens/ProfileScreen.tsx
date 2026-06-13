@@ -6,7 +6,14 @@ import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AthleteProfile, api } from '../api/client';
 import { Card } from '../components/ui';
+import { Roadmap } from '../components/Roadmap';
 import { colors, spacing, typography } from '../theme/tokens';
+
+function weeksToGoal(goalDate?: string): number {
+  const target = new Date(goalDate ?? '2029-03-01').getTime();
+  const weeks = Math.round((target - Date.now()) / (7 * 24 * 3600 * 1000));
+  return Math.max(8, Math.min(weeks, 220));
+}
 
 const MAX_LABELS: Record<string, string> = {
   pullups_max: 'Tractions', pushups_max: 'Pompes', dips_max: 'Dips',
@@ -83,6 +90,9 @@ export function ProfileScreen({ profile, onProfile }: {
       <Text style={styles.hint}>
         Les maxes se mettent à jour via les re-tests benchmarks (toutes les 8-12 sem.).
       </Text>
+
+      {/* Feuille de route → 2029 */}
+      <Roadmap weeksToSelection={weeksToGoal(profile.goal_date)} />
     </ScrollView>
   );
 }
