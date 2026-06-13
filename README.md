@@ -96,7 +96,7 @@ cd mobile && npm run typecheck               # TypeScript strict
 Les audits historiques restent exécutables individuellement :
 `python build1_2_audit.py`, `build12_audit.py`, `build13_audit.py`, `build14_audit.py`.
 
-## Endpoints API (27)
+## Endpoints API (34)
 
 **Moteurs** : `/health` · `/coach/daily-decision` · `/coach/weekly-budget` ·
 `/coach/arbitrate-goals` · `/run/hr-profile` · `/run/predictions` · `/run/pace-table` ·
@@ -115,7 +115,12 @@ discipline : run / strength / crossfit, indépendant de la décision du jour) ·
 `GET /sessions/recent`
 
 **Persistance** : `POST /metrics/record` · `POST /sessions/complete` ·
+`POST /sessions/save` (séance générée → historique/agenda, planifiée ou faite) ·
 `POST /benchmarks/record` · `GET /metrics/latest` · `GET /benchmarks/{id}/progression`
+
+**Garmin Connect (OAuth serveur)** : `GET /garmin/status` · `GET /garmin/connect` ·
+`GET /garmin/callback` · `POST /garmin/sync` · `POST /garmin/disconnect` —
+synchro HRV / FC repos / sommeil vers le suivi et le plan (voir DEPLOY.md).
 
 ## Planning police 3/2/2/3
 

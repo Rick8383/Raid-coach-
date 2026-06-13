@@ -298,6 +298,12 @@ export const api = {
   dailyMacros: (body: Json) =>
     cachedPost<MacroTarget>('cache:macros', '/nutrition/daily-macros', body, 240),
 
+  // Garmin Connect (OAuth serveur)
+  garminStatus: () => get<{ configured: boolean; connected: boolean }>('/garmin/status'),
+  garminConnect: () => get<{ authorize_url: string }>('/garmin/connect'),
+  garminSync: () => post<{ status: string; date: string; metrics: Record<string, number> }>('/garmin/sync', {}),
+  garminDisconnect: () => post('/garmin/disconnect', {}),
+
   profile: () => cachedGet<AthleteProfile>('cache:profile', '/profile', 720),
   roadmap: (weeksToSelection: number, currentWeek = 0) =>
     cachedPost<Roadmap>('cache:roadmap', '/roadmap',

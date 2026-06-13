@@ -13,7 +13,7 @@
  * exploitable dès maintenant.
  */
 import React, { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { api } from '../api/client';
 import { Card, PrimaryButton, Tag } from '../components/ui';
 import { HealthSnapshot, readHealthSnapshot, sleepQualityFromHours } from '../wearable/health';
@@ -23,8 +23,9 @@ export function GarminConnectScreen({ onClose }: { onClose: () => void }) {
   const [snap, setSnap] = useState<HealthSnapshot | null>(null);
   const [hrv, setHrv] = useState(65);
   const [rhr, setRhr] = useState(48);
-  const [sleepH, setSleepH] = useState(75); // dixièmes d'heure (7.5 h) ? non : 0-100 → on stocke heures*10
+  const [sleepH, setSleepH] = useState(75);
   const [status, setStatus] = useState<string | null>(null);
+  const [garmin, setGarmin] = useState<{ configured: boolean; connected: boolean } | null>(null);
 
   useEffect(() => {
     readHealthSnapshot().then(s => {
@@ -33,9 +34,37 @@ export function GarminConnectScreen({ onClose }: { onClose: () => void }) {
       if (s.resting_hr) setRhr(s.resting_hr);
       if (s.sleep_hours) setSleepH(Math.round(s.sleep_hours * 10));
     }).catch(() => {});
+    api.garminStatus().then(setGarmin).catch(() => setGarmin({ configured: false, connected: false }));
   }, []);
 
   const today = () => new Date().toISOString().slice(0, 10);
+
+  const connectGarmin = async () => {
+    try {
+      const { authorize_url } = await api.garminConnect();
+      await Linking.openURL(authorize_url); // autorisation sur connect.garmin.com
+      setStatus('Autorise l\'accès dans la fenêtre Garmin, puis reviens et synchronise.');
+    } catch {
+      setStatus('Connexion Garmin indisponible (clés API non configurées côté serveur).');
+    }
+  };
+
+  const syncGarmin = async () => {
+    try {
+      const r = await api.garminSync();
+      const m = r.metrics || {};
+      setStatus(`Garmin synchronisé : HRV ${m.hrv ?? '—'} · FC ${m.resting_hr ?? '—'} · sommeil ${m.sleep_hours ?? '—'} h`);
+      api.garminStatus().then(setGarmin).catch(() => {});
+    } catch {
+      setStatus('Synchronisation Garmin échouée. Vérifie la connexion.');
+    }
+  };
+
+  const disconnectGarmin = async () => {
+    await api.garminDisconnect().catch(() => {});
+    setGarmin(g => g ? { ...g, connected: false } : g);
+    setStatus('Compte Garmin déconnecté.');
+  };
 
   const syncNow = async () => {
     const s = await readHealthSnapshot();
@@ -72,6 +101,34 @@ export function GarminConnectScreen({ onClose }: { onClose: () => void }) {
           HRV, FC de repos et sommeil alimentent le suivi et adaptent les séances de
           ton plan. Sans incidence sur les boutons « Générer ».
         </Text>
+
+        {/* Compte Garmin (OAuth serveur) */}
+        <Card style={{ padding: spacing.m, marginTop: spacing.m }}>
+          <View style={styles.srcRow}>
+            <Text style={styles.srcLabel}>COMPTE GARMIN</Text>
+            <Tag
+              label={garmin?.connected ? 'CONNECTÉ' : garmin?.configured ? 'NON CONNECTÉ' : 'NON CONFIGURÉ'}
+              color={garmin?.connected ? colors.signal : garmin?.configured ? colors.readyYellow : colors.textDisabled} />
+          </View>
+          {garmin?.configured ? (
+            garmin.connected ? (
+              <>
+                <PrimaryButton label="SYNCHRONISER DEPUIS GARMIN" onPress={syncGarmin} />
+                <Pressable onPress={disconnectGarmin} style={{ paddingVertical: spacing.m, alignItems: 'center' }}>
+                  <Text style={styles.disconnect}>Déconnecter</Text>
+                </Pressable>
+              </>
+            ) : (
+              <PrimaryButton label="CONNECTER MON COMPTE GARMIN" onPress={connectGarmin} />
+            )
+          ) : (
+            <Text style={styles.note}>
+              La connexion Garmin automatique nécessite des clés API Garmin Connect
+              côté serveur (voir DEPLOY.md). En attendant, utilise la synchro montre
+              ci-dessous ou la saisie manuelle.
+            </Text>
+          )}
+        </Card>
 
         {/* Source détectée */}
         <Card style={{ padding: spacing.m, marginTop: spacing.m }}>
@@ -162,5 +219,6 @@ const styles = StyleSheet.create({
   stepBtnText: { color: colors.signal, fontSize: 20, fontFamily: typography.display.fontFamily },
   stepValue: { color: colors.textPrimary, fontFamily: typography.display.fontFamily, fontSize: typography.sizes.h2, minWidth: 44, textAlign: 'center' },
   status: { color: colors.signal, fontSize: typography.sizes.small, marginTop: spacing.l, textAlign: 'center' },
+  disconnect: { color: colors.textSecondary, ...typography.label, fontSize: 10 },
   note: { color: colors.textDisabled, fontSize: typography.sizes.micro, marginTop: spacing.l, lineHeight: 16 },
 });

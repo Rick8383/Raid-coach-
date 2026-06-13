@@ -5,11 +5,15 @@ Docs auto-générées: http://localhost:8000/docs
 from __future__ import annotations
 
 import os
+from datetime import date as _date
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
+from api import garmin
+from api.garmin import GarminTokenStore
 from api.persistence import Store
 from api.services.coach_api import CoachAPI
 # CoachAPI met engines/legacy sur sys.path à l'import → AnalyticsInput accessible
@@ -34,6 +38,7 @@ app.add_middleware(
 
 coach = CoachAPI()
 store = Store()
+garmin_tokens = GarminTokenStore(store.db)
 
 
 def _safe(fn, payload: dict) -> dict:
@@ -484,6 +489,65 @@ def record_benchmark(body: BenchmarkRecordIn) -> dict:
         store.athlete_id, body.benchmark_id, body.result_value,
         body.result_unit, body.test_date, body.detail)
     return {"status": "recorded", "id": bench_id}
+
+
+# ---------- Garmin Connect (OAuth 1.0a serveur) ----------
+@app.get("/garmin/status")
+def garmin_status() -> dict:
+    return {"configured": garmin.is_configured(),
+            "connected": garmin_tokens.is_connected(store.athlete_id)}
+
+
+@app.get("/garmin/connect")
+def garmin_connect() -> dict:
+    if not garmin.is_configured():
+        raise HTTPException(status_code=503,
+                            detail="Garmin non configuré (clés API manquantes côté serveur).")
+    try:
+        authorize_url, token, secret = garmin.start_oauth()
+    except Exception as e:  # noqa: BLE001 — erreurs réseau/OAuth → message clair
+        raise HTTPException(status_code=502, detail=f"Garmin OAuth: {e}")
+    garmin_tokens.save_request_token(store.athlete_id, token, secret)
+    return {"authorize_url": authorize_url}
+
+
+@app.get("/garmin/callback")
+def garmin_callback(oauth_token: str, oauth_verifier: str) -> HTMLResponse:
+    row = garmin_tokens.get(store.athlete_id)
+    if not row or row.get("request_token") != oauth_token:
+        return HTMLResponse("<h2>Lien d'autorisation expiré. Relance la connexion.</h2>",
+                            status_code=400)
+    try:
+        access_token, access_secret = garmin.complete_oauth(
+            oauth_token, row["request_token_secret"], oauth_verifier)
+    except Exception as e:  # noqa: BLE001
+        return HTMLResponse(f"<h2>Échec de connexion Garmin: {e}</h2>", status_code=502)
+    garmin_tokens.save_access_token(store.athlete_id, access_token, access_secret)
+    return HTMLResponse(
+        "<h2>✅ Montre Garmin connectée</h2><p>Tu peux fermer cette page et "
+        "revenir dans l'app, puis lancer une synchronisation.</p>")
+
+
+@app.post("/garmin/sync")
+def garmin_sync() -> dict:
+    row = garmin_tokens.get(store.athlete_id)
+    if not row or not row.get("access_token"):
+        raise HTTPException(status_code=400, detail="Garmin non connecté.")
+    day = _date.today().isoformat()
+    try:
+        wellness = garmin.fetch_wellness(row["access_token"], row["access_token_secret"], day)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Garmin sync: {e}")
+    metrics = garmin.map_to_metrics(wellness)
+    if metrics:
+        store.metrics.upsert(store.athlete_id, day, **metrics)
+    return {"status": "synced", "date": day, "metrics": metrics}
+
+
+@app.post("/garmin/disconnect")
+def garmin_disconnect() -> dict:
+    garmin_tokens.disconnect(store.athlete_id)
+    return {"status": "disconnected"}
 
 
 @app.get("/metrics/latest")

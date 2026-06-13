@@ -143,8 +143,21 @@ CREATE TABLE IF NOT EXISTS nutrition_logs (
     adherence_pct REAL,
     UNIQUE(athlete_id, log_date)
 );
+
+-- ============ INTÉGRATIONS (OAuth montre) ============
+CREATE TABLE IF NOT EXISTS garmin_tokens (
+    id INTEGER PRIMARY KEY,
+    athlete_id INTEGER NOT NULL REFERENCES athlete_profiles(id),
+    request_token TEXT,
+    request_token_secret TEXT,
+    access_token TEXT,
+    access_token_secret TEXT,
+    connected_at TEXT,
+    UNIQUE(athlete_id)
+);
 """
 
 TABLES = ["users", "athlete_profiles", "sessions", "daily_metrics",
           "pr_records", "benchmark_results", "analytics_snapshots",
-          "training_plans", "coach_decisions", "nutrition_logs"]
+          "training_plans", "coach_decisions", "nutrition_logs",
+          "garmin_tokens"]

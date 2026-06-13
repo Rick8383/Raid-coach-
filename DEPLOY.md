@@ -60,6 +60,26 @@ npx expo export --platform web      # génère dist/
 Héberger `dist/` sur Netlify / Vercel / GitHub Pages, avec
 `EXPO_PUBLIC_API_URL` pointant sur l'API Render.
 
+## 5. Garmin Connect (synchro automatique HRV / FC repos / sommeil)
+
+L'intégration OAuth 1.0a est codée côté serveur ; il faut tes clés Garmin :
+
+1. S'inscrire au **Garmin Developer Program** (Health API) → obtenir
+   `consumer key` + `consumer secret` (l'accès demande une validation Garmin).
+2. Déclarer l'URL de callback `https://<ton-api>/garmin/callback`.
+3. Définir sur l'hébergeur :
+   - `GARMIN_CONSUMER_KEY`, `GARMIN_CONSUMER_SECRET`
+   - `GARMIN_REDIRECT_URL=https://<ton-api>/garmin/callback`
+4. Dans l'app : Profil → **Connexion montre** → « Connecter mon compte Garmin »
+   (autorisation sur connect.garmin.com), puis « Synchroniser ».
+
+Sans ces clés, l'écran affiche « non configuré » et la **saisie manuelle**
+(ou Apple Santé en build natif) reste disponible — l'app est utilisable sans Garmin.
+
+Endpoints serveur : `/garmin/status`, `/garmin/connect`, `/garmin/callback`,
+`/garmin/sync`, `/garmin/disconnect`. Les données alimentent le suivi et la
+mise à niveau du plan (boucle adaptative), sans toucher aux boutons « Générer ».
+
 ## Récapitulatif des variables
 
 | Variable | Où | Rôle |
@@ -68,3 +88,5 @@ Héberger `dist/` sur Netlify / Vercel / GitHub Pages, avec
 | `expo.extra.apiUrl` | `app.json` | URL de l'API (repli build natif) |
 | `CORS_ORIGINS` | backend (Render) | origines autorisées |
 | `RAID_COACH_DB` | backend | chemin SQLite (volume persistant) |
+| `GARMIN_CONSUMER_KEY` / `GARMIN_CONSUMER_SECRET` | backend | OAuth Garmin |
+| `GARMIN_REDIRECT_URL` | backend | callback OAuth Garmin |

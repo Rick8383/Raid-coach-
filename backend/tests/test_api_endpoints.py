@@ -293,6 +293,44 @@ def test_session_explicit_context_overrides_history(client):
     assert ctx["days_since_rest"] == 1
 
 
+# ---------- Garmin Connect (OAuth serveur) ----------
+def test_garmin_status_not_configured(client):
+    body = client.get("/garmin/status").json()
+    assert body["configured"] is False
+    assert body["connected"] is False
+
+
+def test_garmin_connect_requires_config(client):
+    assert client.get("/garmin/connect").status_code == 503
+
+
+def test_garmin_sync_requires_connection(client):
+    assert client.post("/garmin/sync").status_code == 400
+
+
+def test_garmin_token_roundtrip_and_disconnect(client):
+    import api.main as m
+    aid = m.store.athlete_id
+    m.garmin_tokens.save_request_token(aid, "req-tok", "req-sec")
+    m.garmin_tokens.save_access_token(aid, "acc-tok", "acc-sec")
+    assert client.get("/garmin/status").json()["connected"] is True
+    assert m.garmin_tokens.get(aid)["request_token"] is None  # nettoyé après échange
+    assert client.post("/garmin/disconnect").json()["status"] == "disconnected"
+    assert client.get("/garmin/status").json()["connected"] is False
+
+
+def test_garmin_map_to_metrics():
+    from api.garmin import map_to_metrics
+    out = map_to_metrics({
+        "dailies": [{"restingHeartRateInBeatsPerMinute": 46}],
+        "sleeps": [{"durationInSeconds": 27000}],   # 7.5 h
+        "hrv": [{"lastNightAvg": 72}]})
+    assert out["resting_hr"] == 46
+    assert out["sleep_hours"] == 7.5
+    assert out["hrv"] == 72.0
+    assert map_to_metrics({}) == {}   # aucune donnée → rien à écrire
+
+
 # ---------- Coach ----------
 def test_daily_decision_nominal(client):
     r = client.post("/coach/daily-decision", json={
