@@ -48,6 +48,9 @@ export function TodayScreen({ checkin, onOpenSession }: {
   const level = readinessLevelFor(checkin.readiness, checkin.sciatic);
   const decision = data?.decision;
   const session = data?.session;
+  const ctx = data?.context;
+  const acwrAlarm = ctx?.acwr_label === 'elevated_injury_risk'
+    || ctx?.acwr_label === 'high_injury_risk';
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={{ padding: spacing.m }}>
@@ -67,6 +70,26 @@ export function TodayScreen({ checkin, onOpenSession }: {
           filled={!sched.isWorkDay} />
         <Tag label={WEEK_LABEL[sched.weekType]} color={colors.textDisabled} />
       </View>
+
+      {/* Charge de la semaine (boucle adaptative) */}
+      {ctx && (
+        <View style={styles.loadRow}>
+          <LoadStat
+            value={`${ctx.budget_consumed_pct}%`}
+            label="budget hebdo"
+            color={ctx.budget_consumed_pct >= 100 ? colors.readyOrange : colors.textPrimary} />
+          <View style={styles.loadDivider} />
+          <LoadStat
+            value={`${ctx.days_since_rest}`}
+            label="jours sans repos"
+            color={ctx.days_since_rest >= 6 ? colors.readyOrange : colors.textPrimary} />
+          <View style={styles.loadDivider} />
+          <LoadStat
+            value={ctx.acwr_label === 'insufficient_history' ? '—' : `${ctx.acwr ?? '—'}`}
+            label="ACWR"
+            color={acwrAlarm ? colors.readyOrange : colors.textPrimary} />
+        </View>
+      )}
 
       {/* Best Action Today */}
       {session && decision && (
@@ -124,9 +147,27 @@ export function TodayScreen({ checkin, onOpenSession }: {
   );
 }
 
+function LoadStat({ value, label, color }: { value: string; label: string; color: string }) {
+  return (
+    <View style={styles.loadStat}>
+      <Text style={[styles.loadValue, { color }]}>{value}</Text>
+      <Text style={styles.loadLabel}>{label}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   countdown: { alignItems: 'center', marginVertical: spacing.l },
+  loadRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',
+    backgroundColor: colors.bgCard, borderRadius: spacing.cardRadius,
+    paddingVertical: spacing.m, marginTop: spacing.m,
+  },
+  loadStat: { alignItems: 'center', flex: 1 },
+  loadValue: { fontFamily: typography.display.fontFamily, fontSize: typography.sizes.h1 },
+  loadLabel: { color: colors.textDisabled, ...typography.label, fontSize: 9, marginTop: 2 },
+  loadDivider: { width: 1, height: 28, backgroundColor: colors.hairline },
   countdownNumber: {
     color: colors.textPrimary, fontSize: typography.sizes.countdown,
     fontFamily: typography.display.fontFamily,

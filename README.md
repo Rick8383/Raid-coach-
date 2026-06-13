@@ -177,6 +177,23 @@ L'app iOS se distribue via **EAS / TestFlight** (compte Apple Developer requis) 
 cd mobile && npx eas build --platform ios
 ```
 
+## Boucle adaptative (le cœur)
+
+> Athlète → Entraînement → Historique → Analytics → Adaptive Coach → Nouvelle séance optimisée
+
+La boucle est fermée : à la fin d'une séance, l'app capture le **RPE ressenti** et le
+backend calcule la charge (`SU = durée × (RPE/10)² × terrain × charge`). À chaque
+demande de séance (`/coach/session`), le coach **réinjecte l'historique stocké** :
+
+- disciplines des 2 dernières séances (anti-répétition, évite 3 jours « jambes » d'affilée) ;
+- budget fatigue hebdomadaire consommé (% du plafond 420 SU grande semaine / 620 petite) ;
+- jours d'entraînement consécutifs (déclenche un repos forcé au-delà de 6) ;
+- ACWR (charge aiguë 7 j / chronique 28 j, sweet spot 0,8–1,3 ; « historique insuffisant »
+  tant que la base chronique est trop courte).
+
+L'écran « Jour » affiche cette charge (budget hebdo, jours sans repos, ACWR) pour que la
+décision soit lisible. Le client peut toujours surcharger ces valeurs explicitement.
+
 ## Garde-fous métier
 
 - Le coach ne génère **jamais** de séance dangereuse : crise sciatique L5-S1 → intensité plafonnée, alternatives sans charge axiale.

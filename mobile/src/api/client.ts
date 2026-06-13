@@ -143,9 +143,22 @@ export interface DetailedSession {
   coach_reason: string;
 }
 
+export interface AdaptiveContext {
+  budget_consumed_pct: number;
+  days_since_rest: number;
+  last_two_disciplines: string[];
+  week_type?: string;
+  consumed_su?: number;
+  budget_su?: number;
+  acute_7d_su?: number;
+  acwr?: number;
+  acwr_label?: string;
+}
+
 export interface SessionToday {
   decision: DailyDecision;
   session: DetailedSession;
+  context: AdaptiveContext;
 }
 
 export interface AthleteProfile {

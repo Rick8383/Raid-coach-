@@ -59,9 +59,10 @@ class SessionTodayIn(BaseModel):
     is_work_day: bool | None = None
     week_type: str | None = Field(default=None, pattern="^(big_work|small_work)$")
     weeks_to_main_goal: int | None = None
-    last_two_disciplines: list[str] = []
-    budget_consumed_pct: float = Field(default=0, ge=0, le=200)
-    days_since_rest: int = Field(default=0, ge=0)
+    # défauts None → calculés depuis l'historique si non fournis (boucle adaptative)
+    last_two_disciplines: list[str] | None = None
+    budget_consumed_pct: float | None = Field(default=None, ge=0, le=200)
+    days_since_rest: int | None = Field(default=None, ge=0)
     terrain: str = "trail"
     athlete_level: str = "intermediate"
 
@@ -248,11 +249,77 @@ def daily_decision(body: DailyDecisionIn) -> dict:
     return _safe(coach.daily_decision, body.model_dump())
 
 
+def _adaptive_context(payload: dict) -> dict:
+    """Calcule depuis l'historique stocké les entrées que le coach exploite :
+    disciplines récentes, budget fatigue hebdo consommé, jours d'entraînement
+    consécutifs, ACWR. Requiert une `date` (sinon contexte vide)."""
+    from datetime import date, timedelta
+    if not payload.get("date"):
+        return {}
+    day = date.fromisoformat(payload["date"])
+    week_type = coach.schedule_day({"date": payload["date"]})["week_type"]
+    monday = (day - timedelta(days=day.weekday())).isoformat()
+    yesterday = (day - timedelta(days=1)).isoformat()
+
+    done = [s for s in store.sessions.last_n(store.athlete_id, 40) if s["status"] == "done"]
+    last_two = [s["discipline"] for s in done[:2]]
+
+    consumed = store.sessions.stress_units_between(store.athlete_id, monday, payload["date"])
+    budget = coach.weekly_budget_su(week_type)
+    budget_pct = round(consumed / budget * 100, 1) if budget else 0.0
+
+    # jours d'entraînement consécutifs jusqu'à hier (run/crossfit/strength)
+    trained = {s["session_date"] for s in done
+               if s["discipline"] in ("run", "crossfit", "strength")}
+    days_since_rest = 0
+    cur = day - timedelta(days=1)
+    for _ in range(14):
+        if cur.isoformat() in trained:
+            days_since_rest += 1
+            cur -= timedelta(days=1)
+        else:
+            break
+
+    # ACWR : charge aiguë 7j vs charge chronique hebdo moyenne sur 28j.
+    # Tant que la base chronique est trop courte (< 21 j d'historique), l'ACWR
+    # n'est pas fiable → on l'affiche comme "insuffisant" plutôt que d'alarmer.
+    acute = store.sessions.stress_units_between(
+        store.athlete_id, (day - timedelta(days=7)).isoformat(), payload["date"])
+    chronic_total = store.sessions.stress_units_between(
+        store.athlete_id, (day - timedelta(days=28)).isoformat(), payload["date"])
+    earliest = min((s["session_date"] for s in done), default=payload["date"])
+    history_days = (day - date.fromisoformat(earliest)).days
+    if history_days < 21:
+        acwr_val, acwr_label = round(acute / (chronic_total / 4), 2) if chronic_total else 0.0, "insufficient_history"
+    else:
+        acwr_val, acwr_label = coach.acwr(acute, chronic_total / 4)
+
+    return {
+        "last_two_disciplines": last_two,
+        "budget_consumed_pct": budget_pct,
+        "days_since_rest": days_since_rest,
+        "_meta": {"week_type": week_type, "consumed_su": round(consumed, 1),
+                  "budget_su": budget, "acute_7d_su": round(acute, 1),
+                  "acwr": acwr_val, "acwr_label": acwr_label},
+    }
+
+
 @app.post("/coach/session")
 def coach_session(body: SessionTodayIn) -> dict:
     # on retire les champs None pour laisser le planning (date) ou les défauts agir
     payload = {k: v for k, v in body.model_dump().items() if v is not None}
-    return _safe(coach.session_today, payload)
+    adaptive = _adaptive_context(payload)
+    meta = adaptive.pop("_meta", {})
+    for k, v in adaptive.items():
+        payload.setdefault(k, v)  # l'override explicite du client est prioritaire
+    result = _safe(coach.session_today, payload)
+    result["context"] = {
+        "budget_consumed_pct": payload.get("budget_consumed_pct", 0),
+        "days_since_rest": payload.get("days_since_rest", 0),
+        "last_two_disciplines": payload.get("last_two_disciplines", []),
+        **meta,
+    }
+    return result
 
 
 @app.post("/coach/weekly-budget")
@@ -341,9 +408,11 @@ def record_metrics(body: MetricsRecordIn) -> dict:
 
 @app.post("/sessions/complete")
 def complete_session(body: SessionCompleteIn) -> dict:
+    # charge (SU) calculée serveur si non fournie → cohérente avec budget/ACWR
+    su = body.stress_units or coach.compute_su(body.duration_min, body.intensity_rpe)
     session_id = store.sessions.record(
         store.athlete_id, body.discipline, body.session_date,
-        body.duration_min, body.intensity_rpe, body.stress_units,
+        body.duration_min, body.intensity_rpe, su,
         body.detail, status="done",
         family_id=body.family_id, template_id=body.template_id)
     if body.feedback:

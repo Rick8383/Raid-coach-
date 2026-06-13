@@ -182,6 +182,44 @@ def test_sessions_recent(client):
     assert any(s["discipline"] == "swim" for s in body["sessions"])
 
 
+# ---------- Boucle adaptative ----------
+def test_session_su_computed_on_completion(client):
+    r = client.post("/sessions/complete", json={
+        "discipline": "run", "session_date": "2027-03-01",
+        "duration_min": 60, "intensity_rpe": 7})
+    assert r.status_code == 200
+    # 60 × (7/10)² = 29.4 SU stockées (pas 0)
+    rows = client.get("/sessions/recent?n=50").json()["sessions"]
+    sess = next(s for s in rows if s["session_date"] == "2027-03-01")
+    assert sess["stress_units"] == pytest.approx(29.4, abs=0.5)
+
+
+def test_session_injects_history_context(client):
+    # semaine chargée avant la date cible → budget consommé non nul + disciplines récentes
+    for d, disc in [("2027-04-05", "run"), ("2027-04-06", "strength"),
+                    ("2027-04-07", "crossfit")]:
+        client.post("/sessions/complete", json={
+            "discipline": disc, "session_date": d,
+            "duration_min": 60, "intensity_rpe": 8})
+    r = client.post("/coach/session", json={
+        "date": "2027-04-08", "readiness": 70, "fatigue": 45, "sleep_quality": 70})
+    assert r.status_code == 200
+    ctx = r.json()["context"]
+    assert ctx["budget_consumed_pct"] > 0
+    assert ctx["days_since_rest"] >= 3
+    assert ctx["last_two_disciplines"]  # rempli depuis l'historique
+    assert "acwr" in ctx
+
+
+def test_session_explicit_context_overrides_history(client):
+    r = client.post("/coach/session", json={
+        "date": "2027-04-08", "readiness": 70, "fatigue": 45, "sleep_quality": 70,
+        "budget_consumed_pct": 95, "days_since_rest": 1})
+    ctx = r.json()["context"]
+    assert ctx["budget_consumed_pct"] == 95   # la valeur client prime
+    assert ctx["days_since_rest"] == 1
+
+
 # ---------- Coach ----------
 def test_daily_decision_nominal(client):
     r = client.post("/coach/daily-decision", json={

@@ -81,6 +81,25 @@ class CoachAPI:
             "safety_notes": d.safety_notes,
         }
 
+    # ---- Charges & ACWR (boucle adaptative) ----
+    def compute_su(self, duration_min: int, intensity_rpe: float,
+                   terrain_factor: float = 1.0, load_kg: float = 0.0) -> float:
+        """Stress units d'une séance — même formule que SessionLoad.stress_units,
+        robuste aux entrées hors bornes (repos = 0)."""
+        if duration_min <= 0:
+            return 0.0
+        rpe = min(10.0, max(1.0, float(intensity_rpe)))
+        tf = min(1.5, max(1.0, float(terrain_factor)))
+        load = min(40.0, max(0.0, float(load_kg)))
+        return SessionLoad(Discipline.RUN, int(min(300, duration_min)),
+                           rpe, tf, load).stress_units
+
+    def weekly_budget_su(self, week_type: str) -> float:
+        return self.budget_engine.budget_for(WeekType(week_type)).total_budget_su
+
+    def acwr(self, acute_7d_su: float, chronic_28d_avg_su: float) -> tuple[float, str]:
+        return self.budget_engine.acwr(acute_7d_su, chronic_28d_avg_su)
+
     def weekly_budget(self, payload: dict) -> dict:
         sessions = [SessionLoad(Discipline(s["discipline"]), s["duration_min"],
                                 s["intensity"], s.get("terrain_factor", 1.0),
