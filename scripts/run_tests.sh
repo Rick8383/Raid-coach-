@@ -3,7 +3,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-echo "=== Backend : pytest (26 tests, inclut les 4 audits 100 samples) ==="
+echo "=== Backend : pytest (inclut les 4 audits 100 samples) ==="
 cd "$ROOT/backend"
 python3 -m pytest tests/ -q
 

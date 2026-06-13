@@ -164,14 +164,20 @@ def test_b2f_anti_repetition():
 
 
 def test_b2g_pipeline_variety():
-    """50 sessions générées → au moins 10 familles distinctes (variété)."""
+    """50 sessions générées → au moins 10 familles distinctes (variété).
+    Seed fixe : le sélecteur tire au sort parmi les familles éligibles
+    (random.choice) — on fige l'aléa pour un audit reproductible. Readiness
+    haute pour exposer toute la bibliothèque (sinon le governor restreint)."""
+    import random
+    random.seed(1234)
     families: set[str] = set()
     for i in range(50):
         s = generate_session(
             goal=["raid", "10k", "trail"][i % 3],
             phase=["base", "build", "peak"][i % 3],
             availability_min=45 + (i % 4) * 15,
-            terrain=["road", "trail", "hilly", "mountain"][i % 4])
+            terrain=["road", "trail", "hilly", "mountain"][i % 4],
+            sleep=85, fatigue=20, stress=20, motivation=85, recovery=85)
         families.add(s.family_id)
     assert len(families) >= 10
 
