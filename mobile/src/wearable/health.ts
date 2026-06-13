@@ -11,14 +11,21 @@
  * L'écran de check-in consomme `readHealthSnapshot()` sans se soucier de la source.
  */
 
+export type HealthSource = 'apple_health' | 'garmin' | 'simulated' | 'manual';
+
 export interface HealthSnapshot {
   hrv_ms: number | null;        // HRV SDNN en millisecondes
   resting_hr: number | null;    // FC de repos (bpm)
   sleep_hours: number | null;   // durée de sommeil (h)
   sleep_quality: number | null; // qualité dérivée 0-100
-  source: 'apple_health' | 'simulated';
+  source: HealthSource;
   source_label: string;
   measured_at: string;          // ISO
+}
+
+export function sleepQualityFromHours(hours: number): number {
+  const ratio = Math.min(1, hours / 8);
+  return Math.round(40 + ratio * 60);
 }
 
 /** Charge le module natif seulement s'il existe (jamais en Expo Go). */
@@ -32,12 +39,6 @@ function loadAppleHealth(): any | null {
   } catch {
     return null;
   }
-}
-
-/** Qualité de sommeil dérivée de la durée (cible ~8 h). */
-function sleepQualityFromHours(hours: number): number {
-  const ratio = Math.min(1, hours / 8);
-  return Math.round(40 + ratio * 60); // 5 h → ~78, 8 h → 100
 }
 
 async function readApple(health: any): Promise<HealthSnapshot | null> {

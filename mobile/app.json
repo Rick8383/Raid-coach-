@@ -6,12 +6,23 @@
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0B1120",
+    "scheme": "raidcoach",
     "ios": {
       "bundleIdentifier": "com.raidcoach.app",
+      "buildNumber": "1",
       "supportsTablet": false,
-      "infoPlist": { "UIBackgroundModes": ["fetch"] }
+      "infoPlist": {
+        "UIBackgroundModes": ["fetch"],
+        "NSHealthShareUsageDescription": "RAID Coach lit ta HRV, ta FC de repos et ton sommeil pour adapter tes séances.",
+        "NSHealthUpdateUsageDescription": "RAID Coach peut enregistrer tes séances dans Santé.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": { "package": "com.raidcoach.app" },
-    "extra": { "apiUrl": "http://localhost:8000" }
+    "plugins": ["expo-notifications"],
+    "extra": {
+      "apiUrl": "http://localhost:8000",
+      "eas": { "projectId": "" }
+    }
   }
 }

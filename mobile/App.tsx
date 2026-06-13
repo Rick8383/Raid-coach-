@@ -7,21 +7,23 @@ import { AthleteProfile, api, flushSyncQueue, SessionToday } from './src/api/cli
 import { CheckinScreen } from './src/screens/CheckinScreen';
 import { TodayScreen } from './src/screens/TodayScreen';
 import { AgendaScreen } from './src/screens/AgendaScreen';
-import { RunZonesScreen } from './src/screens/RunZonesScreen';
+import { WorkoutsScreen } from './src/screens/WorkoutsScreen';
 import { NutritionScreen } from './src/screens/NutritionScreen';
 import { BenchmarksScreen } from './src/screens/BenchmarksScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { SessionDetailScreen } from './src/screens/SessionDetailScreen';
+import { GarminConnectScreen } from './src/screens/GarminConnectScreen';
+import { initReminders } from './src/notifications';
 import { readinessLevelFor, colors, typography } from './src/theme/tokens';
 
-type Tab = 'today' | 'agenda' | 'course' | 'nutrition' | 'benchmarks' | 'profile';
+type Tab = 'today' | 'workouts' | 'agenda' | 'nutrition' | 'benchmarks' | 'profile';
 type Checkin = { readiness: number; fatigue: number; sleep: number; sciatic: boolean };
 type OpenSession = { data: SessionToday; dateIso: string };
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'today', label: 'JOUR' },
+  { key: 'workouts', label: 'SÉANCES' },
   { key: 'agenda', label: 'AGENDA' },
-  { key: 'course', label: 'COURSE' },
   { key: 'nutrition', label: 'NUTRITION' },
   { key: 'benchmarks', label: 'OBJECTIFS' },
   { key: 'profile', label: 'PROFIL' },
@@ -34,11 +36,13 @@ export default function App() {
   const [checkin, setCheckin] = useState<Checkin | null>(null);
   const [tab, setTab] = useState<Tab>('today');
   const [openSession, setOpenSession] = useState<OpenSession | null>(null);
+  const [showConnect, setShowConnect] = useState(false);
   const [profile, setProfile] = useState<AthleteProfile | null>(null);
 
-  // Charge le profil réel (avec cache offline) au lancement.
+  // Charge le profil réel (avec cache offline) + programme les rappels au lancement.
   useEffect(() => {
     api.profile().then(setProfile).catch(() => {});
+    initReminders().catch(() => {});
   }, []);
 
   // Vide la file d'écritures offline au lancement et après chaque check-in.
@@ -80,6 +84,16 @@ export default function App() {
     );
   }
 
+  if (showConnect) {
+    return (
+      <SafeAreaProvider>
+        <SafeAreaView style={styles.root}>
+          <GarminConnectScreen onClose={() => setShowConnect(false)} />
+        </SafeAreaView>
+      </SafeAreaProvider>
+    );
+  }
+
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.root}>
@@ -93,11 +107,14 @@ export default function App() {
               checkin={checkin}
               onOpenSession={(data, dateIso) => setOpenSession({ data, dateIso })} />
           )}
+          {tab === 'workouts' && <WorkoutsScreen profile={profile} />}
           {tab === 'agenda' && <AgendaScreen />}
-          {tab === 'course' && <RunZonesScreen profile={profile} />}
           {tab === 'nutrition' && <NutritionScreen profile={profile} />}
           {tab === 'benchmarks' && <BenchmarksScreen profile={profile} />}
-          {tab === 'profile' && <ProfileScreen profile={profile} onProfile={setProfile} />}
+          {tab === 'profile' && (
+            <ProfileScreen profile={profile} onProfile={setProfile}
+              onConnectWatch={() => setShowConnect(true)} />
+          )}
         </View>
         <View style={styles.tabbar}>
           {TABS.map(t => (

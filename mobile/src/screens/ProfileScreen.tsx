@@ -2,11 +2,12 @@
  * Profil athlète — données réelles chargées depuis l'API, poids ajustable.
  * Affiche l'objectif, les mensurations, la contrainte sciatique et les maxes.
  */
-import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Pressable, StyleSheet, Switch, Text, View, ScrollView } from 'react-native';
 import { AthleteProfile, api } from '../api/client';
 import { Card } from '../components/ui';
 import { Roadmap } from '../components/Roadmap';
+import { applyReminders, loadPrefs, ReminderPrefs } from '../notifications';
 import { colors, spacing, typography } from '../theme/tokens';
 
 function weeksToGoal(goalDate?: string): number {
@@ -21,11 +22,20 @@ const MAX_LABELS: Record<string, string> = {
   cooper_m: 'Cooper (m)', bench_ratio: 'Dév. couché (kg)', squat_ratio: 'Squat (kg)',
 };
 
-export function ProfileScreen({ profile, onProfile }: {
+export function ProfileScreen({ profile, onProfile, onConnectWatch }: {
   profile: AthleteProfile | null;
   onProfile: (p: AthleteProfile) => void;
+  onConnectWatch?: () => void;
 }) {
   const [saving, setSaving] = useState(false);
+  const [reminders, setReminders] = useState<ReminderPrefs | null>(null);
+
+  useEffect(() => { loadPrefs().then(setReminders); }, []);
+
+  const updateReminders = (next: ReminderPrefs) => {
+    setReminders(next);
+    applyReminders(next).catch(() => {});
+  };
 
   if (!profile) {
     return <View style={styles.root}><Text style={styles.empty}>Profil indisponible.</Text></View>;
@@ -62,6 +72,14 @@ export function ProfileScreen({ profile, onProfile }: {
         <Text style={styles.target}>Objectif : {profile.target_weight_kg ?? 79} kg sec</Text>
       </Card>
 
+      {/* Connexion montre */}
+      {onConnectWatch && (
+        <Pressable onPress={onConnectWatch} style={styles.connect}>
+          <Text style={styles.connectText}>⌚  CONNEXION MONTRE (GARMIN / APPLE)</Text>
+          <Text style={styles.connectChevron}>›</Text>
+        </Pressable>
+      )}
+
       {/* Mensurations */}
       <View style={styles.statsRow}>
         <Stat value={`${profile.height_cm ?? '—'}`} label="taille (cm)" />
@@ -90,6 +108,35 @@ export function ProfileScreen({ profile, onProfile }: {
       <Text style={styles.hint}>
         Les maxes se mettent à jour via les re-tests benchmarks (toutes les 8-12 sem.).
       </Text>
+
+      {/* Rappels */}
+      {reminders && (
+        <>
+          <Text style={styles.section}>RAPPELS</Text>
+          <Card style={{ padding: spacing.m }}>
+            <View style={styles.reminderRow}>
+              <Text style={styles.reminderLabel}>Check-in du matin</Text>
+              <Switch
+                value={reminders.enabled}
+                onValueChange={(v) => updateReminders({ ...reminders, enabled: v })}
+                trackColor={{ true: colors.signalDim, false: colors.hairline }} />
+            </View>
+            {reminders.enabled && (
+              <View style={[styles.reminderRow, { borderTopWidth: 1, borderTopColor: colors.hairline, paddingTop: spacing.s }]}>
+                <Text style={styles.reminderLabel}>Heure</Text>
+                <View style={styles.hourCtrl}>
+                  <Pressable onPress={() => updateReminders({ ...reminders, hour: Math.max(4, reminders.hour - 1) })} style={styles.hourBtn}><Text style={styles.hourBtnText}>–</Text></Pressable>
+                  <Text style={styles.hourValue}>{String(reminders.hour).padStart(2, '0')}:00</Text>
+                  <Pressable onPress={() => updateReminders({ ...reminders, hour: Math.min(12, reminders.hour + 1) })} style={styles.hourBtn}><Text style={styles.hourBtnText}>+</Text></Pressable>
+                </View>
+              </View>
+            )}
+            <Text style={styles.reminderHint}>
+              + rappel automatique de re-test des benchmarks toutes les ~10 semaines.
+            </Text>
+          </Card>
+        </>
+      )}
 
       {/* Feuille de route → 2029 */}
       <Roadmap weeksToSelection={weeksToGoal(profile.goal_date)} />
@@ -125,6 +172,21 @@ const styles = StyleSheet.create({
   weight: { color: colors.textPrimary, fontFamily: typography.display.fontFamily, fontSize: 48 },
   unit: { color: colors.textSecondary, fontSize: typography.sizes.h2 },
   target: { color: colors.textSecondary, fontSize: typography.sizes.small },
+  connect: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: colors.bgCard, borderRadius: spacing.cardRadius,
+    paddingVertical: spacing.m, paddingHorizontal: spacing.m, marginTop: spacing.m,
+    borderWidth: 1, borderColor: colors.hairlineStrong,
+  },
+  connectText: { color: colors.textPrimary, ...typography.label, fontSize: 11 },
+  connectChevron: { color: colors.signal, fontSize: 22 },
+  reminderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: spacing.s },
+  reminderLabel: { color: colors.textPrimary, fontSize: typography.sizes.body },
+  hourCtrl: { flexDirection: 'row', alignItems: 'center', gap: spacing.m },
+  hourBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.bgElevated, borderWidth: 1, borderColor: colors.hairlineStrong, alignItems: 'center', justifyContent: 'center' },
+  hourBtnText: { color: colors.signal, fontSize: 18, fontFamily: typography.display.fontFamily },
+  hourValue: { color: colors.textPrimary, fontFamily: typography.display.fontFamily, fontSize: typography.sizes.h2, minWidth: 56, textAlign: 'center' },
+  reminderHint: { color: colors.textDisabled, fontSize: typography.sizes.micro, marginTop: spacing.s, lineHeight: 16 },
   stepper: {
     width: 48, height: 48, borderRadius: 24, backgroundColor: colors.bgElevated,
     borderWidth: 1, borderColor: colors.hairlineStrong, alignItems: 'center', justifyContent: 'center',

@@ -4,7 +4,7 @@
  * l'allure cible s'adapte (le moteur tient compte du D+ et de la charge portée).
  */
 import React, { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AthleteProfile, HRProfile, PaceTable, api } from '../api/client';
 import { Card } from '../components/ui';
 import { colors, spacing, typography } from '../theme/tokens';
@@ -29,7 +29,7 @@ function ageFrom(birth?: string): number {
   return Math.max(14, Math.floor((Date.now() - new Date(birth).getTime()) / (365.25 * 24 * 3600 * 1000)));
 }
 
-export function RunZonesScreen({ profile }: { profile: AthleteProfile | null }) {
+export function RunZonesView({ profile }: { profile: AthleteProfile | null }) {
   const [hr, setHr] = useState<HRProfile | null>(null);
   const [paces, setPaces] = useState<PaceTable | null>(null);
   const [terrain, setTerrain] = useState('trail');
@@ -54,7 +54,7 @@ export function RunZonesScreen({ profile }: { profile: AthleteProfile | null }) 
   const paceByZone = (z: string) => paces?.targets.find(t => t.zone === z);
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={{ padding: spacing.m }}>
+    <View>
       <Text style={styles.h1}>ZONES FC & ALLURES</Text>
       <Text style={styles.sub}>
         VMA {vma} km/h · FC max {hr?.fc_max ?? profile?.fc_max ?? '—'} bpm
@@ -108,7 +108,7 @@ export function RunZonesScreen({ profile }: { profile: AthleteProfile | null }) 
         Allures ajustées au terrain (D+) et à la charge portée. Re-teste ta VMA
         en semaine 1 de chaque bloc pour les recalibrer.
       </Text>
-    </ScrollView>
+    </View>
   );
 }
 

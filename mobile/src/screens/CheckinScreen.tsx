@@ -3,8 +3,8 @@
  * Sans check-in, pas de décision. */
 import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
-import Slider from '@react-native-community/slider';
 import { api } from '../api/client';
+import { GaugeInput } from '../components/GaugeInput';
 import { HealthSnapshot, readHealthSnapshot } from '../wearable/health';
 import { colors, spacing, typography } from '../theme/tokens';
 
@@ -37,18 +37,6 @@ export function CheckinScreen({ onDone }: { onDone: (c: any) => void }) {
     onDone(checkin);
   };
 
-  const Row = ({ label, value, set }: any) => (
-    <View style={styles.row}>
-      <View style={styles.rowHeader}>
-        <Text style={styles.label}>{label}</Text>
-        <Text style={styles.value}>{value}</Text>
-      </View>
-      <Slider minimumValue={0} maximumValue={100} step={5} value={value}
-        onValueChange={set} minimumTrackTintColor={colors.signal}
-        maximumTrackTintColor={colors.hairline} thumbTintColor={colors.textPrimary} />
-    </View>
-  );
-
   return (
     <View style={styles.root}>
       <Text style={styles.title}>CHECK-IN</Text>
@@ -68,9 +56,9 @@ export function CheckinScreen({ onDone }: { onDone: (c: any) => void }) {
         </View>
       )}
 
-      <Row label="Forme ressentie" value={readiness} set={setReadiness} />
-      <Row label="Fatigue" value={fatigue} set={setFatigue} />
-      <Row label="Sommeil" value={sleep} set={setSleep} />
+      <GaugeInput label="Forme ressentie" value={readiness} onChange={setReadiness} />
+      <GaugeInput label="Fatigue" value={fatigue} onChange={setFatigue} color={colors.readyOrange} />
+      <GaugeInput label="Sommeil" value={sleep} onChange={setSleep} color={colors.fitness} />
       <View style={[styles.row, styles.switchRow]}>
         <Text style={styles.label}>Gêne sciatique aujourd'hui</Text>
         <Switch value={sciatic} onValueChange={setSciatic}

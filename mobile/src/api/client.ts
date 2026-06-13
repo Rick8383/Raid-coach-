@@ -277,6 +277,9 @@ export const api = {
   sessionToday: (ctx: Json) =>
     cachedPost<SessionToday>('cache:session', '/coach/session', ctx, 60),
 
+  // Générateur dédié d'une page (course/force/wod) — toujours frais, pas de cache.
+  generate: (body: Json) => post<DetailedSession>('/generate', body),
+
   weeklyBudget: (body: Json) =>
     cachedPost('cache:budget', '/coach/weekly-budget', body, 30),
 
