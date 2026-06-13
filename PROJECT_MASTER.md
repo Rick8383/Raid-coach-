@@ -429,3 +429,27 @@ Readiness élite actuelle : **52,7 %** (cibles révisées : 35 tractions, 120 po
 ✅ FAIT : WODs officiels sélection 2026 intégrés (engines/selection_wods.py) — benchmarks de référence à re-tester toutes les 8-12 semaines.
 
 *PROJECT_MASTER.md v2.4 · Maintenu par Claude · Toute nouvelle conversation doit commencer par “Charge PROJECT_MASTER.md” avec ce fichier joint.*
+
+-----
+
+## 16. Reprise sous Claude Code — Backend déployable + App exploitable (13/06/2026)
+
+> Ajout du 13/06/2026. Ce paragraphe complète l'historique ci-dessus sans rien en modifier.
+
+Le projet a été repris sous **Claude Code** et structuré en monorepo (`backend/` FastAPI + moteurs, `mobile/` Expo/React Native, `PROJECT_MASTER.md` à la racine).
+
+**Audit & fiabilité** — Les fichiers backend (B1→B14) et l'app iOS ont été importés, audités et rendus exécutables de bout en bout. **9 bugs confirmés corrigés** (avec tests de régression) : connexion SQLite inutilisable depuis le threadpool FastAPI, readiness `run_engine` à signe inversé, import `run_elite` via `/tmp`, macros nutrition sur profils extrêmes, 500 sur payloads imbriqués, singularité Brzycki e1RM, `raid_plan` cassé, injection SQL latente (allowlist colonnes), récursion non bornée des variantes WOD. Un test d'audit non déterministe (variété run) a été figé par seed.
+
+**Backend (34 endpoints)** — Générateur de séance **par discipline** (`/generate` : course / force / WOD, indépendant de la décision du jour et de la montre, variété par seed) ; **planning police 3/2/2/3** source de vérité (ancre : semaine du **lundi 15/06/2026 = grande semaine**, alternance) ; agenda prévisionnel, analytics (forme/fatigue/ACWR/risque), **roadmap annuel RCOS** rétro-planifié jusqu'à 2029 ; **persistance des séances générées** (planifiées/faites → historique + agenda). **Boucle adaptative fermée** : RPE ressenti → charge (SU) → l'historique (disciplines récentes, budget fatigue hebdo, jours sans repos, ACWR) ré-alimente la décision quotidienne.
+
+**Montre & Garmin** — Couche wearable (HRV / FC repos / sommeil) alimentant le check-in et le plan ; **intégration Garmin Connect OAuth 1.0a côté serveur** (`/garmin/*`, table `garmin_tokens`, mapping Wellness API → métriques) qui s'active avec les clés `GARMIN_CONSUMER_KEY/SECRET`, sans incidence sur les boutons « Générer ».
+
+**App mobile** — Écrans : check-in, jour, séance détaillée, séances Course/Force/WOD, agenda, nutrition, objectifs, profil (+ roadmap + connexion montre + rappels). **Compatibilité web** rétablie (curseurs natifs remplacés ; `expo export --platform web` OK). **Rappels locaux** (check-in du matin + re-test benchmarks). Config **EAS/TestFlight** fournie (`eas.json`, `app.json`).
+
+**Déploiement** — Dockerfile (port `$PORT` dynamique), CORS, **blueprint Render `render.yaml`**, guide `DEPLOY.md`. ⚠️ **Plan Render FREE** : les disques persistants n'y sont pas supportés (erreur *« disks are not supported for free tier services »*) → bloc `disk:` retiré du `render.yaml` le 13/06/2026, déploiement OK. Conséquence : la base SQLite (`/app/data`) est **éphémère** (remise à zéro à chaque redéploiement/réveil). Pour conserver les données : plan payant + `disk:`, ou base **PostgreSQL externe** (`DATABASE_URL`).
+
+**Validation** — 74 tests pytest + 4 audits 100 samples PASS, TypeScript strict 0 erreur, export web OK, CORS et endpoints vérifiés en live.
+
+**Reste à la charge de l'utilisateur (comptes requis)** : déploiement backend (Render, fait — site en ligne), clés **Garmin Developer**, et **build EAS → TestFlight** (comptes Apple Developer + Expo) pour l'app iPhone.
+
+*Addendum v2.5 · 13/06/2026 · Claude Code.*

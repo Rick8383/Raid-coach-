@@ -1,7 +1,13 @@
 # Blueprint Render — déploiement 1 clic du backend RAID Coach.
 # 1. Pousser ce repo sur GitHub.
 # 2. Render → New → Blueprint → sélectionner ce repo.
-# Render lit ce fichier, build l'image Docker et expose l'API avec un disque persistant.
+# Render lit ce fichier, build l'image Docker et expose l'API.
+#
+# ⚠️ Plan FREE : pas de disque persistant (les disques ne sont pas supportés en
+# free tier). La base SQLite sous /app/data est donc EPHEMERE : elle est remise
+# à zéro à chaque redéploiement / réveil du service. Suffisant pour tester.
+# Pour conserver les données : passer en plan payant + ajouter un bloc `disk:`,
+# ou brancher une base PostgreSQL externe (variable DATABASE_URL).
 services:
   - type: web
     name: raid-coach-api
