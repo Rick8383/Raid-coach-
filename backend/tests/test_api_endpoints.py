@@ -331,10 +331,25 @@ def test_metrics_record_and_latest(client):
     assert latest["sciatic_flare"] == 1
 
 
-def test_metrics_record_upsert_same_day(client):
-    client.post("/metrics/record", json={"date": "2026-06-13", "readiness": 50})
-    client.post("/metrics/record", json={"date": "2026-06-13", "readiness": 65})
+def test_metrics_record_wearable_fields(client):
+    # HRV / FC repos / heures de sommeil venant du wearable
+    r = client.post("/metrics/record", json={
+        "date": "2026-06-20", "readiness": 80, "fatigue": 25,
+        "sleep_quality": 82, "sleep_hours": 7.5, "hrv": 68, "resting_hr": 47})
+    assert r.status_code == 200
     latest = client.get("/metrics/latest").json()
+    assert latest["hrv"] == 68
+    assert latest["resting_hr"] == 47
+    assert latest["sleep_hours"] == 7.5
+
+
+def test_metrics_record_upsert_same_day(client):
+    # date volontairement postérieure → garantie d'être la plus récente,
+    # indépendamment de l'ordre d'exécution des autres tests
+    client.post("/metrics/record", json={"date": "2031-01-01", "readiness": 50})
+    client.post("/metrics/record", json={"date": "2031-01-01", "readiness": 65})
+    latest = client.get("/metrics/latest").json()
+    assert latest["metric_date"] == "2031-01-01"
     assert latest["readiness"] == 65
 
 

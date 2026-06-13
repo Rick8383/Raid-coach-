@@ -7,19 +7,21 @@ import { AthleteProfile, api, flushSyncQueue, SessionToday } from './src/api/cli
 import { CheckinScreen } from './src/screens/CheckinScreen';
 import { TodayScreen } from './src/screens/TodayScreen';
 import { AgendaScreen } from './src/screens/AgendaScreen';
+import { RunZonesScreen } from './src/screens/RunZonesScreen';
 import { NutritionScreen } from './src/screens/NutritionScreen';
 import { BenchmarksScreen } from './src/screens/BenchmarksScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { SessionDetailScreen } from './src/screens/SessionDetailScreen';
 import { readinessLevelFor, colors, typography } from './src/theme/tokens';
 
-type Tab = 'today' | 'agenda' | 'nutrition' | 'benchmarks' | 'profile';
+type Tab = 'today' | 'agenda' | 'course' | 'nutrition' | 'benchmarks' | 'profile';
 type Checkin = { readiness: number; fatigue: number; sleep: number; sciatic: boolean };
 type OpenSession = { data: SessionToday; dateIso: string };
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'today', label: 'JOUR' },
   { key: 'agenda', label: 'AGENDA' },
+  { key: 'course', label: 'COURSE' },
   { key: 'nutrition', label: 'NUTRITION' },
   { key: 'benchmarks', label: 'OBJECTIFS' },
   { key: 'profile', label: 'PROFIL' },
@@ -92,6 +94,7 @@ export default function App() {
               onOpenSession={(data, dateIso) => setOpenSession({ data, dateIso })} />
           )}
           {tab === 'agenda' && <AgendaScreen />}
+          {tab === 'course' && <RunZonesScreen profile={profile} />}
           {tab === 'nutrition' && <NutritionScreen profile={profile} />}
           {tab === 'benchmarks' && <BenchmarksScreen profile={profile} />}
           {tab === 'profile' && <ProfileScreen profile={profile} onProfile={setProfile} />}
@@ -125,6 +128,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgElevated,
   },
   tab: { flex: 1, paddingVertical: 14, alignItems: 'center' },
-  tabText: { color: colors.textDisabled, fontFamily: typography.label.fontFamily, fontSize: 10, letterSpacing: 0.5, textTransform: 'uppercase' },
+  tabText: { color: colors.textDisabled, fontFamily: typography.label.fontFamily, fontSize: 9, letterSpacing: 0.3, textTransform: 'uppercase' },
   tabActive: { color: colors.signal },
 });

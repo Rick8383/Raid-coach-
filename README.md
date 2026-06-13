@@ -129,13 +129,16 @@ automatiquement la décision du coach selon que le jour est travaillé ou non.
 
 ## App mobile — écrans
 
-1. **Check-in** (30 s) : forme, fatigue, sommeil, sciatique.
+1. **Check-in** (30 s) : pré-rempli depuis le **wearable** (HRV, FC de repos, sommeil),
+   complété par les ressentis (forme, fatigue) et l'interrupteur sciatique.
 2. **Jour** : compte à rebours sélection, planning 3/2/2/3 du jour, et la meilleure
    action — qui ouvre la **séance détaillée**.
 3. **Séance détaillée** : phases (échauffement / corps / retour au calme / 2e séance),
    prescription par bloc, bandeau sécurité sciatique, bouton « Terminer » (offline-first).
 4. **Agenda** : navigation semaine par semaine, intention par jour (service / OFF /
    double), séances réalisées cochées, encart « état de forme » (analytics).
+5. **Course** : zones de fréquence cardiaque (Z1→Z5) + table d'allures alignées par
+   zone, avec sélecteur terrain (route/trail/vallonné/montagne) et gilet lesté.
 5. **Nutrition** : macros du jour adaptées au profil et au cyclage glucidique
    (haut les jours OFF, modéré en service).
 6. **Objectifs** : readiness élite et progression vers les cibles sélection.
@@ -145,6 +148,15 @@ automatiquement la décision du coach selon que le jour est travaillé ou non.
 
 Le profil athlète réel (mensurations + maxes) est seedé en base au premier démarrage
 et alimente tous les écrans — plus aucune valeur en dur dans l'app.
+
+### Wearable (HRV / sommeil / FC repos)
+
+La couche `mobile/src/wearable/` lit les métriques de santé via une interface
+provider : **Apple Santé (HealthKit)** quand l'app tourne dans un build natif
+(dev client / EAS, module `react-native-health` chargé dynamiquement), sinon une
+**simulation** pour Expo Go / démo. Le check-in pré-remplit le sommeil et envoie
+HRV / FC de repos / heures de sommeil au backend (`/metrics/record`, colonnes
+`hrv`, `resting_hr`, `sleep_hours` déjà prévues en base).
 
 ## Déploiement
 

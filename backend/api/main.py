@@ -160,6 +160,8 @@ class MetricsRecordIn(BaseModel):
     fatigue: float | None = Field(default=None, ge=0, le=100)
     sleep_quality: float | None = Field(default=None, ge=0, le=100)
     sleep_hours: float | None = Field(default=None, ge=0, le=24)
+    hrv: float | None = Field(default=None, ge=0, le=300)        # HRV SDNN (ms), wearable
+    resting_hr: int | None = Field(default=None, ge=25, le=120)  # FC repos (bpm), wearable
     weight_kg: float | None = Field(default=None, ge=40, le=180)
     pain_flag: bool = False
     sciatic_flare: bool = False

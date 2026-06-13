@@ -211,6 +211,31 @@ export interface Roadmap {
   milestones: string[];
 }
 
+export interface HRZone {
+  zone: string;
+  min_bpm: number;
+  max_bpm: number;
+  description: string;
+}
+
+export interface HRProfile {
+  fc_max: number;
+  method: string;
+  zones: HRZone[];
+}
+
+export interface PaceTarget {
+  zone: string;
+  pace_fast: string;
+  pace_slow: string;
+}
+
+export interface PaceTable {
+  vma_kmh: number;
+  terrain: string;
+  targets: PaceTarget[];
+}
+
 export interface MacroTarget {
   day_type: string;
   calories: number;
@@ -239,8 +264,11 @@ export const api = {
   raidStrengthReport: (body: Json) =>
     cachedPost('cache:raid_report', '/raid/strength-report', body, 720),
 
+  hrProfile: (body: Json) =>
+    cachedPost<HRProfile>('cache:hr', '/run/hr-profile', body, 1440),
+
   paceTable: (body: Json) =>
-    cachedPost('cache:paces', '/run/pace-table', body, 1440),
+    cachedPost<PaceTable>(`cache:paces:${JSON.stringify(body)}`, '/run/pace-table', body, 1440),
 
   dailyMacros: (body: Json) =>
     cachedPost<MacroTarget>('cache:macros', '/nutrition/daily-macros', body, 240),
