@@ -20,6 +20,11 @@ from engines.run_elite import (HRZonesEngine, PaceCalculatorElite,  # noqa: E402
                                RunPredictionsEngine, TerrainType)
 from engines.strength import (AdaptiveLoadInput, RoadToRaidStrength,  # noqa: E402
                               StrengthEngineService, PREngine, PRRecord)
+from engines.run_engine.run_engine_service import generate_session as _run_generate  # noqa: E402
+from engines.run_engine.family_registry import RUN_FAMILIES  # noqa: E402
+from engines.selection_wods import SelectionWODGenerator  # noqa: E402
+from engines import schedule as _schedule  # noqa: E402
+from api.services.session_builder import build_session as _build_session  # noqa: E402
 
 # Legacy engines (B3-B7)
 from build5_road_to_raid.road_to_raid_service import RoadToRaidService  # noqa: E402
@@ -44,6 +49,8 @@ class CoachAPI:
         self.road_to_raid = RoadToRaidService()
         self.analytics = AnalyticsService()
         self.auto_plan_service = AutoPlanGeneratorService()
+        self.wod_generator = SelectionWODGenerator()
+        self._run_family_names = {f.id: f.name for f in RUN_FAMILIES}
 
     # ---- COACH ----
     def daily_decision(self, payload: dict) -> dict:
@@ -128,14 +135,21 @@ class CoachAPI:
                             for x in t.targets]}
 
     # ---- STRENGTH ----
+    def _strength_input(self, payload: dict) -> AdaptiveLoadInput:
+        """Mappe un contexte (check-in OU payload strength dédié) vers l'entrée
+        adaptative du moteur. Tolère les deux formes de payload."""
+        recovery = payload.get("recovery_score", payload.get("readiness", 70))
+        return AdaptiveLoadInput(
+            recovery, payload.get("sleep_quality", 70),
+            payload.get("pain_flag", False) or payload.get("sciatic_flare", False),
+            payload.get("hrv_trend", "stable"),
+            payload.get("run_load_7d", 0), payload.get("crossfit_load_7d", 0),
+            payload.get("strength_load_7d", 0),
+            payload.get("sessions_since_deload", 0))
+
     def generate_strength_session(self, payload: dict) -> dict:
         s = self.strength.generate(
-            AdaptiveLoadInput(
-                payload["recovery_score"], payload["sleep_quality"],
-                payload.get("pain_flag", False), payload.get("hrv_trend", "stable"),
-                payload.get("run_load_7d", 0), payload.get("crossfit_load_7d", 0),
-                payload.get("strength_load_7d", 0),
-                payload.get("sessions_since_deload", 0)),
+            self._strength_input(payload),
             payload.get("week_in_block", 0), payload.get("weeks_to_goal"),
             payload.get("athlete_level", "intermediate"),
             payload.get("raid_focus", True),
@@ -214,3 +228,57 @@ class CoachAPI:
         return {"day_minus_1": plan.day_minus_1, "morning": plan.morning,
                 "during": plan.during, "after": plan.after,
                 "hydration": plan.hydration}
+
+    # ---- RUN SESSION (moteur B2 exposé) ----
+    def _run_family_name(self, family_id: str) -> str:
+        return self._run_family_names.get(family_id, "Séance course")
+
+    def run_session(self, payload: dict, duration_min: int | None = None):
+        """Génère une séance de course détaillée (objet GeneratedRunSession)."""
+        readiness = payload.get("readiness", 80)
+        return _run_generate(
+            goal=payload.get("goal", "raid"),
+            phase=payload.get("phase", "build"),
+            availability_min=duration_min or payload.get("availability_min", 75),
+            terrain=payload.get("terrain", "trail"),
+            sleep=payload.get("sleep_quality", 80),
+            fatigue=payload.get("fatigue", 30),
+            stress=payload.get("stress", 30),
+            motivation=payload.get("motivation", 80),
+            recovery=readiness,
+            acute_load=payload.get("acute_load", 100),
+            chronic_load=payload.get("chronic_load", 100),
+            history=payload.get("history", []))
+
+    def selection_wod_variant(self, seed: str, kind: str = "death_by") -> dict:
+        gen = (self.wod_generator.time_cap_variant if kind == "time_cap"
+               else self.wod_generator.death_by_variant)
+        wod = gen(seed)
+        return {"wod_id": wod.wod_id, "name": wod.name,
+                "wod_format": wod.wod_format, "description": list(wod.description),
+                "scoring": wod.scoring, "equipment": list(wod.equipment)}
+
+    # ---- SCHEDULE (planning police 3/2/2/3) ----
+    def schedule_day(self, payload: dict) -> dict:
+        d = _schedule.parse_date(payload["date"])
+        return _schedule.day_schedule(d).to_dict()
+
+    def schedule_week(self, payload: dict) -> dict:
+        d = _schedule.parse_date(payload["date"])
+        return _schedule.week_schedule(d)
+
+    # ---- SÉANCE DÉTAILLÉE (décision + structure complète) ----
+    def session_today(self, payload: dict) -> dict:
+        """Décision du coach + séance détaillée prête à exécuter.
+        Si date fournie, le type de semaine / jour travaillé est calé sur le
+        planning 3/2/2/3 (sauf si explicitement fourni dans le payload)."""
+        payload = dict(payload)
+        if payload.get("date"):
+            d = _schedule.parse_date(payload["date"])
+            sched = _schedule.day_schedule(d)
+            payload.setdefault("day_of_week", sched.day_of_week)
+            payload.setdefault("is_work_day", sched.is_work_day)
+            payload.setdefault("week_type", sched.week_type)
+        decision = self.daily_decision(payload)
+        session = _build_session(self, payload, decision)
+        return {"decision": decision, "session": session}

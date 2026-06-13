@@ -17,11 +17,15 @@ export const colors = {
   bg: '#0B1120',
   bgElevated: '#111A2E',
   bgCard: '#16213B',
+  bgInput: '#0E1626',
   hairline: '#1F2C49',
+  hairlineStrong: '#2B3B5E',
 
   // Accent unique — vert "lampe de casque" (réservé aux actions et au GO)
   signal: '#3DDC84',
   signalDim: '#1F6B44',
+  signalSoft: 'rgba(61, 220, 132, 0.12)',
+  overlay: 'rgba(5, 9, 18, 0.72)',
 
   // Statuts readiness (code opérationnel, jamais utilisés en décoration)
   readyGreen: '#3DDC84',
@@ -77,6 +81,16 @@ export const spacing = {
   readinessBar: 4, // largeur du liseré signature
 } as const;
 
+export const elevation = {
+  card: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+    elevation: 6,
+  },
+} as const;
+
 export type ReadinessLevel = 'green' | 'yellow' | 'orange' | 'red';
 
 export const readinessColor = (level: ReadinessLevel): string =>
@@ -86,3 +100,25 @@ export const readinessColor = (level: ReadinessLevel): string =>
     orange: colors.readyOrange,
     red: colors.readyRed,
   }[level]);
+
+export function readinessLevelFor(readiness: number, sciatic = false): ReadinessLevel {
+  if (sciatic) return 'red';
+  if (readiness >= 70) return 'green';
+  if (readiness >= 50) return 'yellow';
+  if (readiness >= 30) return 'orange';
+  return 'red';
+}
+
+/** Identité par discipline : libellé court + glyphe sobre (pas d'émoji criard). */
+export const DISCIPLINE: Record<string, { label: string; glyph: string }> = {
+  run: { label: 'COURSE', glyph: '▸' },
+  strength: { label: 'FORCE', glyph: '▰' },
+  crossfit: { label: 'CROSSFIT', glyph: '✛' },
+  swim: { label: 'NATATION', glyph: '≈' },
+  recovery: { label: 'RÉCUPÉRATION', glyph: '◍' },
+  rest: { label: 'REPOS', glyph: '◦' },
+};
+
+export function disciplineLabel(code: string): string {
+  return DISCIPLINE[code]?.label ?? code.toUpperCase();
+}

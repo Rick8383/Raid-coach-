@@ -96,15 +96,39 @@ cd mobile && npm run typecheck               # TypeScript strict
 Les audits historiques restent exécutables individuellement :
 `python build1_2_audit.py`, `build12_audit.py`, `build13_audit.py`, `build14_audit.py`.
 
-## Endpoints API (18)
+## Endpoints API (21)
 
 **Moteurs** : `/health` · `/coach/daily-decision` · `/coach/weekly-budget` ·
 `/coach/arbitrate-goals` · `/run/hr-profile` · `/run/predictions` · `/run/pace-table` ·
 `/strength/generate` · `/strength/pr-estimate` · `/raid/strength-report` ·
 `/plans/auto-generate` · `/nutrition/daily-macros` · `/nutrition/selection-day`
 
+**Séance & planning** : `POST /coach/session` (décision + séance détaillée prête à
+exécuter, calée sur le planning 3/2/2/3) · `POST /schedule/day` · `POST /schedule/week`
+
 **Persistance** : `POST /metrics/record` · `POST /sessions/complete` ·
 `POST /benchmarks/record` · `GET /metrics/latest` · `GET /benchmarks/{id}/progression`
+
+## Planning police 3/2/2/3
+
+Le calendrier de service est la source de vérité du rythme d'entraînement
+(`backend/engines/schedule/`, miroir offline dans `mobile/src/schedule.ts`) :
+
+- **Grande semaine** : service lun/mar/ven/sam/dim → OFF mer/jeu (double séance les jours OFF)
+- **Petite semaine** : service mer/jeu → OFF le reste
+- **Ancre** : la semaine du lundi **15/06/2026** est une grande semaine ; les semaines alternent ensuite.
+
+L'app affiche la semaine en cours (bande de jours service/OFF) et adapte
+automatiquement la décision du coach selon que le jour est travaillé ou non.
+
+## App mobile — écrans
+
+1. **Check-in** (30 s) : forme, fatigue, sommeil, sciatique.
+2. **Aujourd'hui** : compte à rebours sélection, planning 3/2/2/3 du jour, et la
+   meilleure action — qui ouvre la **séance détaillée**.
+3. **Séance détaillée** : phases (échauffement / corps / retour au calme / 2e séance),
+   prescription par bloc, bandeau sécurité sciatique, bouton « Terminer » (offline-first).
+4. **Objectifs** : readiness élite et progression vers les cibles sélection.
 
 ## Déploiement
 

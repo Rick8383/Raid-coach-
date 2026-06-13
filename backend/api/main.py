@@ -44,6 +44,30 @@ class DailyDecisionIn(BaseModel):
     weeks_to_main_goal: int | None = None
 
 
+class SessionTodayIn(BaseModel):
+    # check-in du jour
+    readiness: float = Field(ge=0, le=100)
+    fatigue: float = Field(ge=0, le=100)
+    sleep_quality: float = Field(ge=0, le=100)
+    sciatic_flare: bool = False
+    pain_flag: bool = False
+    # contexte planning : si `date` est fourni, jour/semaine sont calés sur le 3/2/2/3
+    date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    day_of_week: str | None = Field(default=None, pattern="^(mon|tue|wed|thu|fri|sat|sun)$")
+    is_work_day: bool | None = None
+    week_type: str | None = Field(default=None, pattern="^(big_work|small_work)$")
+    weeks_to_main_goal: int | None = None
+    last_two_disciplines: list[str] = []
+    budget_consumed_pct: float = Field(default=0, ge=0, le=200)
+    days_since_rest: int = Field(default=0, ge=0)
+    terrain: str = "trail"
+    athlete_level: str = "intermediate"
+
+
+class ScheduleIn(BaseModel):
+    date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
 class WeeklyBudgetIn(BaseModel):
     week_type: str
     sessions: list[dict] = []
@@ -166,9 +190,26 @@ def daily_decision(body: DailyDecisionIn) -> dict:
     return _safe(coach.daily_decision, body.model_dump())
 
 
+@app.post("/coach/session")
+def coach_session(body: SessionTodayIn) -> dict:
+    # on retire les champs None pour laisser le planning (date) ou les défauts agir
+    payload = {k: v for k, v in body.model_dump().items() if v is not None}
+    return _safe(coach.session_today, payload)
+
+
 @app.post("/coach/weekly-budget")
 def weekly_budget(body: WeeklyBudgetIn) -> dict:
     return _safe(coach.weekly_budget, body.model_dump())
+
+
+@app.post("/schedule/day")
+def schedule_day(body: ScheduleIn) -> dict:
+    return _safe(coach.schedule_day, body.model_dump())
+
+
+@app.post("/schedule/week")
+def schedule_week(body: ScheduleIn) -> dict:
+    return _safe(coach.schedule_week, body.model_dump())
 
 
 @app.post("/coach/arbitrate-goals")

@@ -86,11 +86,45 @@ export interface DailyDecision {
   safety_notes: string[];
 }
 
+export interface SessionItem {
+  name: string;
+  prescription: string;
+  meta: string;
+  notes: string;
+}
+
+export interface SessionPhase {
+  kind: 'warmup' | 'main' | 'cooldown' | 'finisher';
+  label: string;
+  items: SessionItem[];
+}
+
+export interface DetailedSession {
+  discipline: string;
+  title: string;
+  headline: string;
+  duration_min: number;
+  intensity_cap: number;
+  phases: SessionPhase[];
+  targets: string[];
+  safety_notes: string[];
+  alternatives: string[];
+  coach_reason: string;
+}
+
+export interface SessionToday {
+  decision: DailyDecision;
+  session: DetailedSession;
+}
+
 export const api = {
   health: () => fetch(`${BASE_URL}/health`).then(r => r.ok),
 
   dailyDecision: (ctx: Json) =>
     cachedPost<DailyDecision>('cache:daily', '/coach/daily-decision', ctx, 60),
+
+  sessionToday: (ctx: Json) =>
+    cachedPost<SessionToday>('cache:session', '/coach/session', ctx, 60),
 
   weeklyBudget: (body: Json) =>
     cachedPost('cache:budget', '/coach/weekly-budget', body, 30),

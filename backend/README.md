@@ -51,12 +51,16 @@ Les audits B8-B11 sont dans leurs dossiers de build respectifs (historique).
 Les workflows sont à la racine du dépôt (`.github/workflows/`) : pytest + audits,
 validation PostgreSQL+Redis, build Docker + smoke test — à chaque push.
 
-## Endpoints (18)
+## Endpoints (21)
 **Moteurs (13)** :
 /health · /coach/daily-decision · /coach/weekly-budget · /coach/arbitrate-goals ·
 /run/hr-profile · /run/predictions · /run/pace-table · /strength/generate ·
 /strength/pr-estimate · /raid/strength-report · /plans/auto-generate ·
 /nutrition/daily-macros · /nutrition/selection-day
+
+**Séance & planning (3)** :
+POST /coach/session (décision + séance détaillée, calée sur le planning 3/2/2/3) ·
+POST /schedule/day · POST /schedule/week
 
 **Persistance (5)** — utilisés par l'app mobile (file de sync offline) :
 POST /metrics/record · POST /sessions/complete · POST /benchmarks/record ·

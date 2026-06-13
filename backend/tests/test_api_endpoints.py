@@ -35,6 +35,66 @@ def test_health(client):
     assert r.json()["status"] == "ok"
 
 
+# ---------- Planning 3/2/2/3 ----------
+def test_schedule_day_anchor(client):
+    r = client.post("/schedule/day", json={"date": "2026-06-15"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["week_type"] == "big_work"
+    assert body["is_work_day"] is True
+
+
+def test_schedule_week(client):
+    r = client.post("/schedule/week", json={"date": "2026-06-13"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["week_type"] == "small_work"
+    assert len(body["days"]) == 7
+
+
+# ---------- Séance détaillée ----------
+def test_session_off_day_is_double(client):
+    # 13/06 = samedi petite semaine → jour OFF, double séance
+    r = client.post("/coach/session", json={
+        "date": "2026-06-13", "readiness": 75, "fatigue": 35, "sleep_quality": 80})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["decision"]["secondary_action"] is not None
+    session = body["session"]
+    kinds = {ph["kind"] for ph in session["phases"]}
+    assert {"warmup", "main", "cooldown"} <= kinds
+    assert any(ph["items"] for ph in session["phases"] if ph["kind"] == "main")
+
+
+def test_session_work_day_is_single_short(client):
+    # 15/06 = lundi grande semaine → service, séance unique courte
+    r = client.post("/coach/session", json={
+        "date": "2026-06-15", "readiness": 70, "fatigue": 40, "sleep_quality": 70})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["decision"]["secondary_action"] is None
+    assert body["session"]["duration_min"] <= 55
+
+
+def test_session_sciatic_flare_is_safe(client):
+    r = client.post("/coach/session", json={
+        "date": "2026-06-13", "readiness": 80, "fatigue": 20,
+        "sleep_quality": 85, "sciatic_flare": True})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["session"]["discipline"] == "swim"
+    assert body["session"]["safety_notes"]
+
+
+def test_session_explicit_context_overrides_schedule(client):
+    # sans date : on fournit le contexte à la main
+    r = client.post("/coach/session", json={
+        "day_of_week": "wed", "is_work_day": False, "week_type": "big_work",
+        "readiness": 75, "fatigue": 35, "sleep_quality": 80})
+    assert r.status_code == 200
+    assert r.json()["session"]["phases"]
+
+
 # ---------- Coach ----------
 def test_daily_decision_nominal(client):
     r = client.post("/coach/daily-decision", json={
