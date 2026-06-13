@@ -15,7 +15,3 @@ services:
         value: "*"            # restreindre à l'URL du front en prod
       - key: RAID_COACH_DB
         value: /app/data/raid_coach.db
-    disk:
-      name: raid-data
-      mountPath: /app/data    # persiste la base SQLite entre les redéploiements
-      sizeGB: 1
