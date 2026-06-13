@@ -173,6 +173,46 @@ def test_generate_varies_with_seed(client):
     assert len(titles) >= 3  # le seed produit de la variété
 
 
+# ---------- Persistance des séances générées ----------
+def test_save_generated_session_planned(client):
+    gen = client.post("/generate", json={"discipline": "strength", "seed": "save1"}).json()
+    r = client.post("/sessions/save", json={
+        "discipline": "strength", "session_date": "2028-02-10",
+        "duration_min": gen["duration_min"], "title": gen["title"],
+        "status": "planned", "detail": gen})
+    assert r.status_code == 200
+    assert r.json()["persisted_status"] == "planned"
+    # visible dans l'historique
+    rows = client.get("/sessions/recent?n=80").json()["sessions"]
+    saved = next(s for s in rows if s["session_date"] == "2028-02-10")
+    assert saved["status"] == "planned"
+    assert saved["discipline"] == "strength"
+
+
+def test_save_generated_session_appears_in_agenda(client):
+    gen = client.post("/generate", json={"discipline": "run", "seed": "save2"}).json()
+    # 2028-02-07 est un lundi → l'agenda de cette semaine doit montrer la séance
+    client.post("/sessions/save", json={
+        "discipline": "run", "session_date": "2028-02-07",
+        "duration_min": 60, "title": gen["title"], "status": "planned", "detail": gen})
+    week = client.post("/agenda/week", json={"date": "2028-02-07"}).json()
+    mon = next(d for d in week["days"] if d["date"] == "2028-02-07")
+    assert mon["done"] is not None
+    assert mon["done"]["discipline"] == "run"
+    assert mon["done"]["status"] == "planned"
+
+
+def test_save_done_computes_load(client):
+    r = client.post("/sessions/save", json={
+        "discipline": "run", "session_date": "2028-03-15",
+        "duration_min": 60, "intensity_rpe": 7, "status": "done"})
+    assert r.status_code == 200
+    rows = client.get("/sessions/recent?n=80").json()["sessions"]
+    saved = next(s for s in rows if s["session_date"] == "2028-03-15")
+    assert saved["status"] == "done"
+    assert saved["stress_units"] == pytest.approx(29.4, abs=0.5)
+
+
 # ---------- Roadmap (plan annuel) ----------
 def test_roadmap_to_selection(client):
     r = client.post("/roadmap", json={"weeks_to_selection": 142, "current_week": 0})

@@ -69,16 +69,47 @@ export function WorkoutsScreen({ profile }: { profile: AthleteProfile | null }) 
   );
 }
 
+const DAY_MS = 24 * 3600 * 1000;
+const DAY_SHORT = ['DIM', 'LUN', 'MAR', 'MER', 'JEU', 'VEN', 'SAM'];
+
+function nextDays(n: number): { iso: string; label: string }[] {
+  const base = new Date();
+  return Array.from({ length: n }, (_, i) => {
+    const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate()) + i * DAY_MS);
+    return {
+      iso: d.toISOString().slice(0, 10),
+      label: i === 0 ? "AUJ." : `${DAY_SHORT[d.getUTCDay()]} ${d.getUTCDate()}`,
+    };
+  });
+}
+
 function DisciplinePanel({ discipline, profile }:
   { discipline: Discipline; profile: AthleteProfile | null }) {
   const [session, setSession] = useState<DetailedSession | null>(null);
   const [loading, setLoading] = useState(false);
   const [wodKind, setWodKind] = useState<'death_by' | 'time_cap'>('death_by');
   const [error, setError] = useState(false);
+  const [planDate, setPlanDate] = useState(nextDays(1)[0].iso);
+  const [saved, setSaved] = useState<string | null>(null);
+  const days = nextDays(7);
+
+  const save = async (status: 'planned' | 'done') => {
+    if (!session) return;
+    const date = status === 'done' ? nextDays(1)[0].iso : planDate;
+    const res = await api.saveSession({
+      discipline, session_date: date, duration_min: session.duration_min,
+      intensity_rpe: Math.min(10, session.intensity_cap),
+      title: session.title, status, detail: session,
+    });
+    setSaved(status === 'done'
+      ? 'Séance enregistrée comme faite'
+      : `Planifiée le ${date}${res.queued ? ' (sera synchronisée)' : ''}`);
+  };
 
   const generate = async () => {
     setLoading(true);
     setError(false);
+    setSaved(null);
     try {
       const s = await api.generate({
         discipline,
@@ -126,6 +157,26 @@ function DisciplinePanel({ discipline, profile }:
         <View style={{ marginTop: spacing.m }}>
           <Text style={styles.sessionTitle}>{session.title}</Text>
           <SessionView session={session} />
+
+          {/* Enregistrer dans l'historique / l'agenda */}
+          <Text style={styles.saveLabel}>PLANIFIER LE</Text>
+          <View style={styles.dayPicker}>
+            {days.map(d => (
+              <Pressable key={d.iso} onPress={() => setPlanDate(d.iso)}
+                style={[styles.dayChip, planDate === d.iso && styles.dayChipOn]}>
+                <Text style={[styles.dayChipText, planDate === d.iso && styles.dayChipTextOn]}>{d.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <View style={styles.saveRow}>
+            <Pressable onPress={() => save('planned')} style={[styles.saveBtn, styles.savePlan]}>
+              <Text style={styles.savePlanText}>AJOUTER À L'AGENDA</Text>
+            </Pressable>
+            <Pressable onPress={() => save('done')} style={[styles.saveBtn, styles.saveDone]}>
+              <Text style={styles.saveDoneText}>✓ FAIT</Text>
+            </Pressable>
+          </View>
+          {saved && <Text style={styles.savedMsg}>✓ {saved}</Text>}
         </View>
       )}
     </View>
@@ -151,4 +202,17 @@ const styles = StyleSheet.create({
   kindTextOn: { color: colors.signal },
   sessionTitle: { color: colors.signal, fontFamily: typography.display.fontFamily, fontSize: typography.sizes.h1, letterSpacing: 0.5 },
   error: { color: colors.readyOrange, fontSize: typography.sizes.small, marginTop: spacing.l, lineHeight: 19 },
+  saveLabel: { color: colors.textSecondary, ...typography.label, marginTop: spacing.l, marginBottom: spacing.s },
+  dayPicker: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginBottom: spacing.m },
+  dayChip: { paddingVertical: spacing.s, paddingHorizontal: spacing.m, borderRadius: 6, backgroundColor: colors.bgCard },
+  dayChipOn: { backgroundColor: colors.signalSoft, borderWidth: 1, borderColor: colors.signal },
+  dayChipText: { color: colors.textSecondary, ...typography.label, fontSize: 10 },
+  dayChipTextOn: { color: colors.signal },
+  saveRow: { flexDirection: 'row', gap: spacing.s },
+  saveBtn: { flex: 1, paddingVertical: 14, borderRadius: spacing.cardRadius, alignItems: 'center' },
+  savePlan: { backgroundColor: colors.bgElevated, borderWidth: 1, borderColor: colors.signal },
+  savePlanText: { color: colors.signal, ...typography.label, fontSize: 11 },
+  saveDone: { backgroundColor: colors.signal, maxWidth: 110 },
+  saveDoneText: { color: colors.bg, fontFamily: typography.display.fontFamily, fontSize: typography.sizes.h2 },
+  savedMsg: { color: colors.signal, fontSize: typography.sizes.small, marginTop: spacing.m, textAlign: 'center' },
 });

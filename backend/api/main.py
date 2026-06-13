@@ -204,6 +204,18 @@ class BenchmarkRecordIn(BaseModel):
     detail: dict = {}
 
 
+class SessionSaveIn(BaseModel):
+    """Enregistre une séance générée dans l'historique/agenda (planifiée ou faite)."""
+    discipline: str = Field(pattern="^(run|strength|crossfit|swim|recovery)$")
+    session_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    duration_min: int = Field(ge=0, le=300)
+    intensity_rpe: float = Field(default=7.0, ge=1, le=10)
+    title: str | None = None
+    status: str = Field(default="planned", pattern="^(planned|done)$")
+    detail: dict = {}
+
+
+
 class ProfileUpdateIn(BaseModel):
     weight_kg: float | None = Field(default=None, ge=40, le=180)
     target_weight_kg: float | None = Field(default=None, ge=40, le=180)
@@ -452,6 +464,18 @@ def complete_session(body: SessionCompleteIn) -> dict:
     if body.feedback:
         store.sessions.complete(session_id, body.feedback)
     return {"status": "recorded", "session_id": session_id}
+
+
+@app.post("/sessions/save")
+def save_session(body: SessionSaveIn) -> dict:
+    """Persiste une séance générée (planifiée pour une date, ou marquée faite)
+    → visible dans l'historique et l'agenda. SU calculées si 'done'."""
+    su = coach.compute_su(body.duration_min, body.intensity_rpe) if body.status == "done" else 0.0
+    session_id = store.sessions.record(
+        store.athlete_id, body.discipline, body.session_date,
+        body.duration_min, body.intensity_rpe, su,
+        body.detail, status=body.status, family_id=body.title)
+    return {"status": "saved", "session_id": session_id, "persisted_status": body.status}
 
 
 @app.post("/benchmarks/record")

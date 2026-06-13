@@ -316,6 +316,17 @@ export const api = {
     return data;
   },
 
+  // Sauvegarde d'une séance générée (planifiée/faite) → tentée en direct,
+  // mise en file si hors connexion.
+  saveSession: async (body: Json): Promise<{ session_id?: number; queued?: boolean }> => {
+    try {
+      return await post('/sessions/save', body);
+    } catch {
+      await queueWrite('/sessions/save', body);
+      return { queued: true };
+    }
+  },
+
   // Écritures (passent par la file si offline)
   recordMetrics: (body: Json) => queueWrite('/metrics/record', body),
   completeSession: (body: Json) => queueWrite('/sessions/complete', body),

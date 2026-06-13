@@ -73,7 +73,9 @@ export function AgendaScreen() {
       {week?.days.map(day => {
         const isToday = day.date === nowIso;
         const off = !day.is_work_day;
-        const level: ReadinessLevel = day.done ? 'green' : off ? 'yellow' : 'orange';
+        const level: ReadinessLevel = day.done
+          ? (day.done.status === 'done' ? 'green' : 'yellow')
+          : off ? 'yellow' : 'orange';
         return (
           <Card key={day.date} style={{ flexDirection: 'row', marginBottom: spacing.s,
             ...(isToday ? { borderWidth: 1, borderColor: colors.signal } : {}) }}>
@@ -88,8 +90,10 @@ export function AgendaScreen() {
               </View>
               <Text style={styles.intent}>{day.intent.label}</Text>
               {day.done ? (
-                <Text style={styles.done}>
-                  ✓ {disciplineLabel(day.done.discipline)} · {day.done.duration_min} min
+                <Text style={day.done.status === 'done' ? styles.done : styles.planned}>
+                  {day.done.status === 'done' ? '✓' : '○'} {disciplineLabel(day.done.discipline)}
+                  {' · '}{day.done.duration_min} min
+                  {day.done.status === 'done' ? ' · fait' : ' · prévu'}
                 </Text>
               ) : (
                 <Text style={styles.pending}>—</Text>
@@ -160,5 +164,6 @@ const styles = StyleSheet.create({
   dayName: { color: colors.textPrimary, fontFamily: typography.display.fontFamily, fontSize: typography.sizes.h2 },
   intent: { color: colors.textSecondary, fontSize: typography.sizes.small, marginTop: spacing.xs },
   done: { color: colors.signal, fontSize: typography.sizes.small, marginTop: spacing.xs },
+  planned: { color: colors.readyYellow, fontSize: typography.sizes.small, marginTop: spacing.xs },
   pending: { color: colors.textDisabled, fontSize: typography.sizes.body, marginTop: spacing.xs },
 });
