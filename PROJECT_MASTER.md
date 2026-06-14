@@ -493,3 +493,13 @@ Le plan **Render free** ne supporte pas les disques persistants : la base SQLite
 - Build EAS → TestFlight (compte Apple Developer + Expo) pour l'iPhone.
 
 *Addendum v2.7 (section 17) · 14/06/2026 · Claude Code.*
+
+-----
+
+### Addendum v2.8 — Finition « rendu pro » (14/06/2026)
+
+> Complète la section 17 sans rien y modifier.
+
+Rendu de séance **unifié et enrichi** : composants partagés `RunDetail` / `StrengthDetail` / `WodDetail` réutilisés par les générateurs **et** le plan détaillé — course avec zones FC colorées et allures multiples, force avec barres de charge par série, WOD structuré + note lombaire. **Graphes sans dépendance** (compatibles web) : composant `Chart` (BarChart, MeterBar avec zone « sweet spot » + marqueur, StackBar). Ajouts : **graphe de progression des charges** sur la page Force (`/strength/progression`, projection 6 cycles + 1RM estimé), **suivi chiffré des benchmarks** sur la page Objectifs (historique tracé + saisie d'un test du jour qui alimente le graphe), **jauges de charge** sur l'écran Jour (budget fatigue coloré par statut + ACWR avec zone optimale 0,8-1,3 et marqueur), **répartition visuelle des macros** sur la page Nutrition. Validation : 98 pytest + 4 audits PASS (43 routes), TypeScript strict 0 erreur, export web OK.
+
+*Addendum v2.8 · 14/06/2026 · Claude Code.*
