@@ -463,3 +463,33 @@ Le projet a été repris sous **Claude Code** et structuré en monorepo (`backen
 Le plan **Render free** ne supporte pas les disques persistants : la base SQLite y était **éphémère** (réinitialisée à chaque redéploiement). La couche base de données est désormais **bi-backend** (`backend/db/database.py`) : **SQLite** par défaut (local, tests) et **PostgreSQL** dès que `DATABASE_URL` est défini (production). Le SQL des repositories est inchangé (`?` traduits en `%s`, DDL canonique traduit en SERIAL/TIMESTAMPTZ, `RETURNING id` pour les insertions), via un pool de connexions thread-safe. Le `render.yaml` provisionne une base PostgreSQL et injecte `DATABASE_URL` → **données persistantes** (athlète, métriques, séances, historique, tokens Garmin) sans disque payant ; alternative externe gratuite (Neon/Supabase) documentée dans `DEPLOY.md`. Schéma créé au démarrage, aucune migration manuelle. Validation : 74 pytest + 3 tests de traduction PG (intégration end-to-end exécutée sur le job CI PostgreSQL), aucune régression sur le chemin SQLite.
 
 *Addendum v2.6 · 13/06/2026 · Claude Code.*
+
+-----
+
+## 17. Mise à jour majeure du site — Contenu d'entraînement complet (14/06/2026)
+
+> Ajout du 14/06/2026. Complète les sections précédentes sans rien y modifier.
+
+### Ce qui a été implémenté
+- **Plan annuel jusqu'à 2029** (`/plan/annual`, `backend/data/annual_plan.json`) : macro-périodisation BASE(6)/BUILD(5)/PEAK(2)/TRANSITION(1 deload), 141 semaines, 41 blocs avec dates/volumes SU/dominante, 11 jalons benchmarks officiels.
+- **Plan glissant détaillé** (`/plan/weekly?from_week=&n=`) : N semaines jour par jour, chaque séance assemblée via les générateurs réels (course, force 5/3/1, WOD, natation), calée sur le 3/2/2/3 (jour OFF = double séance, service = séance courte, dimanche petite semaine = natation). Le 5/3/1 progresse avec le calendrier.
+- **Générateur Run** (`/generate/run`, `/generate/run/library`) : 700 séances (100 × 7 types : vma_courte/longue, seuil, fartlek, tempo, z2, côtes), déterministe par seed (aucune répétition sur les 100 premières d'un type), allures km/h + min/km + %VMA et FC bpm + %FCmax depuis VMA 14 / FCmax 186 (surchargeables par le profil).
+- **Générateur WOD** (`/generate/wod`, `/generate/wod/random`) : 15 formats, ~38 mouvements taggés (charges/distances FIXES), règles de cohérence (équilibre push/pull/legs/cardio, distances run/carry fixes), règle sciatique L5-S1 (`exclude_lumbar` ON par défaut → aucun mouvement lombaire, jamais en finisseur d'un WOD long).
+- **Force 5/3/1** (`/generate/strength`, `/strength/cycle`) : TM DC 85 / Squat 100 / OHP 54 / Row 90, cycle 4 semaines (5/5/5+, 3/3/3+, 5/3/1+, deload), +2,5 kg haut / +5 kg bas par cycle, **Big 3 McGill** obligatoire en échauffement, accessoires double progression, **GtG tractions** (jour pull), deadlift lourd remplacé par hip thrust, **finisher WOD non lombaire**.
+- **Interface** : onglet Séances (Course = 7 types + zones FC, Force = 5/3/1 Push/Pull/Legs, WOD = 15 formats + anti-lombaire), onglet Agenda avec bascule **Plan détaillé / Suivi** (calendrier glissant, jour → séances → détail dépliable). Sauvegarde des séances générées dans l'agenda. Compatibilité web conservée (`expo export --platform web` OK).
+
+### Paramètres athlète utilisés
+- VMA 14 km/h · FCmax 186 bpm · poids 75 kg
+- 1RM DC 95 (TM 85) · 1RM Squat 110 (TM 100)
+- Sciatique L5-S1 : `exclude_lumbar` ON par défaut sur les WOD, substitutions force
+- Rythme police 3/2/2/3, ancre semaine du 15/06/2026 = grande semaine
+
+### Validation
+97 tests pytest + 4 audits 100 samples PASS (42 routes API), TypeScript strict 0 erreur, export web OK. Aucune régression sur les 9 bugs corrigés (addendum v2.5).
+
+### À faire après cette mise à jour
+- Saisir les vraies baselines (Cooper réel, FCmax test, montées de corde) → recalcul automatique des allures/charges.
+- Tester le plan 2-3 semaines, saisir les RPE → la boucle adaptative ajuste.
+- Build EAS → TestFlight (compte Apple Developer + Expo) pour l'iPhone.
+
+*Addendum v2.7 (section 17) · 14/06/2026 · Claude Code.*
