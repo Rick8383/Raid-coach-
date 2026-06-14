@@ -451,6 +451,15 @@ def strength_cycle_ep(cycle: int = 0) -> dict:
     return coach.strength_cycle(cycle)
 
 
+@app.get("/strength/progression")
+def strength_progression_ep(lift: str = "bench", cycles: int = 6) -> dict:
+    """Projection des charges (top set + 1RM estimé) sur N cycles."""
+    try:
+        return coach.strength_progression(lift, cycles)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
 @app.post("/generate")
 def generate(body: GenerateIn) -> dict:
     """Bouton 'Générer une séance' propre à chaque page (course/force/wod).

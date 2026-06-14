@@ -204,6 +204,17 @@ export interface Strength531 {
   grease_the_groove?: string;
 }
 
+export interface ProgressionPoint {
+  cycle: number; training_max: number; top_set_kg: number; est_1rm: number;
+}
+export interface StrengthProgression {
+  lift: string; name: string; increment: number; points: ProgressionPoint[];
+}
+export interface BenchmarkProgression {
+  benchmark_id: string;
+  results: { test_date: string; result_value: number; result_unit: string }[];
+}
+
 export interface SessionToday {
   decision: DailyDecision;
   session: DetailedSession;
@@ -345,6 +356,10 @@ export const api = {
   // Mission 4 — force 5/3/1
   strength531: (day: string, week: number, cycle = 0) =>
     get<Strength531>(`/generate/strength?day=${day}&week=${week}&cycle=${cycle}`),
+  strengthProgression: (lift: string, cycles = 6) =>
+    cachedGet<StrengthProgression>(`cache:prog:${lift}`, `/strength/progression?lift=${lift}&cycles=${cycles}`, 720),
+  benchmarkProgression: (id: string) =>
+    cachedGet<BenchmarkProgression>(`cache:bench:${id}`, `/benchmarks/${id}/progression`, 60),
 
   weeklyBudget: (body: Json) =>
     cachedPost('cache:budget', '/coach/weekly-budget', body, 30),

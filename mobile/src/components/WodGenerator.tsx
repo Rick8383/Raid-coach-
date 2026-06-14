@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { Wod, api } from '../api/client';
+import { WodDetail } from './SessionDetail';
 import { Card, PrimaryButton, Tag } from './ui';
 import { colors, spacing, typography } from '../theme/tokens';
 
@@ -100,17 +101,7 @@ export function WodGenerator() {
             <Stars n={wod.difficulty} />
           </View>
           <Text style={styles.name}>{wod.name}</Text>
-          <Text style={styles.cap}>{wod.duration_or_cap}</Text>
-
-          <View style={styles.desc}>
-            {wod.description.map((l, i) => <Text key={i} style={styles.descLine}>• {l}</Text>)}
-          </View>
-
-          <Text style={styles.score}>🎯 {wod.target_score}</Text>
-          <Text style={styles.muscles}>Muscles : {wod.muscles}</Text>
-          <Text style={[styles.lumbarNote, { color: wod.lumbar_safe ? colors.signal : colors.readyOrange }]}>
-            {wod.lumbar_note}
-          </Text>
+          <WodDetail wod={wod} />
 
           <View style={{ marginTop: spacing.m }}>
             {saved ? <Text style={styles.saved}>✓ Ajouté à ta séance CrossFit (agenda)</Text>

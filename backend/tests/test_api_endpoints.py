@@ -358,6 +358,16 @@ def test_strength_531_bad_day(client):
     assert client.get("/generate/strength?day=arms").status_code == 422
 
 
+def test_strength_progression(client):
+    p = client.get("/strength/progression?lift=bench&cycles=6").json()
+    assert p["name"] == "Développé couché"
+    assert len(p["points"]) == 6
+    # charge croissante de cycle en cycle
+    loads = [x["top_set_kg"] for x in p["points"]]
+    assert loads == sorted(loads) and loads[-1] > loads[0]
+    assert client.get("/strength/progression?lift=biceps").status_code == 422
+
+
 # ---------- Plan annuel (Mission 1) ----------
 def test_plan_annual_structure(client):
     body = client.get("/plan/annual").json()

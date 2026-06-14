@@ -148,3 +148,20 @@ def build_cycle_overview(cycle: int = 0) -> dict:
         "next_cycle_progression": {k: TRAINING_MAX[k]["inc"] for k in TRAINING_MAX},
         "weeks": weeks,
     }
+
+
+def build_progression(lift: str, cycles: int = 6) -> dict:
+    """Projection de la charge sur N cycles (top set semaine 3 = 95% TM) + e1RM estimé."""
+    if lift not in TRAINING_MAX:
+        raise ValueError(f"mouvement inconnu: {lift} (attendus: {', '.join(TRAINING_MAX)})")
+    base = TRAINING_MAX[lift]
+    points = []
+    for c in range(max(1, min(cycles, 24))):
+        tm = base["tm"] + c * base["inc"]
+        points.append({
+            "cycle": c,
+            "training_max": tm,
+            "top_set_kg": _round25(tm * 0.95),   # série lourde S3
+            "est_1rm": round(tm / 0.9),          # TM = 90% du 1RM
+        })
+    return {"lift": lift, "name": base["name"], "increment": base["inc"], "points": points}

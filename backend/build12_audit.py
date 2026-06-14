@@ -154,8 +154,8 @@ def run_audit() -> dict:
         routes = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)
                   and any(isinstance(d, ast.Call) for d in n.decorator_list)]
         checks["fastapi_layer_syntax_ok"] = True
-        # 41 + /plan/weekly (Mission 1B)
-        checks["fastapi_routes_count_42"] = len(routes) == 42
+        # 42 + /strength/progression (graphe charges)
+        checks["fastapi_routes_count_43"] = len(routes) == 43
     except SyntaxError:
         checks["fastapi_layer_syntax_ok"] = False
         exceptions += 1

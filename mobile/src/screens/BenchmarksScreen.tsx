@@ -1,9 +1,71 @@
-/** Benchmarks Sélection : progression vers les cibles élite (top 5%). */
+/** Benchmarks Sélection : progression vers les cibles élite (top 5%) + suivi chiffré. */
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { AthleteProfile, api } from '../api/client';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AthleteProfile, BenchmarkProgression, api } from '../api/client';
 import { ReadinessBar } from '../components/ReadinessBar';
+import { BarChart } from '../components/Chart';
+import { Card, PrimaryButton } from '../components/ui';
 import { colors, spacing, typography } from '../theme/tokens';
+
+const TRACKED: { id: string; label: string; unit: string; step: number }[] = [
+  { id: 'pullups_max', label: 'TRACTIONS', unit: 'reps', step: 1 },
+  { id: 'pushups_max', label: 'POMPES', unit: 'reps', step: 1 },
+  { id: 'dips_max', label: 'DIPS', unit: 'reps', step: 1 },
+  { id: 'leg_raises_max', label: 'TOES-TO-BAR', unit: 'reps', step: 1 },
+  { id: 'cooper_m', label: 'COOPER', unit: 'm', step: 50 },
+];
+
+function BenchmarkTracker() {
+  const [sel, setSel] = useState(TRACKED[0]);
+  const [prog, setProg] = useState<BenchmarkProgression | null>(null);
+  const [val, setVal] = useState(16);
+  const [saved, setSaved] = useState(false);
+
+  const load = (id: string) => api.benchmarkProgression(id).then(setProg).catch(() => setProg(null));
+  useEffect(() => { load(sel.id); setSaved(false); }, [sel]);
+  useEffect(() => {
+    const last = prog?.results?.slice(-1)[0]?.result_value;
+    if (last) setVal(last);
+  }, [prog]);
+
+  const logTest = async () => {
+    await api.recordBenchmark({
+      benchmark_id: sel.id, result_value: val, result_unit: sel.unit,
+      test_date: new Date().toISOString().slice(0, 10),
+    });
+    setSaved(true);
+    setTimeout(() => load(sel.id), 400); // laisse la file de sync passer
+  };
+
+  const points = (prog?.results ?? []).map(r => ({
+    label: r.test_date.slice(5), value: r.result_value, display: `${r.result_value}`,
+    highlight: false,
+  }));
+  if (points.length) points[points.length - 1].highlight = true;
+
+  return (
+    <Card style={{ padding: spacing.m, marginTop: spacing.l }}>
+      <Text style={styles.trackTitle}>SUIVI CHIFFRÉ</Text>
+      <View style={styles.chips}>
+        {TRACKED.map(t => (
+          <Pressable key={t.id} onPress={() => setSel(t)} style={[styles.chip, sel.id === t.id && styles.chipOn]}>
+            <Text style={[styles.chipT, sel.id === t.id && styles.chipTOn]}>{t.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+      {points.length > 0
+        ? <BarChart data={points} unit={sel.unit === 'm' ? '' : ''} />
+        : <Text style={styles.empty}>Aucun test enregistré pour le moment.</Text>}
+      <View style={styles.logRow}>
+        <Pressable onPress={() => setVal(v => Math.max(0, v - sel.step))} style={styles.stepBtn}><Text style={styles.stepT}>–</Text></Pressable>
+        <Text style={styles.logVal}>{val} {sel.unit}</Text>
+        <Pressable onPress={() => setVal(v => v + sel.step)} style={styles.stepBtn}><Text style={styles.stepT}>+</Text></Pressable>
+      </View>
+      {saved ? <Text style={styles.saved}>✓ Test enregistré</Text>
+        : <PrimaryButton label="ENREGISTRER LE TEST DU JOUR" onPress={logTest} />}
+    </Card>
+  );
+}
 
 export function BenchmarksScreen({ profile }: { profile: AthleteProfile | null }) {
   const [report, setReport] = useState<any>(null);
@@ -44,6 +106,8 @@ export function BenchmarksScreen({ profile }: { profile: AthleteProfile | null }
           })}
         </>
       )}
+
+      <BenchmarkTracker />
     </ScrollView>
   );
 }
@@ -65,4 +129,16 @@ const styles = StyleSheet.create({
   targetGoal: { color: colors.textDisabled, fontSize: typography.sizes.body },
   track: { height: 4, backgroundColor: colors.hairline, borderRadius: 2 },
   fill: { height: 4, backgroundColor: colors.signal, borderRadius: 2 },
+  trackTitle: { color: colors.textSecondary, ...typography.label, marginBottom: spacing.m },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginBottom: spacing.m },
+  chip: { paddingVertical: spacing.xs, paddingHorizontal: spacing.s, borderRadius: 6, backgroundColor: colors.bgElevated, borderWidth: 1, borderColor: colors.hairline },
+  chipOn: { backgroundColor: colors.signalSoft, borderColor: colors.signal },
+  chipT: { color: colors.textSecondary, ...typography.label, fontSize: 9 },
+  chipTOn: { color: colors.signal },
+  empty: { color: colors.textDisabled, fontSize: typography.sizes.small, textAlign: 'center', paddingVertical: spacing.l },
+  logRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.l, marginVertical: spacing.m },
+  stepBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.bgElevated, borderWidth: 1, borderColor: colors.hairlineStrong, alignItems: 'center', justifyContent: 'center' },
+  stepT: { color: colors.signal, fontSize: 22, fontFamily: typography.display.fontFamily },
+  logVal: { color: colors.textPrimary, fontFamily: typography.display.fontFamily, fontSize: typography.sizes.h1, minWidth: 90, textAlign: 'center' },
+  saved: { color: colors.signal, textAlign: 'center', fontSize: typography.sizes.small, paddingVertical: 14 },
 });

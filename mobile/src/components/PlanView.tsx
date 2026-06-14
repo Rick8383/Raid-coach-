@@ -8,6 +8,7 @@ import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AthleteProfile, PlanSession, WeeklyPlan, api } from '../api/client';
 import { Card, Tag } from './ui';
+import { RunDetail, StrengthDetail, WodDetail } from './SessionDetail';
 import { currentWeekIndex, DAY_LABELS, DayCode, WEEK_LABEL } from '../schedule';
 import { colors, spacing, typography } from '../theme/tokens';
 
@@ -20,33 +21,16 @@ const TYPE_LABEL: Record<string, string> = {
   recovery: 'RÉCUP', rest: 'REPOS',
 };
 
-function detailLines(s: PlanSession): string[] {
+function SessionExpanded({ s }: { s: PlanSession }) {
   const d = s.detail || {};
-  if (s.type === 'run' && Array.isArray(d.body)) {
-    const lines = [`Échauffement ${d.warmup?.duration_min ?? ''}'`];
-    d.body.forEach((it: any) => {
-      const pace = [it.pace_min_km ? `${it.pace_min_km}/km` : '', it.pct_vma ? `${it.pct_vma}%VMA` : '',
-        it.fc_bpm ? `FC ${it.fc_bpm}` : ''].filter(Boolean).join(' · ');
-      lines.push(`${it.label}${pace ? ' — ' + pace : ''}`);
-    });
-    return lines;
-  }
-  if (s.type === 'strength' && d.main_lift) {
-    const sets = (d.main_lift.sets || []).map((x: any) => `${x.load_kg}kg×${x.reps}`).join('  ');
-    return [
-      'Big 3 McGill (échauffement)',
-      `${d.main_lift.name} : ${sets}`,
-      `Accessoires : ${(d.accessories || []).map((a: any) => a.name).slice(0, 4).join(', ')}`,
-      d.finisher_wod ? `Finisher : ${d.finisher_wod.name}` : '',
-    ].filter(Boolean);
-  }
-  if (s.type === 'crossfit' && Array.isArray(d.description)) {
-    return [d.format, ...d.description, `🎯 ${d.target_score}`];
-  }
+  if (s.type === 'run' && Array.isArray(d.body)) return <RunDetail session={d} />;
+  if (s.type === 'strength' && d.main_lift) return <StrengthDetail session={d} />;
+  if (s.type === 'crossfit' && Array.isArray(d.description)) return <WodDetail wod={d} />;
   if (s.type === 'swim' && Array.isArray(d.blocks)) {
-    return d.blocks;
+    return <View>{d.blocks.map((b: string, i: number) => (
+      <Text key={i} style={styles.detailLine}>• {b}</Text>))}</View>;
   }
-  return [];
+  return null;
 }
 
 export function PlanView({ profile }: { profile: AthleteProfile | null }) {
@@ -105,7 +89,7 @@ export function PlanView({ profile }: { profile: AthleteProfile | null }) {
                 </Pressable>
                 {opened && (
                   <View style={styles.detail}>
-                    {detailLines(s).map((l, j) => <Text key={j} style={styles.detailLine}>• {l}</Text>)}
+                    <SessionExpanded s={s} />
                   </View>
                 )}
               </View>

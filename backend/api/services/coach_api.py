@@ -33,7 +33,8 @@ from engines.run_generator import (generate_run as _generate_run,  # noqa: E402
 from engines.wod_generator import (generate_wod as _generate_wod,  # noqa: E402
                                    random_wod as _random_wod, WOD_FORMATS)
 from engines.strength_531 import (generate_strength_531 as _gen_531,  # noqa: E402
-                                  build_cycle_overview as _cycle_531, DAYS as STRENGTH_DAYS)
+                                  build_cycle_overview as _cycle_531,
+                                  build_progression as _prog_531, DAYS as STRENGTH_DAYS)
 from api.services.session_builder import build_session as _build_session  # noqa: E402
 
 # Legacy engines (B3-B7)
@@ -337,6 +338,9 @@ class CoachAPI:
 
     def strength_cycle(self, cycle: int = 0) -> dict:
         return _cycle_531(cycle)
+
+    def strength_progression(self, lift: str, cycles: int = 6) -> dict:
+        return _prog_531(lift, cycles)
 
     # ---- PLAN ANNUEL (Mission 1 — squelette jusqu'à 2029) ----
     def annual_plan(self) -> dict:
