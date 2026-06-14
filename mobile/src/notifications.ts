@@ -38,13 +38,20 @@ async function savePrefs(prefs: ReminderPrefs): Promise<void> {
   }
 }
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
-});
+// Gardé hors web et protégé : un échec ici ne doit jamais empêcher l'app de rendre.
+if (Platform.OS !== 'web') {
+  try {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      }),
+    });
+  } catch {
+    /* module non disponible / non supporté */
+  }
+}
 
 async function ensurePermission(): Promise<boolean> {
   if (Platform.OS === 'web') return false;

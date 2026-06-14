@@ -41,9 +41,9 @@ jobs:
           cache: npm
           cache-dependency-path: mobile/package-lock.json
       - run: npm ci
-      - name: Base URL pour la page projet (sous-chemin /raid-coach-)
+      - name: Base URL pour la page projet (sous-chemin /Raid-coach-, casse du dépôt)
         run: |
-          node -e "const fs=require('fs');const p='app.json';const j=JSON.parse(fs.readFileSync(p));j.expo.experiments={...(j.expo.experiments||{}),baseUrl:'/raid-coach-'};fs.writeFileSync(p,JSON.stringify(j,null,2));"
+          node -e "const fs=require('fs');const p='app.json';const j=JSON.parse(fs.readFileSync(p));j.expo.experiments={...(j.expo.experiments||{}),baseUrl:'/Raid-coach-'};fs.writeFileSync(p,JSON.stringify(j,null,2));"
       - name: Build web statique
         run: npx expo export --platform web
       - name: Empêcher Jekyll d'ignorer les dossiers _expo
