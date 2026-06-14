@@ -453,3 +453,13 @@ Le projet a été repris sous **Claude Code** et structuré en monorepo (`backen
 **Reste à la charge de l'utilisateur (comptes requis)** : déploiement backend (Render, fait — site en ligne), clés **Garmin Developer**, et **build EAS → TestFlight** (comptes Apple Developer + Expo) pour l'app iPhone.
 
 *Addendum v2.5 · 13/06/2026 · Claude Code.*
+
+-----
+
+### Addendum v2.6 — Persistance PostgreSQL (13/06/2026)
+
+> Complément à la section 16, sans rien y modifier.
+
+Le plan **Render free** ne supporte pas les disques persistants : la base SQLite y était **éphémère** (réinitialisée à chaque redéploiement). La couche base de données est désormais **bi-backend** (`backend/db/database.py`) : **SQLite** par défaut (local, tests) et **PostgreSQL** dès que `DATABASE_URL` est défini (production). Le SQL des repositories est inchangé (`?` traduits en `%s`, DDL canonique traduit en SERIAL/TIMESTAMPTZ, `RETURNING id` pour les insertions), via un pool de connexions thread-safe. Le `render.yaml` provisionne une base PostgreSQL et injecte `DATABASE_URL` → **données persistantes** (athlète, métriques, séances, historique, tokens Garmin) sans disque payant ; alternative externe gratuite (Neon/Supabase) documentée dans `DEPLOY.md`. Schéma créé au démarrage, aucune migration manuelle. Validation : 74 pytest + 3 tests de traduction PG (intégration end-to-end exécutée sur le job CI PostgreSQL), aucune régression sur le chemin SQLite.
+
+*Addendum v2.6 · 13/06/2026 · Claude Code.*

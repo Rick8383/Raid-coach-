@@ -1,13 +1,20 @@
 # Blueprint Render — déploiement 1 clic du backend RAID Coach.
 # 1. Pousser ce repo sur GitHub.
 # 2. Render → New → Blueprint → sélectionner ce repo.
-# Render lit ce fichier, build l'image Docker et expose l'API.
+# Render lit ce fichier, build l'image Docker, provisionne une base PostgreSQL
+# et expose l'API. Les données sont PERSISTANTES (PostgreSQL), pas de disque requis.
 #
-# ⚠️ Plan FREE : pas de disque persistant (les disques ne sont pas supportés en
-# free tier). La base SQLite sous /app/data est donc EPHEMERE : elle est remise
-# à zéro à chaque redéploiement / réveil du service. Suffisant pour tester.
-# Pour conserver les données : passer en plan payant + ajouter un bloc `disk:`,
-# ou brancher une base PostgreSQL externe (variable DATABASE_URL).
+# Le backend bascule automatiquement sur PostgreSQL dès que DATABASE_URL est défini
+# (sinon SQLite local). Aucune migration manuelle : le schéma est créé au démarrage.
+#
+# Si le PostgreSQL managé Render ne convient pas : supprimer le bloc `databases:`
+# ci-dessous et définir DATABASE_URL à la main vers une base externe (Neon/Supabase,
+# offres gratuites persistantes) — voir DEPLOY.md.
+
+databases:
+  - name: raid-coach-db
+    plan: free
+
 services:
   - type: web
     name: raid-coach-api
@@ -19,5 +26,9 @@ services:
     envVars:
       - key: CORS_ORIGINS
         value: "*"            # restreindre à l'URL du front en prod
-      - key: RAID_COACH_DB
+      - key: DATABASE_URL     # injecté depuis la base ci-dessus → données persistantes
+        fromDatabase:
+          name: raid-coach-db
+          property: connectionString
+      - key: RAID_COACH_DB    # repli SQLite si DATABASE_URL absent (ignoré sinon)
         value: /app/data/raid_coach.db

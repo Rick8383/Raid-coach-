@@ -33,7 +33,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
-      - run: pip install -r requirements.txt
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Couche PostgreSQL bi-backend (intégration end-to-end)
+        env:
+          DATABASE_URL: postgresql://postgres:test@localhost:5432/raidcoach
+        run: python -m pytest tests/test_postgres.py -v
       - name: PostgreSQL schema check
         run: |
           python - << 'PY'

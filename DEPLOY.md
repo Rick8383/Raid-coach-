@@ -19,6 +19,19 @@ peut pas l'atteindre : il faut déployer l'API, puis pointer l'app dessus.
 CORS est ouvert par défaut (`CORS_ORIGINS=*`) pour la beta ; en production, mettre
 l'URL exacte du front.
 
+### Données persistantes (PostgreSQL)
+
+Le `render.yaml` provisionne une base **PostgreSQL** et injecte `DATABASE_URL` :
+le backend bascule automatiquement dessus (sinon SQLite local), et tes données
+**survivent aux redéploiements** (plus besoin de disque, non supporté en free tier).
+Le schéma est créé au démarrage, aucune migration manuelle.
+
+Si le PostgreSQL managé Render ne convient pas (quota, expiration de l'offre
+gratuite) : supprimer le bloc `databases:` du `render.yaml`, créer une base
+**externe gratuite** (Neon, Supabase…) et coller son URL dans la variable
+`DATABASE_URL` (Render → service → Environment). Format attendu :
+`postgresql://user:pass@host:5432/dbname?sslmode=require`.
+
 ## 2. Pointer l'app sur l'API en ligne
 
 - **Web / Expo** : définir la variable d'environnement avant de lancer
@@ -87,6 +100,7 @@ mise à niveau du plan (boucle adaptative), sans toucher aux boutons « Génére
 | `EXPO_PUBLIC_API_URL` | app (web/dev) | URL de l'API |
 | `expo.extra.apiUrl` | `app.json` | URL de l'API (repli build natif) |
 | `CORS_ORIGINS` | backend (Render) | origines autorisées |
-| `RAID_COACH_DB` | backend | chemin SQLite (volume persistant) |
+| `DATABASE_URL` | backend | PostgreSQL (données persistantes) ; si absent → SQLite |
+| `RAID_COACH_DB` | backend | chemin SQLite (repli si pas de PostgreSQL) |
 | `GARMIN_CONSUMER_KEY` / `GARMIN_CONSUMER_SECRET` | backend | OAuth Garmin |
 | `GARMIN_REDIRECT_URL` | backend | callback OAuth Garmin |
