@@ -213,6 +213,47 @@ def test_save_done_computes_load(client):
     assert saved["stress_units"] == pytest.approx(29.4, abs=0.5)
 
 
+# ---------- Générateur Run (Mission 2) ----------
+def test_run_generate_detail(client):
+    r = client.get("/generate/run?type=vma_courte&seed=1")
+    assert r.status_code == 200
+    s = r.json()
+    assert s["type"] == "vma_courte"
+    assert s["seed"] == "vma_courte_001"
+    assert s["body"] and s["body"][0]["pace_min_km"]
+    assert s["body"][0]["pct_vma"] in (100, 105, 110)
+    assert s["calories"] > 0
+
+
+def test_run_generate_deterministic(client):
+    a = client.get("/generate/run?type=seuil&seed=12").json()
+    b = client.get("/generate/run?type=seuil&seed=12").json()
+    assert a == b
+
+
+def test_run_generate_unique_first_100(client):
+    import json as _json
+    sigs = {_json.dumps(client.get(f"/generate/run?type=tempo&seed={n}").json(), sort_keys=True)
+            for n in range(1, 101)}
+    assert len(sigs) == 100   # aucune répétition sur les 100 premières
+
+
+def test_run_generate_bad_type(client):
+    assert client.get("/generate/run?type=marathon&seed=1").status_code == 422
+
+
+def test_run_library(client):
+    lib = client.get("/generate/run/library").json()
+    assert lib["total"] == 700
+    assert len(lib["library"]["vma_longue"]) == 100
+
+
+def test_run_generate_custom_vma(client):
+    # VMA réelle différente → allures recalculées
+    s = client.get("/generate/run?type=vma_courte&seed=1&vma=16&fcmax=190").json()
+    assert s["body"][0]["pace_kmh"] >= 16.0  # 100% de 16 km/h
+
+
 # ---------- Plan annuel (Mission 1) ----------
 def test_plan_annual_structure(client):
     body = client.get("/plan/annual").json()

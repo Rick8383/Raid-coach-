@@ -27,6 +27,8 @@ from engines.selection_wods import SelectionWODGenerator  # noqa: E402
 from engines import schedule as _schedule  # noqa: E402
 from engines.rcos import AnnualPlanner  # noqa: E402
 from engines.plan_annual import build_annual_plan as _build_annual_plan  # noqa: E402
+from engines.run_generator import (generate_run as _generate_run,  # noqa: E402
+                                   run_library as _run_library, RUN_TYPES)
 from api.services.session_builder import build_session as _build_session  # noqa: E402
 
 # Legacy engines (B3-B7)
@@ -304,6 +306,14 @@ class CoachAPI:
                              if discipline in ("strength", "crossfit") else []),
         }
         return _build_session(self, payload, decision)
+
+    # ---- GÉNÉRATEUR RUN (Mission 2 — bibliothèque 700 séances) ----
+    def generate_run(self, run_type: str, seed: int, vma: float | None = None,
+                     fcmax: int | None = None, sciatic: bool = True) -> dict:
+        return _generate_run(run_type, seed, vma or 14.0, fcmax or 186, sciatic=sciatic)
+
+    def run_library(self, vma: float | None = None, fcmax: int | None = None) -> dict:
+        return _run_library(vma or 14.0, fcmax or 186)
 
     # ---- PLAN ANNUEL (Mission 1 — squelette jusqu'à 2029) ----
     def annual_plan(self) -> dict:

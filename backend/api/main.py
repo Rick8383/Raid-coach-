@@ -391,6 +391,23 @@ def plan_annual() -> dict:
     return coach.annual_plan()
 
 
+@app.get("/generate/run")
+def generate_run_ep(type: str, seed: int = 1, vma: float | None = None,
+                    fcmax: int | None = None, sciatic: bool = True) -> dict:
+    """Mission 2 — séance de course unique (déterministe par type+seed).
+    Types : vma_courte, vma_longue, seuil, fartlek, tempo, z2, cotes."""
+    try:
+        return coach.generate_run(type, seed, vma, fcmax, sciatic)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
+@app.get("/generate/run/library")
+def run_library_ep(vma: float | None = None, fcmax: int | None = None) -> dict:
+    """Mission 2 — 700 séances (100 par type) : seed, titre, difficulté, durée."""
+    return coach.run_library(vma, fcmax)
+
+
 @app.post("/generate")
 def generate(body: GenerateIn) -> dict:
     """Bouton 'Générer une séance' propre à chaque page (course/force/wod).
