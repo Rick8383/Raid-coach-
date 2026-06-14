@@ -385,6 +385,12 @@ def roadmap(body: RoadmapIn) -> dict:
     return _safe(coach.roadmap, body.model_dump())
 
 
+@app.get("/plan/annual")
+def plan_annual() -> dict:
+    """Squelette annuel : macro-périodisation BASE/BUILD/PEAK/TRANSITION → 2029."""
+    return coach.annual_plan()
+
+
 @app.post("/generate")
 def generate(body: GenerateIn) -> dict:
     """Bouton 'Générer une séance' propre à chaque page (course/force/wod).

@@ -213,6 +213,24 @@ def test_save_done_computes_load(client):
     assert saved["stress_units"] == pytest.approx(29.4, abs=0.5)
 
 
+# ---------- Plan annuel (Mission 1) ----------
+def test_plan_annual_structure(client):
+    body = client.get("/plan/annual").json()
+    assert body["goal_date"] == "2029-03-01"
+    assert body["weeks_total"] >= 130
+    assert body["blocks"]
+    first = body["blocks"][0]
+    assert first["phase"] == "BASE"
+    assert first["week_start"] == 0
+    assert "volume_su_grande_semaine" in first
+    assert "dominante" in first
+    # jalons benchmarks + sélection finale
+    assert any("SÉLECTION" in m["label"] for m in body["milestones"])
+    # blocs contigus
+    for a, b in zip(body["blocks"], body["blocks"][1:]):
+        assert b["week_start"] == a["week_end"] + 1
+
+
 # ---------- Roadmap (plan annuel) ----------
 def test_roadmap_to_selection(client):
     r = client.post("/roadmap", json={"weeks_to_selection": 142, "current_week": 0})

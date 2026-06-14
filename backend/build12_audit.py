@@ -154,8 +154,8 @@ def run_audit() -> dict:
         routes = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)
                   and any(isinstance(d, ast.Call) for d in n.decorator_list)]
         checks["fastapi_layer_syntax_ok"] = True
-        # 29 + 5 Garmin (status/connect/callback/sync/disconnect)
-        checks["fastapi_routes_count_34"] = len(routes) == 34
+        # 34 + /plan/annual (Mission 1 — plan annuel)
+        checks["fastapi_routes_count_35"] = len(routes) == 35
     except SyntaxError:
         checks["fastapi_layer_syntax_ok"] = False
         exceptions += 1

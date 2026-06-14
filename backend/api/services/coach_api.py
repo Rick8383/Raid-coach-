@@ -3,6 +3,7 @@ This layer is framework-free: FastAPI routers are thin wrappers around it.
 Everything here is fully testable without FastAPI installed."""
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -25,6 +26,7 @@ from engines.run_engine.family_registry import RUN_FAMILIES  # noqa: E402
 from engines.selection_wods import SelectionWODGenerator  # noqa: E402
 from engines import schedule as _schedule  # noqa: E402
 from engines.rcos import AnnualPlanner  # noqa: E402
+from engines.plan_annual import build_annual_plan as _build_annual_plan  # noqa: E402
 from api.services.session_builder import build_session as _build_session  # noqa: E402
 
 # Legacy engines (B3-B7)
@@ -302,6 +304,15 @@ class CoachAPI:
                              if discipline in ("strength", "crossfit") else []),
         }
         return _build_session(self, payload, decision)
+
+    # ---- PLAN ANNUEL (Mission 1 — squelette jusqu'à 2029) ----
+    def annual_plan(self) -> dict:
+        """Macro-périodisation complète. Sert le fichier data/annual_plan.json
+        s'il existe, sinon le construit à la volée."""
+        path = _ROOT / "data" / "annual_plan.json"
+        if path.exists():
+            return json.loads(path.read_text(encoding="utf-8"))
+        return _build_annual_plan()
 
     # ---- ROADMAP (plan annuel rétro-planifié RCOS B14) ----
     def roadmap(self, payload: dict) -> dict:
