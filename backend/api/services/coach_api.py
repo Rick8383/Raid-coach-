@@ -29,6 +29,8 @@ from engines.rcos import AnnualPlanner  # noqa: E402
 from engines.plan_annual import build_annual_plan as _build_annual_plan  # noqa: E402
 from engines.run_generator import (generate_run as _generate_run,  # noqa: E402
                                    run_library as _run_library, RUN_TYPES)
+from engines.wod_generator import (generate_wod as _generate_wod,  # noqa: E402
+                                   random_wod as _random_wod, WOD_FORMATS)
 from api.services.session_builder import build_session as _build_session  # noqa: E402
 
 # Legacy engines (B3-B7)
@@ -314,6 +316,17 @@ class CoachAPI:
 
     def run_library(self, vma: float | None = None, fcmax: int | None = None) -> dict:
         return _run_library(vma or 14.0, fcmax or 186)
+
+    # ---- GÉNÉRATEUR WOD (Mission 3 — 15 formats, cohérence lombaire) ----
+    def generate_wod(self, payload: dict) -> dict:
+        return _generate_wod(
+            fmt=payload.get("format", "auto"),
+            duration_min=payload.get("duration_min", 12),
+            seed=payload.get("seed", "wod"),
+            exclude_lumbar=payload.get("exclude_lumbar", True))
+
+    def random_wod(self, exclude_lumbar: bool = True) -> dict:
+        return _random_wod(exclude_lumbar)
 
     # ---- PLAN ANNUEL (Mission 1 — squelette jusqu'à 2029) ----
     def annual_plan(self) -> dict:

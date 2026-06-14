@@ -254,6 +254,42 @@ def test_run_generate_custom_vma(client):
     assert s["body"][0]["pace_kmh"] >= 16.0  # 100% de 16 km/h
 
 
+# ---------- Générateur WOD (Mission 3) ----------
+def test_wod_generate_deterministic(client):
+    a = client.post("/generate/wod", json={"format": "amrap", "duration_min": 12, "seed": "z"}).json()
+    b = client.post("/generate/wod", json={"format": "amrap", "duration_min": 12, "seed": "z"}).json()
+    assert a == b
+    assert a["description"] and a["target_score"] and a["name"]
+
+
+def test_wod_exclude_lumbar_by_default(client):
+    # sur tous les formats, exclude_lumbar=ON → jamais de mouvement lombaire
+    for fmt in ["amrap", "for_time", "emom", "chipper", "rft", "ladder", "death_by_emom"]:
+        for i in range(8):
+            w = client.post("/generate/wod", json={"format": fmt, "seed": f"k{i}"}).json()
+            assert w["lumbar_safe"] is True
+
+
+def test_wod_auto_and_random(client):
+    auto = client.post("/generate/wod", json={"format": "auto", "seed": "a"}).json()
+    assert auto["format_key"] in [
+        "amrap", "for_time", "emom", "death_by", "death_by_emom", "chipper",
+        "buy_in_amrap_buy_out", "pyramid_asc", "pyramid_desc", "pyramid_full",
+        "multi_amrap_blocks", "rft", "tabata", "amrap_score_double", "ladder"]
+    rnd = client.get("/generate/wod/random").json()
+    assert rnd["description"]
+
+
+def test_wod_variety(client):
+    names = {client.post("/generate/wod", json={"format": "for_time", "seed": f"s{i}"}).json()["name"]
+             for i in range(12)}
+    assert len(names) >= 8
+
+
+def test_wod_duration_bounds(client):
+    assert client.post("/generate/wod", json={"duration_min": 99}).status_code == 422
+
+
 # ---------- Plan annuel (Mission 1) ----------
 def test_plan_annual_structure(client):
     body = client.get("/plan/annual").json()

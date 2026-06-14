@@ -408,6 +408,25 @@ def run_library_ep(vma: float | None = None, fcmax: int | None = None) -> dict:
     return coach.run_library(vma, fcmax)
 
 
+class WodGenIn(BaseModel):
+    format: str = "auto"   # auto | amrap | for_time | emom | death_by | chipper | ...
+    duration_min: int = Field(default=12, ge=4, le=30)
+    seed: str = "wod"
+    exclude_lumbar: bool = True   # règle sciatique L5-S1, ON par défaut
+
+
+@app.post("/generate/wod")
+def generate_wod_ep(body: WodGenIn) -> dict:
+    """Mission 3 — WOD complet (15 formats, charges/distances fixes, cohérence lombaire)."""
+    return _safe(coach.generate_wod, body.model_dump())
+
+
+@app.get("/generate/wod/random")
+def random_wod_ep(exclude_lumbar: bool = True) -> dict:
+    """Mission 3 — WOD aléatoire (seed + format aléatoires)."""
+    return coach.random_wod(exclude_lumbar)
+
+
 @app.post("/generate")
 def generate(body: GenerateIn) -> dict:
     """Bouton 'Générer une séance' propre à chaque page (course/force/wod).
