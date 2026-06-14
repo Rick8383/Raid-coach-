@@ -1,0 +1,64 @@
+name: Deploy Web (GitHub Pages)
+
+# Construit l'app web (Expo) et la publie sur GitHub Pages.
+# URL finale : https://rick8383.github.io/raid-coach-/
+#
+# Prérequis (une seule fois, côté GitHub) :
+#  1. Settings → Pages → Build and deployment → Source = "GitHub Actions".
+#  2. Dépôt PUBLIC (ou plan payant : Pages privé nécessite GitHub Pro/Team).
+#  3. (Optionnel) Settings → Secrets and variables → Actions → Variables :
+#     EXPO_PUBLIC_API_URL = https://<ton-backend>.onrender.com
+#     Sinon la valeur par défaut ci-dessous est utilisée.
+
+on:
+  push:
+    branches: [claude/project-audit-setup-dz443a, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run: { working-directory: mobile }
+    env:
+      # URL du backend, bakée dans le bundle web. Surchargée par la variable
+      # de dépôt EXPO_PUBLIC_API_URL si elle existe.
+      EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL || 'https://raid-coach-api.onrender.com' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - name: Base URL pour la page projet (sous-chemin /raid-coach-)
+        run: |
+          node -e "const fs=require('fs');const p='app.json';const j=JSON.parse(fs.readFileSync(p));j.expo.experiments={...(j.expo.experiments||{}),baseUrl:'/raid-coach-'};fs.writeFileSync(p,JSON.stringify(j,null,2));"
+      - name: Build web statique
+        run: npx expo export --platform web
+      - name: Empêcher Jekyll d'ignorer les dossiers _expo
+        run: touch dist/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: mobile/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
