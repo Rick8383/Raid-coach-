@@ -39,8 +39,45 @@ export function BarChart({ data, color = colors.signal, height = 130, unit = '' 
   );
 }
 
+/** Jauge horizontale : remplissage + zone "sweet spot" optionnelle + marqueur. */
+export function MeterBar({ value, max, color = colors.signal, sweet, marker }:
+  { value: number; max: number; color?: string; sweet?: [number, number]; marker?: number }) {
+  const pct = Math.max(0, Math.min(100, (value / max) * 100));
+  return (
+    <View style={styles.meter}>
+      {sweet && (
+        <View style={[styles.sweet, {
+          left: `${(sweet[0] / max) * 100}%`,
+          width: `${((sweet[1] - sweet[0]) / max) * 100}%`,
+        }]} />
+      )}
+      <View style={[styles.meterFill, { width: `${pct}%`, backgroundColor: color }]} />
+      {marker != null && (
+        <View style={[styles.marker, { left: `${Math.min(100, (marker / max) * 100)}%` }]} />
+      )}
+    </View>
+  );
+}
+
+/** Barre de répartition (proportions empilées), ex. macros. */
+export function StackBar({ segments }: { segments: { value: number; color: string }[] }) {
+  const total = segments.reduce((s, x) => s + x.value, 0) || 1;
+  return (
+    <View style={styles.stack}>
+      {segments.map((s, i) => (
+        <View key={i} style={{ flex: s.value / total, backgroundColor: s.color }} />
+      ))}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 6 },
+  meter: { height: 10, borderRadius: 5, backgroundColor: colors.hairline, overflow: 'hidden', justifyContent: 'center' },
+  sweet: { position: 'absolute', top: 0, bottom: 0, backgroundColor: colors.signalSoft },
+  meterFill: { height: 10, borderRadius: 5 },
+  marker: { position: 'absolute', width: 3, top: -2, bottom: -2, marginLeft: -1, backgroundColor: colors.textPrimary },
+  stack: { flexDirection: 'row', height: 10, borderRadius: 5, overflow: 'hidden' },
   col: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', height: '100%' },
   bar: { width: '70%', borderTopLeftRadius: 3, borderTopRightRadius: 3, marginTop: 4 },
   val: { color: colors.textSecondary, fontFamily: typography.display.fontFamily, fontSize: 12 },

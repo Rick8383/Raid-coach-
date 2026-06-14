@@ -9,6 +9,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { api, SessionToday } from '../api/client';
 import { ReadinessBar } from '../components/ReadinessBar';
 import { WeekStrip } from '../components/WeekStrip';
+import { MeterBar } from '../components/Chart';
 import { Card, PrimaryButton, Tag } from '../components/ui';
 import { daySchedule, WEEK_LABEL } from '../schedule';
 import {
@@ -71,23 +72,32 @@ export function TodayScreen({ checkin, onOpenSession }: {
         <Tag label={WEEK_LABEL[sched.weekType]} color={colors.textDisabled} />
       </View>
 
-      {/* Charge de la semaine (boucle adaptative) */}
+      {/* Charge de la semaine (boucle adaptative) — jauges visuelles */}
       {ctx && (
-        <View style={styles.loadRow}>
-          <LoadStat
-            value={`${ctx.budget_consumed_pct}%`}
-            label="budget hebdo"
-            color={ctx.budget_consumed_pct >= 100 ? colors.readyOrange : colors.textPrimary} />
-          <View style={styles.loadDivider} />
-          <LoadStat
-            value={`${ctx.days_since_rest}`}
-            label="jours sans repos"
-            color={ctx.days_since_rest >= 6 ? colors.readyOrange : colors.textPrimary} />
-          <View style={styles.loadDivider} />
-          <LoadStat
-            value={ctx.acwr_label === 'insufficient_history' ? '—' : `${ctx.acwr ?? '—'}`}
-            label="ACWR"
-            color={acwrAlarm ? colors.readyOrange : colors.textPrimary} />
+        <View style={styles.loadCard}>
+          <View style={styles.loadHead}>
+            <Text style={styles.loadLabel}>BUDGET FATIGUE HEBDO</Text>
+            <Text style={[styles.loadPct, ctx.budget_consumed_pct >= 100 && { color: colors.readyOrange }]}>
+              {ctx.budget_consumed_pct}%
+            </Text>
+          </View>
+          <MeterBar value={ctx.budget_consumed_pct} max={100}
+            color={ctx.budget_consumed_pct >= 100 ? colors.readyOrange
+              : ctx.budget_consumed_pct >= 85 ? colors.readyYellow : colors.signal} />
+          <Text style={styles.loadSub}>
+            {ctx.consumed_su ?? 0} / {ctx.budget_su ?? 0} SU · {ctx.days_since_rest} j sans repos
+          </Text>
+
+          {ctx.acwr_label !== 'insufficient_history' && ctx.acwr != null && (
+            <View style={{ marginTop: spacing.m }}>
+              <View style={styles.loadHead}>
+                <Text style={styles.loadLabel}>ACWR (zone optimale 0,8–1,3)</Text>
+                <Text style={[styles.loadPct, acwrAlarm && { color: colors.readyOrange }]}>{ctx.acwr}</Text>
+              </View>
+              <MeterBar value={ctx.acwr} max={2} sweet={[0.8, 1.3]} marker={ctx.acwr}
+                color={acwrAlarm ? colors.readyOrange : colors.signal} />
+            </View>
+          )}
         </View>
       )}
 
@@ -166,8 +176,12 @@ const styles = StyleSheet.create({
   },
   loadStat: { alignItems: 'center', flex: 1 },
   loadValue: { fontFamily: typography.display.fontFamily, fontSize: typography.sizes.h1 },
-  loadLabel: { color: colors.textDisabled, ...typography.label, fontSize: 9, marginTop: 2 },
+  loadLabel: { color: colors.textSecondary, ...typography.label, fontSize: 10 },
   loadDivider: { width: 1, height: 28, backgroundColor: colors.hairline },
+  loadCard: { backgroundColor: colors.bgCard, borderRadius: spacing.cardRadius, padding: spacing.m, marginTop: spacing.m },
+  loadHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: spacing.s },
+  loadPct: { color: colors.textPrimary, fontFamily: typography.display.fontFamily, fontSize: typography.sizes.h2 },
+  loadSub: { color: colors.textDisabled, fontSize: typography.sizes.small, marginTop: spacing.s },
   countdownNumber: {
     color: colors.textPrimary, fontSize: typography.sizes.countdown,
     fontFamily: typography.display.fontFamily,

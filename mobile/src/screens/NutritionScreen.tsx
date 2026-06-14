@@ -5,6 +5,7 @@
 import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AthleteProfile, MacroTarget, api } from '../api/client';
+import { StackBar } from '../components/Chart';
 import { Card, Tag } from '../components/ui';
 import { daySchedule } from '../schedule';
 import { colors, spacing, typography } from '../theme/tokens';
@@ -60,6 +61,20 @@ export function NutritionScreen({ profile }: { profile: AthleteProfile | null })
             <Text style={styles.caloriesLabel}>kcal cible</Text>
           </Card>
 
+          {/* Répartition visuelle des macros (calories : P×4, G×4, L×9) */}
+          <View style={{ marginTop: spacing.m }}>
+            <StackBar segments={[
+              { value: macros.protein_g * 4, color: colors.fitness },
+              { value: macros.carbs_g * 4, color: colors.signal },
+              { value: macros.fat_g * 9, color: colors.readyYellow },
+            ]} />
+            <View style={styles.legend}>
+              <Text style={[styles.legendItem, { color: colors.fitness }]}>● Protéines</Text>
+              <Text style={[styles.legendItem, { color: colors.signal }]}>● Glucides</Text>
+              <Text style={[styles.legendItem, { color: colors.readyYellow }]}>● Lipides</Text>
+            </View>
+          </View>
+
           <View style={styles.macroGrid}>
             <MacroCard label="Protéines" value={macros.protein_g} color={colors.fitness} />
             <MacroCard label="Glucides" value={macros.carbs_g} color={colors.signal} />
@@ -104,6 +119,8 @@ const styles = StyleSheet.create({
   dayType: { color: colors.textSecondary, ...typography.label, marginBottom: spacing.s },
   calories: { color: colors.textPrimary, fontFamily: typography.display.fontFamily, fontSize: 52 },
   caloriesLabel: { color: colors.textSecondary, ...typography.label },
+  legend: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.s },
+  legendItem: { ...typography.label, fontSize: typography.sizes.micro },
   macroGrid: { flexDirection: 'row', gap: spacing.s, marginTop: spacing.s },
   macroValue: { fontFamily: typography.display.fontFamily, fontSize: typography.sizes.score },
   macroUnit: { color: colors.textDisabled, fontSize: typography.sizes.micro },
