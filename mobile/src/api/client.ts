@@ -187,6 +187,23 @@ export interface Wod {
   difficulty: number; lumbar_note: string; lumbar_safe: boolean; seed: string;
 }
 
+export interface Strength531Set {
+  pct_tm: number; reps: string; load_kg: number; rest_sec: number; amrap: boolean;
+}
+export interface Strength531Accessory {
+  name: string; sets: number; reps: string; load_kg: number | null;
+  tempo: string; rest_sec: number; notes: string;
+}
+export interface Strength531 {
+  day: string; week: number; cycle: number; is_deload: boolean;
+  warmup_mcgill: { name: string; prescription: string; notes?: string }[];
+  main_lift: { lift: string; name: string; training_max: number; sets: Strength531Set[]; note: string };
+  accessories: Strength531Accessory[];
+  finisher_wod: Wod;
+  notes: string[];
+  grease_the_groove?: string;
+}
+
 export interface SessionToday {
   decision: DailyDecision;
   session: DetailedSession;
@@ -312,6 +329,10 @@ export const api = {
   generateWod: (body: Json) => post<Wod>('/generate/wod', body),
   randomWod: (excludeLumbar = true) =>
     get<Wod>(`/generate/wod/random?exclude_lumbar=${excludeLumbar}`),
+
+  // Mission 4 — force 5/3/1
+  strength531: (day: string, week: number, cycle = 0) =>
+    get<Strength531>(`/generate/strength?day=${day}&week=${week}&cycle=${cycle}`),
 
   weeklyBudget: (body: Json) =>
     cachedPost('cache:budget', '/coach/weekly-budget', body, 30),

@@ -290,6 +290,43 @@ def test_wod_duration_bounds(client):
     assert client.post("/generate/wod", json={"duration_min": 99}).status_code == 422
 
 
+# ---------- Force 5/3/1 (Mission 4) ----------
+def test_strength_531_loads(client):
+    s = client.get("/generate/strength?day=push&week=3&cycle=0").json()
+    assert s["day"] == "push"
+    assert s["main_lift"]["name"] == "Développé couché"
+    assert s["main_lift"]["training_max"] == 85.0
+    # S3 = 75/85/95% du TM 85 → 65/72.5/80
+    loads = [x["load_kg"] for x in s["main_lift"]["sets"]]
+    assert loads == [65.0, 72.5, 80.0]
+    assert s["main_lift"]["sets"][-1]["amrap"] is True
+    # Big 3 McGill + finisher non lombaire
+    assert s["warmup_mcgill"]
+    assert s["finisher_wod"]["lumbar_safe"] is True
+
+
+def test_strength_531_cycle_progression(client):
+    c0 = client.get("/strength/cycle?cycle=0").json()["training_max"]
+    c2 = client.get("/strength/cycle?cycle=2").json()["training_max"]
+    assert c2["bench"] == c0["bench"] + 5    # +2.5/cycle haut du corps
+    assert c2["squat"] == c0["squat"] + 10   # +5/cycle bas du corps
+
+
+def test_strength_531_pull_has_gtg(client):
+    s = client.get("/generate/strength?day=pull&week=1").json()
+    assert "grease_the_groove" in s
+
+
+def test_strength_531_deload(client):
+    s = client.get("/generate/strength?day=legs&week=4").json()
+    assert s["is_deload"] is True
+    assert [x["pct_tm"] for x in s["main_lift"]["sets"]] == [40, 50, 60]
+
+
+def test_strength_531_bad_day(client):
+    assert client.get("/generate/strength?day=arms").status_code == 422
+
+
 # ---------- Plan annuel (Mission 1) ----------
 def test_plan_annual_structure(client):
     body = client.get("/plan/annual").json()

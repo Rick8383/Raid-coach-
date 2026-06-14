@@ -427,6 +427,22 @@ def random_wod_ep(exclude_lumbar: bool = True) -> dict:
     return coach.random_wod(exclude_lumbar)
 
 
+@app.get("/generate/strength")
+def strength_531_ep(day: str, week: int = 1, cycle: int = 0) -> dict:
+    """Mission 4 — séance force 5/3/1 (Push/Pull/Legs) : Big 3 McGill, mouvement
+    principal au cycle courant, accessoires double-progression, finisher WOD."""
+    try:
+        return coach.strength_531(day, week, cycle)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
+@app.get("/strength/cycle")
+def strength_cycle_ep(cycle: int = 0) -> dict:
+    """Mission 4 — vue du cycle 4 semaines × 3 jours + Training Max courants."""
+    return coach.strength_cycle(cycle)
+
+
 @app.post("/generate")
 def generate(body: GenerateIn) -> dict:
     """Bouton 'Générer une séance' propre à chaque page (course/force/wod).

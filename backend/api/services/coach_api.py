@@ -31,6 +31,8 @@ from engines.run_generator import (generate_run as _generate_run,  # noqa: E402
                                    run_library as _run_library, RUN_TYPES)
 from engines.wod_generator import (generate_wod as _generate_wod,  # noqa: E402
                                    random_wod as _random_wod, WOD_FORMATS)
+from engines.strength_531 import (generate_strength_531 as _gen_531,  # noqa: E402
+                                  build_cycle_overview as _cycle_531, DAYS as STRENGTH_DAYS)
 from api.services.session_builder import build_session as _build_session  # noqa: E402
 
 # Legacy engines (B3-B7)
@@ -327,6 +329,13 @@ class CoachAPI:
 
     def random_wod(self, exclude_lumbar: bool = True) -> dict:
         return _random_wod(exclude_lumbar)
+
+    # ---- FORCE 5/3/1 (Mission 4) ----
+    def strength_531(self, day: str, week: int = 1, cycle: int = 0) -> dict:
+        return _gen_531(day, week, cycle)
+
+    def strength_cycle(self, cycle: int = 0) -> dict:
+        return _cycle_531(cycle)
 
     # ---- PLAN ANNUEL (Mission 1 — squelette jusqu'à 2029) ----
     def annual_plan(self) -> dict:

@@ -12,6 +12,7 @@ import { SessionView } from '../components/SessionView';
 import { RunZonesView } from './RunZonesScreen';
 import { RunGenerator } from '../components/RunGenerator';
 import { WodGenerator } from '../components/WodGenerator';
+import { StrengthProgram } from '../components/StrengthProgram';
 import { PrimaryButton, Tag } from '../components/ui';
 import { colors, disciplineLabel, spacing, typography } from '../theme/tokens';
 
@@ -71,7 +72,7 @@ export function WorkoutsScreen({ profile }: { profile: AthleteProfile | null }) 
         </>
       )}
       {disc === 'crossfit' && <WodGenerator />}
-      {disc === 'strength' && <DisciplinePanel key={disc} discipline={disc} profile={profile} />}
+      {disc === 'strength' && <StrengthProgram />}
     </ScrollView>
   );
 }
