@@ -164,6 +164,29 @@ export interface AdaptiveContext {
   acwr_label?: string;
 }
 
+export interface RunInterval {
+  label?: string;
+  pace_kmh?: number; pace_min_km?: string; pct_vma?: number;
+  fc_bpm?: number; pct_fcmax?: number; zone?: string;
+  reps?: number; series?: number; distance_m?: number; duration_min?: number;
+  recovery_type?: string; recovery_sec?: number; recovery_min?: number;
+  structure?: string; note?: string; effort?: string; pente?: string;
+  fc_attendue_fin?: string; detail?: string;
+}
+
+export interface RunSession {
+  seed: string; type: string; title: string; difficulty: number;
+  duration_min: number; distance_km: number; calories: number;
+  warmup: RunInterval; body: RunInterval[]; cooldown: RunInterval;
+  sciatic_note: string;
+}
+
+export interface Wod {
+  name: string; format: string; format_key: string; duration_or_cap: string;
+  description: string[]; target_score: string; muscles: string;
+  difficulty: number; lumbar_note: string; lumbar_safe: boolean; seed: string;
+}
+
 export interface SessionToday {
   decision: DailyDecision;
   session: DetailedSession;
@@ -279,6 +302,16 @@ export const api = {
 
   // Générateur dédié d'une page (course/force/wod) — toujours frais, pas de cache.
   generate: (body: Json) => post<DetailedSession>('/generate', body),
+
+  // Mission 2 — générateur Run (700 séances)
+  generateRun: (type: string, seed: number, vma?: number, fcmax?: number) =>
+    get<RunSession>(`/generate/run?type=${type}&seed=${seed}` +
+      (vma ? `&vma=${vma}` : '') + (fcmax ? `&fcmax=${fcmax}` : '')),
+
+  // Mission 3 — générateur WOD (15 formats)
+  generateWod: (body: Json) => post<Wod>('/generate/wod', body),
+  randomWod: (excludeLumbar = true) =>
+    get<Wod>(`/generate/wod/random?exclude_lumbar=${excludeLumbar}`),
 
   weeklyBudget: (body: Json) =>
     cachedPost('cache:budget', '/coach/weekly-budget', body, 30),

@@ -10,6 +10,8 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { AthleteProfile, DetailedSession, Roadmap, api } from '../api/client';
 import { SessionView } from '../components/SessionView';
 import { RunZonesView } from './RunZonesScreen';
+import { RunGenerator } from '../components/RunGenerator';
+import { WodGenerator } from '../components/WodGenerator';
 import { PrimaryButton, Tag } from '../components/ui';
 import { colors, disciplineLabel, spacing, typography } from '../theme/tokens';
 
@@ -58,13 +60,18 @@ export function WorkoutsScreen({ profile }: { profile: AthleteProfile | null }) 
         </View>
       )}
 
-      <DisciplinePanel key={disc} discipline={disc} profile={profile} />
-
+      {/* Course (Mission 2) : 7 types + zones FC ; WOD (Mission 3) : 15 formats ;
+          Force : générateur séance (Mission 4 affinera le 5/3/1). */}
       {disc === 'run' && (
-        <View style={{ marginTop: spacing.xl }}>
-          <RunZonesView profile={profile} />
-        </View>
+        <>
+          <RunGenerator profile={profile} />
+          <View style={{ marginTop: spacing.xl }}>
+            <RunZonesView profile={profile} />
+          </View>
+        </>
       )}
+      {disc === 'crossfit' && <WodGenerator />}
+      {disc === 'strength' && <DisciplinePanel key={disc} discipline={disc} profile={profile} />}
     </ScrollView>
   );
 }
