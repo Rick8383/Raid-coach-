@@ -254,6 +254,37 @@ def test_run_generate_custom_vma(client):
     assert s["body"][0]["pace_kmh"] >= 16.0  # 100% de 16 km/h
 
 
+# ---------- Plan glissant détaillé (Mission 1B) ----------
+def test_weekly_plan_structure(client):
+    p = client.get("/plan/weekly?from_week=0&n=6").json()
+    assert len(p["weeks"]) == 6
+    w0 = p["weeks"][0]
+    assert w0["week_type"] == "big_work"   # semaine du 15/06 = grande
+    assert len(w0["days"]) == 7
+    # jour OFF (mer) = double séance ; détail run présent
+    wed = next(d for d in w0["days"] if d["day_of_week"] == "wed")
+    assert wed["is_work_day"] is False
+    assert len(wed["sessions"]) == 2
+    run = next(s for s in wed["sessions"] if s["type"] == "run")
+    assert run["detail"]["body"][0]["pace_min_km"]
+
+
+def test_weekly_plan_strength_progresses(client):
+    # semaine 0 → 5/3/1 S1 ; semaine 2 → S3
+    p = client.get("/plan/weekly?from_week=0&n=3").json()
+    s0 = next(s for d in p["weeks"][0]["days"] for s in d["sessions"] if s["type"] == "strength")
+    s2 = next(s for d in p["weeks"][2]["days"] for s in d["sessions"] if s["type"] == "strength")
+    assert s0["detail"]["week"] == 1
+    assert s2["detail"]["week"] == 3
+
+
+def test_weekly_plan_sunday_small_week_is_swim(client):
+    # semaine 1 (22/06) = petite semaine → dimanche natation
+    p = client.get("/plan/weekly?from_week=1&n=1").json()
+    sun = next(d for d in p["weeks"][0]["days"] if d["day_of_week"] == "sun")
+    assert any(s["type"] == "swim" for s in sun["sessions"])
+
+
 # ---------- Générateur WOD (Mission 3) ----------
 def test_wod_generate_deterministic(client):
     a = client.post("/generate/wod", json={"format": "amrap", "duration_min": 12, "seed": "z"}).json()

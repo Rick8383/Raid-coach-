@@ -391,6 +391,14 @@ def plan_annual() -> dict:
     return coach.annual_plan()
 
 
+@app.get("/plan/weekly")
+def plan_weekly(from_week: int = 0, n: int = 6,
+                vma: float | None = None, fcmax: int | None = None) -> dict:
+    """Mission 1B — N semaines détaillées jour par jour (course/force/WOD/natation)
+    assemblées via les générateurs, calées sur le planning 3/2/2/3."""
+    return coach.weekly_plan(from_week, n, vma, fcmax)
+
+
 @app.get("/generate/run")
 def generate_run_ep(type: str, seed: int = 1, vma: float | None = None,
                     fcmax: int | None = None, sciatic: bool = True) -> dict:

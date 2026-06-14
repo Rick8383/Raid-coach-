@@ -5,8 +5,9 @@
  */
 import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { AgendaWeek, AnalyticsSnapshot, api } from '../api/client';
+import { AgendaWeek, AnalyticsSnapshot, AthleteProfile, api } from '../api/client';
 import { ReadinessBar } from '../components/ReadinessBar';
+import { PlanView } from '../components/PlanView';
 import { Card, Tag } from '../components/ui';
 import { DAY_LABELS, DayCode, WEEK_LABEL } from '../schedule';
 import {
@@ -31,7 +32,8 @@ const STATUS_META: Record<string, { label: string; color: string }> = {
   warming_up: { label: 'Mise en route', color: colors.textSecondary },
 };
 
-export function AgendaScreen() {
+export function AgendaScreen({ profile }: { profile?: AthleteProfile | null }) {
+  const [view, setView] = useState<'plan' | 'suivi'>('plan');
   const [offset, setOffset] = useState(0);
   const [week, setWeek] = useState<AgendaWeek | null>(null);
   const [stats, setStats] = useState<AnalyticsSnapshot | null>(null);
@@ -52,6 +54,21 @@ export function AgendaScreen() {
       {/* État de forme */}
       {stats && <FormCard stats={stats} />}
 
+      {/* Bascule Plan détaillé / Suivi */}
+      <View style={styles.viewToggle}>
+        {(['plan', 'suivi'] as const).map(v => (
+          <Pressable key={v} onPress={() => setView(v)}
+            style={[styles.viewBtn, view === v && styles.viewBtnOn]}>
+            <Text style={[styles.viewText, view === v && styles.viewTextOn]}>
+              {v === 'plan' ? 'PLAN DÉTAILLÉ' : 'SUIVI / RÉALISÉ'}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      {view === 'plan' && <PlanView profile={profile ?? null} />}
+
+      {view === 'suivi' && (<>
       {/* Sélecteur de semaine */}
       <View style={styles.weekNav}>
         <Pressable onPress={() => setOffset(o => o - 1)} hitSlop={12}>
@@ -102,6 +119,7 @@ export function AgendaScreen() {
           </Card>
         );
       })}
+      </>)}
     </ScrollView>
   );
 }
@@ -146,6 +164,11 @@ function Metric({ value, label, color = colors.textPrimary }:
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
+  viewToggle: { flexDirection: 'row', backgroundColor: colors.bgCard, borderRadius: 8, padding: 3, marginBottom: spacing.m },
+  viewBtn: { flex: 1, paddingVertical: spacing.s, borderRadius: 6, alignItems: 'center' },
+  viewBtnOn: { backgroundColor: colors.signal },
+  viewText: { color: colors.textSecondary, ...typography.label, fontSize: 10 },
+  viewTextOn: { color: colors.bg },
   formHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   formLabel: { color: colors.textSecondary, ...typography.label },
   warming: { color: colors.textSecondary, fontSize: typography.sizes.small, marginTop: spacing.s, lineHeight: 19 },

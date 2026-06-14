@@ -108,7 +108,7 @@ export default function App() {
               onOpenSession={(data, dateIso) => setOpenSession({ data, dateIso })} />
           )}
           {tab === 'workouts' && <WorkoutsScreen profile={profile} />}
-          {tab === 'agenda' && <AgendaScreen />}
+          {tab === 'agenda' && <AgendaScreen profile={profile} />}
           {tab === 'nutrition' && <NutritionScreen profile={profile} />}
           {tab === 'benchmarks' && <BenchmarksScreen profile={profile} />}
           {tab === 'profile' && (

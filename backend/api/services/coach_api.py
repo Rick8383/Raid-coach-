@@ -27,6 +27,7 @@ from engines.selection_wods import SelectionWODGenerator  # noqa: E402
 from engines import schedule as _schedule  # noqa: E402
 from engines.rcos import AnnualPlanner  # noqa: E402
 from engines.plan_annual import build_annual_plan as _build_annual_plan  # noqa: E402
+from engines.weekly_plan import build_weekly as _build_weekly  # noqa: E402
 from engines.run_generator import (generate_run as _generate_run,  # noqa: E402
                                    run_library as _run_library, RUN_TYPES)
 from engines.wod_generator import (generate_wod as _generate_wod,  # noqa: E402
@@ -345,6 +346,10 @@ class CoachAPI:
         if path.exists():
             return json.loads(path.read_text(encoding="utf-8"))
         return _build_annual_plan()
+
+    def weekly_plan(self, from_week: int = 0, n: int = 6,
+                    vma: float | None = None, fcmax: int | None = None) -> dict:
+        return _build_weekly(from_week, n, vma or 14.0, fcmax or 186)
 
     # ---- ROADMAP (plan annuel rétro-planifié RCOS B14) ----
     def roadmap(self, payload: dict) -> dict:

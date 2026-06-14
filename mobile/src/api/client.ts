@@ -210,6 +210,18 @@ export interface SessionToday {
   context: AdaptiveContext;
 }
 
+export interface PlanSession {
+  moment: string; type: string; title: string; duration_min: number; detail: any;
+}
+export interface PlanDay {
+  date: string; day_of_week: string; is_work_day: boolean; week_type: string;
+  sessions: PlanSession[];
+}
+export interface PlanWeek {
+  week_index: number; monday: string; week_type: string; days: PlanDay[];
+}
+export interface WeeklyPlan { from_week: number; n: number; weeks: PlanWeek[]; }
+
 export interface AthleteProfile {
   name?: string;
   birth_date?: string;
@@ -357,6 +369,11 @@ export const api = {
   garminConnect: () => get<{ authorize_url: string }>('/garmin/connect'),
   garminSync: () => post<{ status: string; date: string; metrics: Record<string, number> }>('/garmin/sync', {}),
   garminDisconnect: () => post('/garmin/disconnect', {}),
+
+  weeklyPlan: (fromWeek: number, n = 4, vma?: number, fcmax?: number) =>
+    cachedGet<WeeklyPlan>(`cache:weekly:${fromWeek}:${n}`,
+      `/plan/weekly?from_week=${fromWeek}&n=${n}` +
+      (vma ? `&vma=${vma}` : '') + (fcmax ? `&fcmax=${fcmax}` : ''), 720),
 
   profile: () => cachedGet<AthleteProfile>('cache:profile', '/profile', 720),
   roadmap: (weeksToSelection: number, currentWeek = 0) =>

@@ -104,3 +104,8 @@ export const WEEK_LABEL: Record<WeekType, string> = {
   big_work: 'GRANDE SEMAINE',
   small_work: 'PETITE SEMAINE',
 };
+
+/** Index de semaine absolu depuis l'ancre (0 = semaine du 15/06/2026). */
+export function currentWeekIndex(d: Date = new Date()): number {
+  return Math.max(0, Math.round((mondayOf(d) - ANCHOR_MONDAY) / (7 * DAY_MS)));
+}
