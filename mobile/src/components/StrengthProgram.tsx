@@ -71,7 +71,8 @@ export function StrengthProgram({ cycle = 0 }: { cycle?: number }) {
             highlight: i === cycle,
           }))} />
           <Text style={styles.progNote}>
-            Série lourde (S3) · 1RM estimé actuel ~{prog.points[cycle]?.est_1rm ?? prog.points[0].est_1rm} kg
+            Série lourde (S3) · 1RM estimé ~{prog.points[cycle]?.est_1rm ?? prog.points[0].est_1rm} kg
+            {prog.goal_1rm ? ` · objectif ${prog.goal_1rm} kg` : ''}
           </Text>
         </Card>
       )}

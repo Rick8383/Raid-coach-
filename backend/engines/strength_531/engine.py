@@ -11,12 +11,14 @@ from engines.wod_generator import generate_wod
 
 DAYS = ["push", "pull", "legs"]
 
-# 1RM réels → Training Max (90%, arrondi 2,5 kg) + incrément par cycle
+# 1RM réels (estimés du niveau actuel) → Training Max (90%, arrondi 2,5 kg).
+# Niveau actuel : DC 4×8 @75kg (1RM ~100), Squat 4×5 @100kg (1RM ~117).
+# Objectifs : DC 140 kg, Squat 160 kg.
 TRAINING_MAX = {
-    "bench": {"name": "Développé couché", "tm": 85.0, "inc": 2.5},     # 1RM 95
-    "squat": {"name": "Squat", "tm": 100.0, "inc": 5.0},               # 1RM 110
-    "ohp": {"name": "Presse militaire", "tm": 54.0, "inc": 2.5},       # 1RM ~60
-    "row": {"name": "Rowing barre", "tm": 90.0, "inc": 2.5},           # 1RM ~100
+    "bench": {"name": "Développé couché", "tm": 90.0, "inc": 2.5, "goal_1rm": 140},   # 1RM ~100
+    "squat": {"name": "Squat", "tm": 105.0, "inc": 5.0, "goal_1rm": 160},             # 1RM ~117
+    "ohp": {"name": "Presse militaire", "tm": 57.5, "inc": 2.5, "goal_1rm": 80},      # 1RM ~64
+    "row": {"name": "Rowing barre", "tm": 92.5, "inc": 2.5, "goal_1rm": 120},         # 1RM ~103
 }
 
 _MAIN_BY_DAY = {"push": "bench", "pull": "row", "legs": "squat"}
@@ -26,7 +28,7 @@ _WEEK_SCHEME = {
     1: [(65, "5"), (75, "5"), (85, "5+")],
     2: [(70, "3"), (80, "3"), (90, "3+")],
     3: [(75, "5"), (85, "3"), (95, "1+")],
-    4: [(40, "5"), (50, "5"), (60, "5")],   # deload
+    4: [(50, "5"), (60, "5"), (70, "5")],   # deload (relevé pour rester qualitatif)
 }
 
 _MCGILL = [
@@ -164,4 +166,5 @@ def build_progression(lift: str, cycles: int = 6) -> dict:
             "top_set_kg": _round25(tm * 0.95),   # série lourde S3
             "est_1rm": round(tm / 0.9),          # TM = 90% du 1RM
         })
-    return {"lift": lift, "name": base["name"], "increment": base["inc"], "points": points}
+    return {"lift": lift, "name": base["name"], "increment": base["inc"],
+            "goal_1rm": base.get("goal_1rm"), "points": points}

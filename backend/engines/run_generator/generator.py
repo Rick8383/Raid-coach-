@@ -8,6 +8,8 @@ Allures dérivées de la VMA (défaut 14 km/h) ; FC de la FCmax (défaut 186).
 """
 from __future__ import annotations
 
+from math import gcd
+
 from .settings import (FCMAX, VMA_ATHLETE, WEIGHT_KG, fc_bpm, pace_min_km,
                        speed_kmh)
 
@@ -19,8 +21,23 @@ def generate_seed(run_type: str, seed: int) -> str:
     return f"{run_type}_{seed:03d}"
 
 
+def _permute(idx: int, product: int) -> int:
+    """Bijection sur [0, product) — disperse les seeds consécutifs (multiplicateur
+    nombre d'or coprime au produit) pour éviter tout déroulé prévisible
+    (3×400 → 4×400 → 5×400…), tout en gardant l'unicité sur les 100 premières."""
+    a = max(2, int(product * 0.6180339887))
+    while gcd(a, product) != 1:
+        a += 1
+    return (idx * a + 7) % product
+
+
 def _select(idx: int, axes: list[list]) -> list:
-    """Index à base mixte → un élément par axe (combinaisons toutes distinctes)."""
+    """Index à base mixte (après permutation) → un élément par axe, combinaisons
+    toutes distinctes et bien dispersées d'un seed au suivant."""
+    product = 1
+    for axis in axes:
+        product *= len(axis)
+    idx = _permute(idx % product, product)
     out = []
     for axis in axes:
         out.append(axis[idx % len(axis)])

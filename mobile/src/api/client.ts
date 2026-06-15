@@ -208,7 +208,7 @@ export interface ProgressionPoint {
   cycle: number; training_max: number; top_set_kg: number; est_1rm: number;
 }
 export interface StrengthProgression {
-  lift: string; name: string; increment: number; points: ProgressionPoint[];
+  lift: string; name: string; increment: number; goal_1rm?: number; points: ProgressionPoint[];
 }
 export interface BenchmarkProgression {
   benchmark_id: string;

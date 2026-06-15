@@ -326,10 +326,10 @@ def test_strength_531_loads(client):
     s = client.get("/generate/strength?day=push&week=3&cycle=0").json()
     assert s["day"] == "push"
     assert s["main_lift"]["name"] == "Développé couché"
-    assert s["main_lift"]["training_max"] == 85.0
-    # S3 = 75/85/95% du TM 85 → 65/72.5/80
+    assert s["main_lift"]["training_max"] == 90.0   # 1RM ~100, objectif 140
+    # S3 = 75/85/95% du TM 90 → 67.5/77.5/85 (arrondi 2,5 kg)
     loads = [x["load_kg"] for x in s["main_lift"]["sets"]]
-    assert loads == [65.0, 72.5, 80.0]
+    assert loads == [67.5, 77.5, 85.0]
     assert s["main_lift"]["sets"][-1]["amrap"] is True
     # Big 3 McGill + finisher non lombaire
     assert s["warmup_mcgill"]
@@ -351,7 +351,7 @@ def test_strength_531_pull_has_gtg(client):
 def test_strength_531_deload(client):
     s = client.get("/generate/strength?day=legs&week=4").json()
     assert s["is_deload"] is True
-    assert [x["pct_tm"] for x in s["main_lift"]["sets"]] == [40, 50, 60]
+    assert [x["pct_tm"] for x in s["main_lift"]["sets"]] == [50, 60, 70]
 
 
 def test_strength_531_bad_day(client):

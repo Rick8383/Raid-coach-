@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 import random
 
-from .movements import pool as _pool
+from .movements import CARDIO_MACHINES, pool as _pool
 
 WOD_FORMATS = [
     "amrap", "for_time", "emom", "death_by", "death_by_emom", "chipper",
@@ -23,7 +23,8 @@ _NAME = ["VIPÈRE", "FANTÔME", "ORAGE", "GRANIT", "TONNERRE", "CHACAL", "MISTRA
          "TITANE", "BRASIER", "ACIER", "CORBEAU", "SOMBRE", "OBSIDIENNE", "FAUCON"]
 
 _MUSCLES = {"push": "pecs/épaules/triceps", "pull": "dos/biceps/grip",
-            "legs": "quadriceps/fessiers", "core": "gainage/abdos", "cardio": "cardio"}
+            "legs": "quadriceps/fessiers", "core": "gainage/abdos",
+            "cardio": "cardio", "condi": "conditioning"}
 
 
 def _rng(seed: str) -> random.Random:
@@ -35,15 +36,23 @@ def _name(rng: random.Random) -> str:
     return f"{rng.choice(_PREFIX)} {rng.choice(_NAME)}"
 
 
-def _mag(rng: random.Random, move: dict) -> int:
+# Reps cohérentes par bande de mouvement (plus de "8 double-unders" absurde)
+_BAND_REPS = {"high": [20, 30, 40, 50], "med": [8, 10, 12, 15], "low": [3, 5, 6, 8]}
+_BAND_CHIPPER = {"high": [40, 50, 75, 100], "med": [20, 25, 30], "low": [10, 12, 15]}
+
+
+def _mag(rng: random.Random, move: dict, chipper: bool = False) -> int:
     u = move["unit"]
-    return {
-        "cal": rng.choice([10, 12, 15, 20]),
-        "m_cardio": rng.choice([250, 500]),
-        "m_run": rng.choice([100, 200, 400]),
-        "m_carry": rng.choice([20, 30, 50]),
-        "s": rng.choice([20, 30, 45]),
-    }.get(u, rng.choice([6, 8, 9, 10, 12]))
+    if u == "cal":
+        return rng.choice([10, 12, 15, 20, 25])
+    if u == "m_cardio":
+        return rng.choice([250, 500, 1000])
+    if u == "m_run":
+        return rng.choice([100, 200, 400])
+    if u == "m_carry":
+        return rng.choice([20, 30, 50])
+    band = move.get("band", "med")
+    return rng.choice((_BAND_CHIPPER if chipper else _BAND_REPS)[band])
 
 
 def _render(move: dict, mag) -> str:
@@ -67,7 +76,11 @@ def _pick(rng: random.Random, moves: list[dict], k: int, need_cardio: bool = Tru
     chosen: list[dict] = []
     if need_cardio:
         cardio = [m for m in avail if m["pattern"] == "cardio"]
-        if cardio:
+        # privilégier une machine (assault/echo/ski/row) à la course pure
+        machines = [m for m in cardio if m["id"] in CARDIO_MACHINES]
+        if machines and rng.random() < 0.8:
+            chosen.append(rng.choice(machines))
+        elif cardio:
             chosen.append(cardio[0])
     seen_patterns = {m["pattern"] for m in chosen}
     # privilégier des patterns variés
@@ -89,8 +102,9 @@ def _pick(rng: random.Random, moves: list[dict], k: int, need_cardio: bool = Tru
 
 
 def _reps_move(rng, moves, k):
-    """k mouvements à reps (gym/wl) pour les schémas 21-15-9, etc."""
-    rep_pool = [m for m in moves if m["unit"] == "reps"]
+    """k mouvements à reps pour les schémas 21-15-9 (bandes med/low, pas de
+    mouvement haut-volume type double-unders sur ces schémas)."""
+    rep_pool = [m for m in moves if m["unit"] == "reps" and m.get("band") != "high"]
     rng.shuffle(rep_pool)
     out, pats = [], set()
     for m in rep_pool:
@@ -158,10 +172,7 @@ def _b_death_by_emom(rng, dur, pool):
 
 def _b_chipper(rng, dur, pool):
     moves = _pick(rng, pool, rng.choice([5, 6, 7]), need_cardio=True)
-    lines = []
-    for m in moves:
-        mag = _mag(rng, m) if m["unit"] != "reps" else rng.choice([15, 20, 25, 30])
-        lines.append(_render(m, mag))
+    lines = [_render(m, _mag(rng, m, chipper=True)) for m in moves]
     return lines, "Chipper (1 tour)", f"time cap {rng.choice([16,18,20])} min", "Finir la liste", moves
 
 def _b_buy_in(rng, dur, pool):
