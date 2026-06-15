@@ -503,3 +503,19 @@ Le plan **Render free** ne supporte pas les disques persistants : la base SQLite
 Rendu de séance **unifié et enrichi** : composants partagés `RunDetail` / `StrengthDetail` / `WodDetail` réutilisés par les générateurs **et** le plan détaillé — course avec zones FC colorées et allures multiples, force avec barres de charge par série, WOD structuré + note lombaire. **Graphes sans dépendance** (compatibles web) : composant `Chart` (BarChart, MeterBar avec zone « sweet spot » + marqueur, StackBar). Ajouts : **graphe de progression des charges** sur la page Force (`/strength/progression`, projection 6 cycles + 1RM estimé), **suivi chiffré des benchmarks** sur la page Objectifs (historique tracé + saisie d'un test du jour qui alimente le graphe), **jauges de charge** sur l'écran Jour (budget fatigue coloré par statut + ACWR avec zone optimale 0,8-1,3 et marqueur), **répartition visuelle des macros** sur la page Nutrition. Validation : 98 pytest + 4 audits PASS (43 routes), TypeScript strict 0 erreur, export web OK.
 
 *Addendum v2.8 · 14/06/2026 · Claude Code.*
+
+-----
+
+### Addendum v2.9 — Déploiement web + corrections entraînement + moteur nutrition (15/06/2026)
+
+> Complète les sections précédentes sans rien y modifier.
+
+**Site en ligne** : frontend déployé sur **GitHub Pages** via workflow CI (`.github/workflows/deploy-web.yml`), URL **https://rick8383.github.io/Raid-coach-/** (base URL `/Raid-coach-` casse exacte du dépôt — un base URL en minuscules causait un écran blanc). Backend sur Render (`https://raid-coach-api.onrender.com`, CORS ouvert), auto-déployé sur push. Redéploiement auto à chaque push.
+
+**Corrections entraînement** (vague 1) : Force 5/3/1 — Training Max relevés au niveau réel (DC 90 → 1RM ~100, objectif 140 ; Squat 105 → 1RM ~117, objectif 160 ; OHP 57,5 ; Row 92,5), deload remonté 50/60/70%, objectif 1RM affiché. WOD — L-sit retiré (plus d'exercice à temps fixe), reps cohérentes par bande (double-unders 20-100, et non 8), assault/echo/ski bike mis en avant, double-unders re-catégorisés « condi ». Course — permutation bijective de l'index : seeds consécutifs dispersés (fini 3×400→4×400→5×400…), unicité 100/type conservée.
+
+**Moteur nutrition Elite+** (vague 2, `engines/nutrition_plus/`, evidence-based ISSN) : 10 compléments (créatine, collagène+vit C, whey, caséine, caféine, bêta-alanine, oméga-3, vit D3, magnésium, électrolytes) avec dose/timing/mécanisme/source/niveau de preuve ; 22 aliments (P/G/L/kcal /100g) ; convertisseur **macro→grammes** ; **garde-fous** lipides <0,8 g/kg, protéines <1,8 g/kg, RED-S (<25 kcal/kg FFM) ; planning compléments par type de séance ; 6 synergies + 6 anti-synergies. Endpoints `/nutrition/supplements|foods|synergies|portions|guardrails`. App : écran Nutrition à 4 onglets (Macros+garde-fous / Aliments→grammes / Compléments / Synergies).
+
+**État** : 102 tests pytest + 4 audits 100 samples PASS (48 routes API), TypeScript strict 0 erreur, export web OK.
+
+*Addendum v2.9 · 15/06/2026 · Claude Code.*
