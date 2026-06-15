@@ -331,6 +331,23 @@ export interface MacroTarget {
   notes: string[];
 }
 
+export interface SupplementItem { name: string; dose: string; with: string; evidence: string; why: string; }
+export interface SupplementSchedule {
+  session_type: string; context: string;
+  groups: { when: string; label: string; items: SupplementItem[] }[];
+}
+export interface FoodItem { id: string; name: string; p: number; c: number; f: number; kcal: number; cat: string; state: string; }
+export interface PortionItem { id: string; name: string; grams: number; p: number; c: number; f: number; kcal: number; }
+export interface Portions {
+  target: { p: number; c: number; f: number };
+  items: PortionItem[];
+  totals: { p: number; c: number; f: number; kcal: number };
+  note: string;
+}
+export interface Synergy { combo: string; evidence: string; why: string; example: string; }
+export interface AntiSynergy { pair: string; mechanism: string; magnitude: string; delay: string; }
+export interface Guardrail { code: string; level: string; message: string; }
+
 export const api = {
   health: () => fetch(`${BASE_URL}/health`).then(r => r.ok),
 
@@ -378,6 +395,14 @@ export const api = {
 
   dailyMacros: (body: Json) =>
     cachedPost<MacroTarget>('cache:macros', '/nutrition/daily-macros', body, 240),
+
+  // Nutrition+ (compléments, aliments→grammes, synergies, garde-fous)
+  nutritionSupplements: (sessionType: string) =>
+    cachedGet<SupplementSchedule>(`cache:supp:${sessionType}`, `/nutrition/supplements?session_type=${sessionType}`, 1440),
+  nutritionFoods: () => cachedGet<{ foods: FoodItem[] }>('cache:foods', '/nutrition/foods', 1440),
+  nutritionSynergies: () => cachedGet<{ synergies: Synergy[]; anti_synergies: AntiSynergy[] }>('cache:syn', '/nutrition/synergies', 1440),
+  nutritionPortions: (body: Json) => post<Portions>('/nutrition/portions', body),
+  nutritionGuardrails: (body: Json) => post<{ guardrails: Guardrail[] }>('/nutrition/guardrails', body),
 
   // Garmin Connect (OAuth serveur)
   garminStatus: () => get<{ configured: boolean; connected: boolean }>('/garmin/status'),

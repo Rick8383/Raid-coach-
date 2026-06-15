@@ -642,6 +642,38 @@ def test_selection_day(client):
     assert r.json()["morning"]
 
 
+# ---------- Nutrition+ ----------
+def test_nutrition_supplements(client):
+    s = client.get("/nutrition/supplements?session_type=strength").json()
+    names = [it["name"] for g in s["groups"] for it in g["items"]]
+    assert any("Créatine" in n for n in names)
+    assert any("Collagène" in n for n in names)
+
+
+def test_nutrition_foods_and_synergies(client):
+    foods = client.get("/nutrition/foods").json()["foods"]
+    assert any(f["id"] == "poulet" for f in foods)
+    syn = client.get("/nutrition/synergies").json()
+    assert syn["synergies"] and syn["anti_synergies"]
+
+
+def test_nutrition_portions(client):
+    r = client.post("/nutrition/portions", json={
+        "target_p": 165, "target_c": 300, "target_f": 55}).json()
+    assert r["items"]
+    # totaux protéines proches de la cible (±15%)
+    assert 140 <= r["totals"]["p"] <= 190
+
+
+def test_nutrition_guardrails_alerts(client):
+    g = client.post("/nutrition/guardrails", json={
+        "weight_kg": 75, "calories": 1800, "protein_g": 120, "fat_g": 40}).json()["guardrails"]
+    codes = {x["code"]: x["level"] for x in g}
+    assert codes["lipides"] == "alert"       # 40 < 60 (0,8×75)
+    assert codes["proteines"] == "alert"     # 120 < 135 (1,8×75)
+    assert codes["red_s"] in ("warn", "alert")
+
+
 # ---------- Persistance (nouveaux endpoints) ----------
 def test_metrics_record_and_latest(client):
     r = client.post("/metrics/record", json={

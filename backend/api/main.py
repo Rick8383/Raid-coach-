@@ -521,6 +521,50 @@ def selection_day(body: WeightIn) -> dict:
     return _safe(coach.selection_day_nutrition, body.model_dump())
 
 
+# ---------- Nutrition+ (compléments, aliments→grammes, synergies, garde-fous) ----------
+class PortionsIn(BaseModel):
+    target_p: float = Field(ge=0, le=400)
+    target_c: float = Field(ge=0, le=800)
+    target_f: float = Field(ge=0, le=300)
+    protein_id: str = "poulet"
+    carb_id: str = "rizcuit"
+    fat_id: str = "huileolive"
+
+
+class GuardrailsIn(BaseModel):
+    weight_kg: float = Field(ge=40, le=180)
+    calories: int = Field(ge=800, le=8000)
+    protein_g: float = Field(ge=0, le=400)
+    fat_g: float = Field(ge=0, le=300)
+    body_fat_pct: float | None = Field(default=None, ge=3, le=50)
+    exercise_kcal: int = Field(default=500, ge=0, le=4000)
+
+
+@app.get("/nutrition/supplements")
+def nutrition_supplements(session_type: str = "rest") -> dict:
+    return coach.nutrition_supplements(session_type)
+
+
+@app.get("/nutrition/foods")
+def nutrition_foods() -> dict:
+    return coach.nutrition_foods()
+
+
+@app.get("/nutrition/synergies")
+def nutrition_synergies() -> dict:
+    return coach.nutrition_synergies()
+
+
+@app.post("/nutrition/portions")
+def nutrition_portions(body: PortionsIn) -> dict:
+    return _safe(coach.nutrition_portions, body.model_dump())
+
+
+@app.post("/nutrition/guardrails")
+def nutrition_guardrails(body: GuardrailsIn) -> dict:
+    return _safe(coach.nutrition_guardrails, body.model_dump())
+
+
 # ---------- Persistance (B13) — endpoints d'écriture utilisés par l'app mobile ----------
 @app.post("/metrics/record")
 def record_metrics(body: MetricsRecordIn) -> dict:

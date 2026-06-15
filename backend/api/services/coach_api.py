@@ -28,6 +28,10 @@ from engines import schedule as _schedule  # noqa: E402
 from engines.rcos import AnnualPlanner  # noqa: E402
 from engines.plan_annual import build_annual_plan as _build_annual_plan  # noqa: E402
 from engines.weekly_plan import build_weekly as _build_weekly  # noqa: E402
+from engines.nutrition_plus import (ANTI_SYNERGIES, FOODS, SYNERGIES,  # noqa: E402
+                                    food_portions as _food_portions,
+                                    guardrails as _guardrails,
+                                    supplement_schedule as _supp_schedule)
 from engines.run_generator import (generate_run as _generate_run,  # noqa: E402
                                    run_library as _run_library, RUN_TYPES)
 from engines.wod_generator import (generate_wod as _generate_wod,  # noqa: E402
@@ -253,6 +257,28 @@ class CoachAPI:
         return {"day_type": t.day_type.value, "calories": t.calories,
                 "protein_g": t.protein_g, "carbs_g": t.carbs_g,
                 "fat_g": t.fat_g, "water_l": t.water_l, "notes": t.notes}
+
+    # ---- NUTRITION+ (compléments, aliments→grammes, synergies, garde-fous) ----
+    def nutrition_supplements(self, session_type: str = "rest") -> dict:
+        return _supp_schedule(session_type)
+
+    def nutrition_foods(self) -> dict:
+        return {"foods": FOODS}
+
+    def nutrition_synergies(self) -> dict:
+        return {"synergies": SYNERGIES, "anti_synergies": ANTI_SYNERGIES}
+
+    def nutrition_portions(self, payload: dict) -> dict:
+        return _food_portions(
+            payload["target_p"], payload["target_c"], payload["target_f"],
+            payload.get("protein_id", "poulet"), payload.get("carb_id", "rizcuit"),
+            payload.get("fat_id", "huileolive"))
+
+    def nutrition_guardrails(self, payload: dict) -> dict:
+        return {"guardrails": _guardrails(
+            payload["weight_kg"], payload["calories"], payload["protein_g"],
+            payload["fat_g"], payload.get("body_fat_pct"),
+            payload.get("exercise_kcal", 500))}
 
     def selection_day_nutrition(self, payload: dict) -> dict:
         plan = self.nutrition.race.selection_day_plan(payload["weight_kg"])
