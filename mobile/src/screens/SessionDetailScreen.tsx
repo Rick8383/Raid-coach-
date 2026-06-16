@@ -8,6 +8,7 @@ import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { api, DetailedSession, flushSyncQueue } from '../api/client';
 import { ReadinessBar } from '../components/ReadinessBar';
+import { RpeScale } from '../components/RpeScale';
 import { Card, PrimaryButton, Tag } from '../components/ui';
 import {
   colors, disciplineLabel, DISCIPLINE, ReadinessLevel, spacing, typography,
@@ -125,15 +126,11 @@ export function SessionDetailScreen({ session, level, dateIso, onClose }: {
             </View>
           ) : (
             <>
-              {/* RPE ressenti → alimente la charge (SU) et la boucle adaptative */}
+              {/* RPE ressenti → alimente la charge (SU) et la boucle adaptative.
+                  Survole/appuie un chiffre pour voir l'intensité qu'il décrit. */}
               <Text style={styles.rpeLabel}>DIFFICULTÉ RESSENTIE (RPE)</Text>
               <View style={styles.rpeRow}>
-                {[4, 5, 6, 7, 8, 9, 10].map(n => (
-                  <Pressable key={n} onPress={() => setRpe(n)}
-                    style={[styles.rpeChip, rpe === n && styles.rpeChipOn]}>
-                    <Text style={[styles.rpeText, rpe === n && styles.rpeTextOn]}>{n}</Text>
-                  </Pressable>
-                ))}
+                <RpeScale value={rpe} onChange={setRpe} />
               </View>
               <PrimaryButton label="TERMINER LA SÉANCE" onPress={complete} />
             </>
@@ -195,11 +192,7 @@ const styles = StyleSheet.create({
   altLabel: { color: colors.textSecondary, ...typography.label, marginBottom: spacing.s },
   altText: { color: colors.textSecondary, fontSize: typography.sizes.small, lineHeight: 20 },
   rpeLabel: { color: colors.textSecondary, ...typography.label, marginBottom: spacing.s, textAlign: 'center' },
-  rpeRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.m, gap: spacing.xs },
-  rpeChip: { flex: 1, paddingVertical: spacing.s, borderRadius: 6, backgroundColor: colors.bgElevated, alignItems: 'center', borderWidth: 1, borderColor: colors.hairline },
-  rpeChipOn: { backgroundColor: colors.signalSoft, borderColor: colors.signal },
-  rpeText: { color: colors.textSecondary, fontFamily: typography.display.fontFamily, fontSize: typography.sizes.body },
-  rpeTextOn: { color: colors.signal },
+  rpeRow: { marginBottom: spacing.m },
   doneBox: {
     paddingVertical: 16, alignItems: 'center', borderRadius: spacing.cardRadius,
     backgroundColor: colors.signalSoft, borderWidth: 1, borderColor: colors.signalDim,

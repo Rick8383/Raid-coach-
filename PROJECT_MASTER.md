@@ -519,3 +519,21 @@ Rendu de séance **unifié et enrichi** : composants partagés `RunDetail` / `St
 **État** : 102 tests pytest + 4 audits 100 samples PASS (48 routes API), TypeScript strict 0 erreur, export web OK.
 
 *Addendum v2.9 · 15/06/2026 · Claude Code.*
+
+-----
+
+### Addendum v3.0 — Coach Chat + chrono WOD compétition + tooltips RPE + fix agenda (16/06/2026)
+
+> Complète les sections précédentes sans rien y modifier.
+
+**Correctif bug « marquer comme fait » (Force → Agenda)** : quand plusieurs séances partagent une date (ex. footing planifié le matin + force marquée faite ensuite), l'agenda gardait la mauvaise (la plus ancienne écrasait la plus récente dans la construction du dict). `/agenda/week` priorise désormais une séance **`done`** sur une `planned`, et expose le **titre** de la séance retenue. Côté app, `saveSession` et `completeSession` **invalident le cache** `cache:agenda:*` / `cache:history` / `cache:analytics` après écriture → la séance se reflète immédiatement dans l'agenda (même hors ligne). Régression couverte par un test.
+
+**Coach Chat (assistant déterministe, sans LLM externe)** : nouveau moteur `engines/coach_chat/` (offline-first, testable, aucune dépendance réseau) qui détecte l'intention par mots-clés pondérés (FR) et compose une réponse **personnalisée avec le profil réel** et le contexte du jour (planning 3/2/2/3, readiness/fatigue, semaines avant 2029). Couvre : séance du jour, planning, RPE, nutrition (macros/compléments/créatine), force 5/3/1 (charges/objectifs 1RM), course (allures/zones FC), WOD, sciatique L5-S1, sélection RAID, benchmarks, récupération. Endpoint `POST /coach/chat` (message + date optionnelle). App : **nouvel onglet COACH** (`CoachChatScreen`) — fil de discussion, rendu markdown léger (**gras**, listes), suggestions de relance cliquables.
+
+**Chrono WOD qualité compétition** (`components/WodTimer.tsx` + `components/sound.ts`) : compte à rebours de départ **15 s par défaut** avec **bips 3-2-1 puis GO** (Web Audio API sur web, vibration de secours en natif — sans nouvelle dépendance). **Cliquer sur le chrono ouvre un panneau de réglages** : durée du décompte (0/5/10/15/20/30 s), **time cap** (± 1 min) et **mode de score**. Mode **FOR TIME** (For Time/RFT/Chipper/Pyramides) : le chrono **monte**, arrêt manuel ou au time cap → **temps final = score**. Mode **AMRAP** (AMRAP/EMOM/Death By/Tabata/échelles) : le chrono **descend** depuis le cap, **compteur de reps/rounds** (+1 / −) → **score**. À la fin, le **score est enregistré comme séance faite** (`/sessions/save`, statut `done`, score dans le détail) → suivi dans l'agenda/l'historique.
+
+**Tooltips RPE** (`components/RpeScale.tsx`) : barème RPE 1-10 (Borg CR10 adaptée, aligné sur `engines/coach_chat → RPE_SCALE`). Au **survol** (web) ou à l'**appui** (natif) d'un chiffre RPE, une **fenêtre temporaire** explique le niveau (libellé, zone d'intensité, reps en réserve en force). Intégré à l'écran Séance détaillée (« difficulté ressentie »). Le Coach Chat sait aussi expliquer un RPE précis (« c'est quoi un RPE 8 ? »).
+
+**État** : 119 tests pytest + 4 audits 100 samples PASS (49 routes API), TypeScript strict 0 erreur, export web OK. Aucune régression.
+
+*Addendum v3.0 · 16/06/2026 · Claude Code.*

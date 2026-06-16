@@ -11,12 +11,13 @@ import { WorkoutsScreen } from './src/screens/WorkoutsScreen';
 import { NutritionScreen } from './src/screens/NutritionScreen';
 import { BenchmarksScreen } from './src/screens/BenchmarksScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
+import { CoachChatScreen } from './src/screens/CoachChatScreen';
 import { SessionDetailScreen } from './src/screens/SessionDetailScreen';
 import { GarminConnectScreen } from './src/screens/GarminConnectScreen';
 import { initReminders } from './src/notifications';
 import { readinessLevelFor, colors, typography } from './src/theme/tokens';
 
-type Tab = 'today' | 'workouts' | 'agenda' | 'nutrition' | 'benchmarks' | 'profile';
+type Tab = 'today' | 'workouts' | 'agenda' | 'nutrition' | 'benchmarks' | 'coach' | 'profile';
 type Checkin = { readiness: number; fatigue: number; sleep: number; sciatic: boolean };
 type OpenSession = { data: SessionToday; dateIso: string };
 
@@ -26,6 +27,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'agenda', label: 'AGENDA' },
   { key: 'nutrition', label: 'NUTRITION' },
   { key: 'benchmarks', label: 'OBJECTIFS' },
+  { key: 'coach', label: 'COACH' },
   { key: 'profile', label: 'PROFIL' },
 ];
 
@@ -111,6 +113,7 @@ export default function App() {
           {tab === 'agenda' && <AgendaScreen profile={profile} />}
           {tab === 'nutrition' && <NutritionScreen profile={profile} />}
           {tab === 'benchmarks' && <BenchmarksScreen profile={profile} />}
+          {tab === 'coach' && <CoachChatScreen />}
           {tab === 'profile' && (
             <ProfileScreen profile={profile} onProfile={setProfile}
               onConnectWatch={() => setShowConnect(true)} />

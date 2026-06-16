@@ -96,6 +96,20 @@ export async function queueWrite(path: string, body: Json): Promise<void> {
   await AsyncStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
 }
 
+// Vide les entrées de cache dépendant des séances (agenda, historique,
+// analytics) après une écriture, pour éviter d'afficher un agenda périmé.
+export async function invalidateAgendaCaches(): Promise<void> {
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const stale = keys.filter(k =>
+      k.startsWith('cache:agenda:') || k === 'cache:history' || k === 'cache:analytics');
+    if (stale.length) await AsyncStorage.multiRemove(stale);
+  } catch {
+    // best-effort : l'absence d'invalidation ne casse rien (cachedPost refait
+    // l'appel réseau quand il est en ligne).
+  }
+}
+
 export async function flushSyncQueue(): Promise<number> {
   const raw = (await AsyncStorage.getItem(SYNC_QUEUE_KEY)) ?? '[]';
   const queue = JSON.parse(raw) as { path: string; body: Json; ts: number }[];
@@ -277,6 +291,12 @@ export interface AnalyticsSnapshot {
   sessions_logged?: number;
 }
 
+export interface ChatReply {
+  reply: string;
+  topic: string;
+  suggestions: string[];
+}
+
 export interface RoadmapBlock {
   phase: string;
   week_start: number;
@@ -433,19 +453,30 @@ export const api = {
     return data;
   },
 
+  // Coach Chat — assistant déterministe (pas de cache : réponses contextuelles).
+  chat: (message: string, date?: string) =>
+    post<ChatReply>('/coach/chat', date ? { message, date } : { message }),
+
   // Sauvegarde d'une séance générée (planifiée/faite) → tentée en direct,
-  // mise en file si hors connexion.
+  // mise en file si hors connexion. Invalide le cache agenda/historique pour
+  // que la séance (ex. force « marquée comme faite ») s'y reflète tout de suite.
   saveSession: async (body: Json): Promise<{ session_id?: number; queued?: boolean }> => {
     try {
-      return await post('/sessions/save', body);
+      const res = await post<{ session_id?: number }>('/sessions/save', body);
+      await invalidateAgendaCaches();
+      return res;
     } catch {
       await queueWrite('/sessions/save', body);
+      await invalidateAgendaCaches();
       return { queued: true };
     }
   },
 
   // Écritures (passent par la file si offline)
   recordMetrics: (body: Json) => queueWrite('/metrics/record', body),
-  completeSession: (body: Json) => queueWrite('/sessions/complete', body),
+  completeSession: async (body: Json) => {
+    await queueWrite('/sessions/complete', body);
+    await invalidateAgendaCaches();
+  },
   recordBenchmark: (body: Json) => queueWrite('/benchmarks/record', body),
 };

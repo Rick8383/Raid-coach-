@@ -6,8 +6,14 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { Wod, api } from '../api/client';
 import { WodDetail } from './SessionDetail';
+import { WodTimer, WodResult } from './WodTimer';
 import { Card, PrimaryButton, Tag } from './ui';
 import { colors, spacing, typography } from '../theme/tokens';
+
+function fmtTime(sec: number): string {
+  const m = Math.floor(sec / 60);
+  return `${String(m).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
+}
 
 const FORMATS: { key: string; label: string }[] = [
   { key: 'auto', label: 'SURPRISE' },
@@ -37,10 +43,11 @@ export function WodGenerator() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [scoreSaved, setScoreSaved] = useState<string | null>(null);
 
   const generate = async () => {
     const next = seed + 1;
-    setSeed(next); setLoading(true); setError(false); setSaved(false);
+    setSeed(next); setLoading(true); setError(false); setSaved(false); setScoreSaved(null);
     try {
       const w = await api.generateWod({
         format, duration_min: duration, seed: `w${next}`, exclude_lumbar: excludeLumbar,
@@ -60,6 +67,22 @@ export function WodGenerator() {
       duration_min: duration, title: wod.name, status: 'planned', detail: wod,
     });
     setSaved(true);
+  };
+
+  // Le chrono a livré un score → on enregistre la séance comme FAITE avec le
+  // score (temps ou reps) dans le détail → suivi dans l'agenda/l'historique.
+  const saveScore = async (r: WodResult) => {
+    if (!wod) return;
+    const scoreLabel = r.mode === 'for_time'
+      ? `${fmtTime(r.time_sec)}${r.capped ? ' (cap)' : ''}`
+      : `${r.reps} reps/rounds`;
+    await api.saveSession({
+      discipline: 'crossfit', session_date: new Date().toISOString().slice(0, 10),
+      duration_min: Math.max(1, Math.round(r.time_sec / 60)) || duration,
+      intensity_rpe: 9, title: `${wod.name} — ${scoreLabel}`, status: 'done',
+      detail: { ...wod, result: r, score_label: scoreLabel },
+    });
+    setScoreSaved(scoreLabel);
   };
 
   return (
@@ -103,6 +126,12 @@ export function WodGenerator() {
           <Text style={styles.name}>{wod.name}</Text>
           <WodDetail wod={wod} />
 
+          {/* Chrono compétition : compte à rebours + bips, temps (For Time) ou
+              reps (AMRAP) → score enregistré pour le suivi. */}
+          <Text style={styles.timerLbl}>CHRONO COMPÉTITION</Text>
+          <WodTimer wod={wod} durationMin={duration} onFinish={saveScore} />
+          {scoreSaved && <Text style={styles.saved}>✓ Score enregistré : {scoreSaved}</Text>}
+
           <View style={{ marginTop: spacing.m }}>
             {saved ? <Text style={styles.saved}>✓ Ajouté à ta séance CrossFit (agenda)</Text>
               : <PrimaryButton label="AJOUTER À MA SÉANCE CROSSFIT" onPress={save} />}
@@ -137,5 +166,6 @@ const styles = StyleSheet.create({
   muscles: { color: colors.textSecondary, fontSize: typography.sizes.small, marginTop: spacing.xs },
   lumbarNote: { fontSize: typography.sizes.small, marginTop: spacing.s },
   saved: { color: colors.signal, textAlign: 'center', fontSize: typography.sizes.small, paddingVertical: 14 },
+  timerLbl: { color: colors.textSecondary, ...typography.label, marginTop: spacing.l },
   error: { color: colors.readyOrange, fontSize: typography.sizes.small, marginTop: spacing.l },
 });

@@ -16,6 +16,7 @@ from api import garmin
 from api.garmin import GarminTokenStore
 from api.persistence import Store
 from api.services.coach_api import CoachAPI
+from engines.coach_chat import answer as _coach_chat_answer
 # CoachAPI met engines/legacy sur sys.path à l'import → AnalyticsInput accessible
 from build6_analytics_engine.models import AnalyticsInput  # noqa: E402
 
@@ -242,6 +243,33 @@ class GenerateIn(BaseModel):
     weeks_to_main_goal: int | None = None
     wod_kind: str = Field(default="death_by", pattern="^(death_by|time_cap)$")
     seed: str | None = None  # change à chaque clic → séance différente
+
+
+class ChatIn(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+    date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _chat_context(for_date: str | None) -> dict:
+    """Assemble le contexte du coach (profil, métriques du jour, planning) depuis
+    le store pour personnaliser la réponse du chat."""
+    ctx: dict = {"profile": store.profile_payload()}
+    latest = store.metrics.latest(store.athlete_id)
+    if latest:
+        ctx["metrics"] = latest
+    try:
+        day = for_date or _date.today().isoformat()
+        ctx["today"] = coach.schedule_day({"date": day})
+    except (ValueError, KeyError):
+        pass
+    goal_date = (ctx["profile"] or {}).get("goal_date")
+    if goal_date:
+        try:
+            delta = (_date.fromisoformat(goal_date) - _date.today()).days
+            ctx["weeks_to_goal"] = max(0, delta // 7)
+        except ValueError:
+            pass
+    return ctx
 
 
 def _analytics_from_store() -> dict:
@@ -706,12 +734,30 @@ def recent_sessions(n: int = 30) -> dict:
 @app.post("/agenda/week")
 def agenda_week(body: ScheduleIn) -> dict:
     week = coach.schedule_week(body.model_dump())
-    done = {s["session_date"]: s for s in store.sessions.last_n(store.athlete_id, 60)}
+    # Plusieurs séances peuvent partager une date (ex. course le matin + force
+    # marquée faite ensuite). On garde la plus pertinente : une séance 'done'
+    # l'emporte sur une 'planned', et à statut égal la plus récente (id le plus
+    # élevé). last_n est trié par date DESC, id DESC → le premier vu pour une
+    # date est déjà le plus récent ; on ne remplace que si on trouve un 'done'.
+    best: dict[str, dict] = {}
+    for s in store.sessions.last_n(store.athlete_id, 60):
+        d = s["session_date"]
+        cur = best.get(d)
+        if cur is None:
+            best[d] = s
+        elif cur["status"] != "done" and s["status"] == "done":
+            best[d] = s
     for day in week["days"]:
-        rec = done.get(day["date"])
+        rec = best.get(day["date"])
         day["done"] = ({"discipline": rec["discipline"], "duration_min": rec["duration_min"],
-                        "status": rec["status"]} if rec else None)
+                        "status": rec["status"], "title": rec.get("family_id")} if rec else None)
     return week
+
+
+# ---------- Coach Chat (assistant déterministe, sans LLM externe) ----------
+@app.post("/coach/chat")
+def coach_chat(body: ChatIn) -> dict:
+    return _coach_chat_answer(body.message, _chat_context(body.date))
 
 
 # ---------- Tableau de bord analytics (dérivé des données enregistrées) ----------
