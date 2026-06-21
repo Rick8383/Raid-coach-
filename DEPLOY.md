@@ -32,6 +32,35 @@ gratuite) : supprimer le bloc `databases:` du `render.yaml`, créer une base
 `DATABASE_URL` (Render → service → Environment). Format attendu :
 `postgresql://user:pass@host:5432/dbname?sslmode=require`.
 
+#### ⚠️ Activer PostgreSQL sur un service DÉJÀ déployé (prérequis multi-utilisateurs)
+
+Si le backend a été déployé **avant** que le bloc `databases:` ne soit actif, il
+tourne encore sur **SQLite éphémère** (les données — et donc tout compte
+utilisateur — sont perdues à chaque redéploiement/réveil). Pour basculer en
+PostgreSQL **persistant**, deux options :
+
+**Option A — Re-synchroniser le Blueprint Render (recommandé)**
+1. Render → ton service → onglet **Blueprint** → **Sync** (Render relit
+   `render.yaml` et **provisionne la base `raid-coach-db`** + injecte
+   `DATABASE_URL`). Si l'option n'apparaît pas : **New → Blueprint** sur le dépôt
+   pour recréer le groupe Blueprint (service + base liés).
+2. Attendre le redéploiement.
+
+**Option B — Base externe gratuite (Neon / Supabase)**
+1. Créer une base PostgreSQL gratuite (Neon ou Supabase), copier sa
+   *connection string* (`postgresql://…?sslmode=require`).
+2. Render → service → **Environment** → ajouter `DATABASE_URL` = cette URL →
+   **Save** (déclenche un redéploiement).
+
+**Vérifier que c'est bien actif** — ouvrir `https://<ton-api>/health` :
+```json
+{ "status": "ok", "db_backend": "postgres", "persistent": true }
+```
+`"persistent": true` ⇒ les données (comptes inclus) survivent désormais aux
+redéploiements. Si tu vois `"db_backend": "sqlite"`, `DATABASE_URL` n'est pas
+injecté → reprendre l'option A ou B. Le schéma se crée tout seul au démarrage
+(aucune migration manuelle), y compris la table `users` du multi-comptes.
+
 ## 2. Pointer l'app sur l'API en ligne
 
 - **Web / Expo** : définir la variable d'environnement avant de lancer

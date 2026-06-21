@@ -537,3 +537,26 @@ Rendu de séance **unifié et enrichi** : composants partagés `RunDetail` / `St
 **État** : 119 tests pytest + 4 audits 100 samples PASS (49 routes API), TypeScript strict 0 erreur, export web OK. Aucune régression.
 
 *Addendum v3.0 · 16/06/2026 · Claude Code.*
+
+-----
+
+### Addendum v3.1 — Préparation multi-utilisateurs : persistance PostgreSQL durcie & vérifiée (16/06/2026)
+
+> Complète les sections précédentes sans rien y modifier. **Étape 1/2** vers le multi-comptes (auth à suivre une fois PostgreSQL actif en prod).
+
+**Contexte** : objectif d'ouvrir le site à plusieurs utilisateurs (amis) avec **comptes/login**, **isolation stricte des données** (un compte ne voit ni ne modifie les données d'un autre), l'utilisateur principal (propriétaire) **conservant intégralement son profil et son programme**. Choix validés : inscription **par code d'invitation**, **PostgreSQL d'abord**, auth **simple** (email + mot de passe haché, jeton signé, déconnexion).
+
+**Constat d'architecture** : la base est **déjà multi-tenant par conception** — table `users` (email, password_hash) + `athlete_profiles.user_id`, et **toutes** les tables de données (`sessions`, `daily_metrics`, `pr_records`, `benchmark_results`, `training_plans`, `coach_decisions`, `nutrition_logs`, `garmin_tokens`) sont cloisonnées par `athlete_id`. Les repositories prennent déjà l'`athlete_id` en paramètre → l'isolation est structurelle. Le seul point « mono-utilisateur » restant : le serveur résout toujours « le premier athlète » et 23 endpoints utilisent cet id fixe (à remplacer par « l'utilisateur connecté » à l'étape auth).
+
+**Persistance PostgreSQL durcie & PROUVÉE** (prérequis absolu : en SQLite sur Render free, la base est éphémère → les comptes seraient perdus à chaque redéploiement) :
+- Vérifié contre un **vrai PostgreSQL 16** (pas seulement SQLite) : création des **11 tables**, seed idempotent (1 athlète, pas de doublon), écriture/relecture métriques + séances, et **persistance à travers un redémarrage simulé** (une séance écrite par un `Store` est relue par un nouveau `Store` sur la même base). `tests/test_postgres.py` (end-to-end) **PASS** sur PG réel.
+- `/health` enrichi : expose désormais `db_backend` (`postgres`/`sqlite`) et `persistent` (bool) → permet de **vérifier d'un coup d'œil** que la prod tourne bien en PostgreSQL après bascule.
+- `DEPLOY.md` : runbook **« Activer PostgreSQL sur un service déjà déployé »** (re-sync Blueprint Render *ou* base externe Neon/Supabase) + vérification via `/health` (`"persistent": true`).
+
+**Garantie « données du propriétaire préservées »** : le seed du profil ne s'exécute **que** si aucun athlète n'existe (jamais d'écrasement d'un profil déjà saisi/édité, confirmé sur PG). À l'étape auth, l'athlète existant (profil réel déjà rempli) sera **rattaché au compte propriétaire** ; les nouveaux inscrits obtiennent un **profil vierge** (leur niveau/objectifs), sans aucune incidence sur le programme du propriétaire.
+
+**Action requise côté utilisateur (avant l'étape auth)** : activer PostgreSQL sur Render (cf. DEPLOY.md) et confirmer `"persistent": true` sur `/health`.
+
+**État** : 119 tests pytest (SQLite) + 4 tests PG (PostgreSQL réel) + 4 audits PASS (49 routes API), TypeScript strict 0 erreur, export web OK. Aucune régression.
+
+*Addendum v3.1 · 16/06/2026 · Claude Code.*

@@ -312,7 +312,12 @@ def _analytics_from_store() -> dict:
 # ---------- Routes ----------
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "service": "raid-coach-api", "version": "1.0.0"}
+    # `persistent` = true seulement sur PostgreSQL (données conservées entre
+    # redéploiements). En SQLite sur Render free, la base est éphémère → false.
+    persistent = bool(getattr(store.db, "is_postgres", False))
+    return {"status": "ok", "service": "raid-coach-api", "version": "1.0.0",
+            "db_backend": "postgres" if persistent else "sqlite",
+            "persistent": persistent}
 
 
 @app.post("/coach/daily-decision")
