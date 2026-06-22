@@ -795,3 +795,28 @@ def test_wod_performance_fast_beats_capped():
     # AMRAP : battre son meilleur score → perf plus haute
     assert (_wod_performance({"mode": "amrap", "reps": 200}, 100.0)
             > _wod_performance({"mode": "amrap", "reps": 80}, 100.0))
+
+
+# ---------- Cohérence /plan/day ↔ /plan/weekly (même séance pour un jour) ----------
+def test_plan_day_matches_weekly(client):
+    # 2026-06-24 (mercredi) — semaine du 15/06 = grande semaine (ancre)
+    day = client.get("/plan/day?date=2026-06-24").json()
+    assert day["date"] == "2026-06-24"
+    assert day["sessions"], "le jour doit avoir au moins une séance"
+    # même date via /plan/weekly (semaine 0 depuis l'ancre)
+    wk = client.get("/plan/weekly?from_week=0&n=2").json()
+    wday = next(d for w in wk["weeks"] for d in w["days"] if d["date"] == "2026-06-24")
+    # titres + détails identiques (mêmes générateurs, mêmes seeds)
+    assert [s["title"] for s in day["sessions"]] == [s["title"] for s in wday["sessions"]]
+    assert day["sessions"][0]["detail"] == wday["sessions"][0]["detail"]
+
+
+def test_plan_day_deterministic_across_weeks(client):
+    # déterministe : deux appels pour la même date donnent la même séance
+    a = client.get("/plan/day?date=2026-07-15").json()
+    b = client.get("/plan/day?date=2026-07-15").json()
+    assert a == b
+
+
+def test_plan_day_validation(client):
+    assert client.get("/plan/day?date=15-07-2026").status_code == 422

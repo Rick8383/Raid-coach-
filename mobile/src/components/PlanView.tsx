@@ -6,38 +6,16 @@
  */
 import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { AthleteProfile, PlanSession, WeeklyPlan, api } from '../api/client';
+import { AthleteProfile, WeeklyPlan, api } from '../api/client';
 import { Card, Tag } from './ui';
-import { RunDetail, StrengthDetail, WodDetail } from './SessionDetail';
+import { PlannedSessions } from './PlannedSessions';
 import { currentWeekIndex, DAY_LABELS, DayCode, WEEK_LABEL } from '../schedule';
 import { colors, spacing, typography } from '../theme/tokens';
-
-const TYPE_COLOR: Record<string, string> = {
-  run: colors.fitness, strength: colors.readyRed, crossfit: colors.readyOrange,
-  swim: colors.signal, recovery: colors.signal, rest: colors.textDisabled,
-};
-const TYPE_LABEL: Record<string, string> = {
-  run: 'COURSE', strength: 'FORCE', crossfit: 'WOD', swim: 'NATATION',
-  recovery: 'RÉCUP', rest: 'REPOS',
-};
-
-function SessionExpanded({ s }: { s: PlanSession }) {
-  const d = s.detail || {};
-  if (s.type === 'run' && Array.isArray(d.body)) return <RunDetail session={d} />;
-  if (s.type === 'strength' && d.main_lift) return <StrengthDetail session={d} />;
-  if (s.type === 'crossfit' && Array.isArray(d.description)) return <WodDetail wod={d} />;
-  if (s.type === 'swim' && Array.isArray(d.blocks)) {
-    return <View>{d.blocks.map((b: string, i: number) => (
-      <Text key={i} style={styles.detailLine}>• {b}</Text>))}</View>;
-  }
-  return null;
-}
 
 export function PlanView({ profile }: { profile: AthleteProfile | null }) {
   const base = currentWeekIndex();
   const [offset, setOffset] = useState(0);
   const [plan, setPlan] = useState<WeeklyPlan | null>(null);
-  const [open, setOpen] = useState<string | null>(null);
 
   useEffect(() => {
     api.weeklyPlan(base, 6, profile?.vma_kmh, profile?.fc_max).then(setPlan).catch(() => {});
@@ -72,29 +50,7 @@ export function PlanView({ profile }: { profile: AthleteProfile | null }) {
             <Tag label={day.is_work_day ? 'SERVICE' : 'OFF'}
               color={day.is_work_day ? colors.textSecondary : colors.signal} filled={!day.is_work_day} />
           </View>
-          {day.sessions.map((s, i) => {
-            const id = `${day.date}-${i}`;
-            const opened = open === id;
-            return (
-              <View key={id}>
-                <Pressable onPress={() => setOpen(opened ? null : id)} style={styles.sessRow}>
-                  <View style={[styles.dot, { backgroundColor: TYPE_COLOR[s.type] ?? colors.textDisabled }]} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.sessTitle}>{s.title}</Text>
-                    <Text style={styles.sessMeta}>
-                      {s.moment} · {TYPE_LABEL[s.type] ?? s.type} · {s.duration_min} min
-                    </Text>
-                  </View>
-                  <Text style={styles.chevron}>{opened ? '−' : '+'}</Text>
-                </Pressable>
-                {opened && (
-                  <View style={styles.detail}>
-                    <SessionExpanded s={s} />
-                  </View>
-                )}
-              </View>
-            );
-          })}
+          <PlannedSessions sessions={day.sessions} />
         </Card>
       ))}
     </View>
@@ -108,11 +64,4 @@ const styles = StyleSheet.create({
   loading: { color: colors.textDisabled, textAlign: 'center', marginTop: spacing.l },
   dayHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.s },
   dayName: { color: colors.textPrimary, fontFamily: typography.display.fontFamily, fontSize: typography.sizes.h2 },
-  sessRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.s, borderTopWidth: 1, borderTopColor: colors.hairline, gap: spacing.s },
-  dot: { width: 8, height: 8, borderRadius: 4 },
-  sessTitle: { color: colors.textPrimary, fontSize: typography.sizes.body },
-  sessMeta: { color: colors.textSecondary, fontSize: typography.sizes.small, marginTop: 2 },
-  chevron: { color: colors.signal, fontSize: 20, width: 20, textAlign: 'center' },
-  detail: { paddingLeft: spacing.l, paddingBottom: spacing.s, gap: 2 },
-  detailLine: { color: colors.textSecondary, fontSize: typography.sizes.small, lineHeight: 19 },
 });

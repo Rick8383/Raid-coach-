@@ -6,7 +6,10 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from datetime import date as _date
+
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -502,6 +505,16 @@ def plan_weekly(from_week: int = 0, n: int = 6,
     """Mission 1B — N semaines détaillées jour par jour (course/force/WOD/natation)
     assemblées via les générateurs, calées sur le planning 3/2/2/3."""
     return coach.weekly_plan(from_week, n, vma, fcmax)
+
+
+@app.get("/plan/day")
+def plan_day(date: str, vma: float | None = None, fcmax: int | None = None) -> dict:
+    """Séances planifiées pour une date — MÊME source que /plan/weekly (mêmes
+    seeds par semaine/jour). Garantit que l'écran Jour, l'onglet Séances et
+    l'Agenda affichent une séance identique pour un jour donné."""
+    if not _DATE_RE.match(date or ""):
+        raise HTTPException(status_code=422, detail="date attendue au format YYYY-MM-DD")
+    return coach.plan_day(date, vma, fcmax)
 
 
 @app.get("/generate/run")

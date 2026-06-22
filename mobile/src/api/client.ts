@@ -240,6 +240,7 @@ export interface PlanSession {
 }
 export interface PlanDay {
   date: string; day_of_week: string; is_work_day: boolean; week_type: string;
+  week_index?: number;
   sessions: PlanSession[];
 }
 export interface PlanWeek {
@@ -456,6 +457,13 @@ export const api = {
   weeklyPlan: (fromWeek: number, n = 4, vma?: number, fcmax?: number) =>
     cachedGet<WeeklyPlan>(`cache:weekly:${fromWeek}:${n}`,
       `/plan/weekly?from_week=${fromWeek}&n=${n}` +
+      (vma ? `&vma=${vma}` : '') + (fcmax ? `&fcmax=${fcmax}` : ''), 720),
+
+  // Séance(s) planifiée(s) pour une date — même source que weeklyPlan → l'écran
+  // Jour, l'onglet Séances et l'Agenda affichent la même séance pour un jour.
+  planDay: (date: string, vma?: number, fcmax?: number) =>
+    cachedGet<PlanDay>(`cache:planday:${date}`,
+      `/plan/day?date=${date}` +
       (vma ? `&vma=${vma}` : '') + (fcmax ? `&fcmax=${fcmax}` : ''), 720),
 
   profile: () => cachedGet<AthleteProfile>('cache:profile', '/profile', 720),

@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-google-fonts/inter';
 import { BarlowCondensed_700Bold } from '@expo-google-fonts/barlow-condensed';
-import { AthleteProfile, api, flushSyncQueue, SessionToday } from './src/api/client';
+import { AthleteProfile, api, flushSyncQueue } from './src/api/client';
 import { CheckinScreen } from './src/screens/CheckinScreen';
 import { TodayScreen } from './src/screens/TodayScreen';
 import { AgendaScreen } from './src/screens/AgendaScreen';
@@ -12,14 +12,12 @@ import { NutritionScreen } from './src/screens/NutritionScreen';
 import { BenchmarksScreen } from './src/screens/BenchmarksScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { CoachChatScreen } from './src/screens/CoachChatScreen';
-import { SessionDetailScreen } from './src/screens/SessionDetailScreen';
 import { GarminConnectScreen } from './src/screens/GarminConnectScreen';
 import { initReminders } from './src/notifications';
-import { readinessLevelFor, colors, typography } from './src/theme/tokens';
+import { colors, typography } from './src/theme/tokens';
 
 type Tab = 'today' | 'workouts' | 'agenda' | 'nutrition' | 'benchmarks' | 'coach' | 'profile';
 type Checkin = { readiness: number; fatigue: number; sleep: number; sciatic: boolean };
-type OpenSession = { data: SessionToday; dateIso: string };
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'today', label: 'JOUR' },
@@ -37,7 +35,6 @@ export default function App() {
   });
   const [checkin, setCheckin] = useState<Checkin | null>(null);
   const [tab, setTab] = useState<Tab>('today');
-  const [openSession, setOpenSession] = useState<OpenSession | null>(null);
   const [showConnect, setShowConnect] = useState(false);
   const [profile, setProfile] = useState<AthleteProfile | null>(null);
 
@@ -71,21 +68,6 @@ export default function App() {
     );
   }
 
-  if (openSession) {
-    return (
-      <SafeAreaProvider>
-        <SafeAreaView style={styles.root}>
-          <SessionDetailScreen
-            session={openSession.data.session}
-            level={readinessLevelFor(checkin.readiness, checkin.sciatic)}
-            dateIso={openSession.dateIso}
-            onClose={() => setOpenSession(null)}
-          />
-        </SafeAreaView>
-      </SafeAreaProvider>
-    );
-  }
-
   if (showConnect) {
     return (
       <SafeAreaProvider>
@@ -104,11 +86,7 @@ export default function App() {
           <Text style={styles.brandSub}>SÉLECTION 2029</Text>
         </View>
         <View style={{ flex: 1 }}>
-          {tab === 'today' && (
-            <TodayScreen
-              checkin={checkin}
-              onOpenSession={(data, dateIso) => setOpenSession({ data, dateIso })} />
-          )}
+          {tab === 'today' && <TodayScreen checkin={checkin} profile={profile} />}
           {tab === 'workouts' && <WorkoutsScreen profile={profile} />}
           {tab === 'agenda' && <AgendaScreen profile={profile} />}
           {tab === 'nutrition' && <NutritionScreen profile={profile} />}

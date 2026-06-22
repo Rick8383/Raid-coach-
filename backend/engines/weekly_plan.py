@@ -73,6 +73,32 @@ def _build_session(spec, w_index, weekday, vma, fcmax):
     return {"moment": moment, "type": stype, "title": title, "duration_min": dur, "detail": detail}
 
 
+def _day_payload(d: date, w_index: int, vma: float, fcmax: int) -> dict:
+    monday = START + timedelta(weeks=w_index)
+    wt = _sched.week_type_for(monday)
+    template = _BIG_WORK if wt == _sched.BIG_WORK else _SMALL_WORK
+    wd = d.weekday()
+    ds = _sched.day_schedule(d)
+    sessions = [_build_session(spec, w_index, wd, vma, fcmax) for spec in template[wd]]
+    return {
+        "date": d.isoformat(),
+        "day_of_week": ds.day_of_week,
+        "is_work_day": ds.is_work_day,
+        "week_type": wt,
+        "week_index": w_index,
+        "sessions": sessions,
+    }
+
+
+def build_day(d: date, vma: float = 14.0, fcmax: int = 186) -> dict:
+    """Séances planifiées pour une date précise — MÊME source que build_weekly
+    (même template, mêmes seeds par semaine/jour) → l'agenda, l'écran Jour et
+    l'onglet Séances affichent une séance identique pour un jour donné."""
+    monday = d - timedelta(days=d.weekday())
+    w_index = max(0, (monday - START).days // 7)
+    return _day_payload(d, w_index, vma, fcmax)
+
+
 def build_weekly(from_week: int = 0, n: int = 6, vma: float = 14.0, fcmax: int = 186) -> dict:
     from_week = max(0, min(int(from_week), 200))
     n = max(1, min(int(n), 12))
@@ -81,20 +107,8 @@ def build_weekly(from_week: int = 0, n: int = 6, vma: float = 14.0, fcmax: int =
         w_index = from_week + offset
         monday = START + timedelta(weeks=w_index)
         wt = _sched.week_type_for(monday)
-        template = _BIG_WORK if wt == _sched.BIG_WORK else _SMALL_WORK
-        days = []
-        for wd in range(7):
-            d = monday + timedelta(days=wd)
-            ds = _sched.day_schedule(d)
-            sessions = [_build_session(spec, w_index, wd, vma, fcmax)
-                        for spec in template[wd]]
-            days.append({
-                "date": d.isoformat(),
-                "day_of_week": ds.day_of_week,
-                "is_work_day": ds.is_work_day,
-                "week_type": wt,
-                "sessions": sessions,
-            })
+        days = [_day_payload(monday + timedelta(days=wd), w_index, vma, fcmax)
+                for wd in range(7)]
         weeks.append({"week_index": w_index, "monday": monday.isoformat(),
                       "week_type": wt, "days": days})
     return {"from_week": from_week, "n": n, "weeks": weeks}

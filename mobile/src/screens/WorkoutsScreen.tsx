@@ -7,13 +7,15 @@
  */
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { AthleteProfile, DetailedSession, Roadmap, api } from '../api/client';
+import { AthleteProfile, DetailedSession, PlanDay, Roadmap, api } from '../api/client';
 import { SessionView } from '../components/SessionView';
+import { PlannedSessions } from '../components/PlannedSessions';
 import { RunZonesView } from './RunZonesScreen';
 import { RunGenerator } from '../components/RunGenerator';
 import { WodGenerator } from '../components/WodGenerator';
 import { StrengthProgram } from '../components/StrengthProgram';
-import { PrimaryButton, Tag } from '../components/ui';
+import { Card, PrimaryButton, Tag } from '../components/ui';
+import { daySchedule } from '../schedule';
 import { colors, disciplineLabel, spacing, typography } from '../theme/tokens';
 
 type Discipline = 'run' | 'strength' | 'crossfit';
@@ -32,10 +34,21 @@ function weeksToGoal(goalDate?: string): number {
 export function WorkoutsScreen({ profile }: { profile: AthleteProfile | null }) {
   const [disc, setDisc] = useState<Discipline>('run');
   const [phase, setPhase] = useState<Roadmap | null>(null);
+  const [planToday, setPlanToday] = useState<PlanDay | null>(null);
+  const todayIso = daySchedule(new Date()).date;
 
   useEffect(() => {
     api.roadmap(weeksToGoal(profile?.goal_date), 0).then(setPhase).catch(() => {});
   }, [profile]);
+
+  useEffect(() => {
+    api.planDay(todayIso, profile?.vma_kmh, profile?.fc_max)
+      .then(setPlanToday).catch(() => setPlanToday(null));
+  }, [todayIso, profile]);
+
+  // Séance(s) du jour pour la discipline sélectionnée — MÊME source que l'Agenda
+  // et l'écran Jour (séance identique pour un jour donné).
+  const todaySessions = (planToday?.sessions ?? []).filter(s => s.type === disc);
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={{ padding: spacing.m }}>
@@ -61,8 +74,17 @@ export function WorkoutsScreen({ profile }: { profile: AthleteProfile | null }) 
         </View>
       )}
 
-      {/* Course (Mission 2) : 7 types + zones FC ; WOD (Mission 3) : 15 formats ;
-          Force : générateur séance (Mission 4 affinera le 5/3/1). */}
+      {/* Séance du jour selon le plan — identique à l'écran Jour et à l'Agenda */}
+      {todaySessions.length > 0 && (
+        <Card style={{ padding: spacing.m, marginBottom: spacing.m }}>
+          <Text style={styles.todayLbl}>SÉANCE DU JOUR · SELON TON PLAN</Text>
+          <PlannedSessions sessions={todaySessions} dateIso={todayIso} completable />
+        </Card>
+      )}
+
+      {/* Générateurs : explorer / créer une variante (indépendant du plan).
+          Course (Mission 2) : 7 types + zones FC ; WOD : 15 formats ; Force 5/3/1. */}
+      <Text style={styles.exploreLbl}>EXPLORER / GÉNÉRER UNE VARIANTE</Text>
       {disc === 'run' && (
         <>
           <RunGenerator profile={profile} />
@@ -203,6 +225,8 @@ const styles = StyleSheet.create({
   planLabel: { color: colors.textSecondary, ...typography.label },
   planFocus: { color: colors.textPrimary, fontSize: typography.sizes.body, marginTop: spacing.s, lineHeight: 21 },
   planMeta: { color: colors.textDisabled, fontSize: typography.sizes.small, marginTop: spacing.xs },
+  todayLbl: { color: colors.signal, ...typography.label, marginBottom: spacing.s },
+  exploreLbl: { color: colors.textSecondary, ...typography.label, marginBottom: spacing.s },
   wodKinds: { flexDirection: 'row', gap: spacing.s, marginBottom: spacing.m },
   kindChip: { flex: 1, paddingVertical: spacing.s, borderRadius: 6, alignItems: 'center', borderWidth: 1, borderColor: colors.hairlineStrong },
   kindChipOn: { backgroundColor: colors.signalSoft, borderColor: colors.signal },

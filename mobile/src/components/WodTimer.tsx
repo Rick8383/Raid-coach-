@@ -119,18 +119,23 @@ export function WodTimer({ wod, durationMin, onFinish }: {
       const remaining = Math.ceil((cdEndRef.current - now) / 1000);
       if (remaining !== prevWholeRef.current) {
         prevWholeRef.current = remaining;
-        if (remaining <= 3 && remaining >= 1) beepTick();
+        if (remaining <= 3 && remaining >= 1) beepTick();   // décompte 3-2-1
       }
       if (now >= cdEndRef.current) { beepGo(); beginRunning(); }
-    } else if (phase === 'running' && mode === 'amrap') {
-      const remaining = Math.ceil((amrapEndRef.current - now) / 1000);
+      return;
+    }
+    if (phase === 'running') {
+      // Temps restant avant la fin (AMRAP) ou avant le time cap (For Time).
+      const remaining = mode === 'amrap'
+        ? Math.ceil((amrapEndRef.current - now) / 1000)
+        : Math.ceil((runStartRef.current + capSec * 1000 - now) / 1000);
       if (remaining !== prevWholeRef.current) {
         prevWholeRef.current = remaining;
+        // Bips sur les 10 dernières secondes ; les 3 derniers plus marqués.
         if (remaining <= 3 && remaining >= 1) beepTick();
+        else if (remaining <= 10 && remaining > 3) beepRound();
       }
-      if (now >= amrapEndRef.current) finish(false);
-    } else if (phase === 'running' && mode === 'for_time') {
-      if (now - runStartRef.current >= capSec * 1000) finish(true);
+      if (remaining <= 0) finish(mode === 'for_time');  // For Time auto = capé
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [now, phase]);

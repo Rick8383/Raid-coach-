@@ -28,6 +28,7 @@ from engines import schedule as _schedule  # noqa: E402
 from engines.rcos import AnnualPlanner  # noqa: E402
 from engines.plan_annual import build_annual_plan as _build_annual_plan  # noqa: E402
 from engines.weekly_plan import build_weekly as _build_weekly  # noqa: E402
+from engines.weekly_plan import build_day as _build_day  # noqa: E402
 from engines.nutrition_plus import (ANTI_SYNERGIES, FOODS, SYNERGIES,  # noqa: E402
                                     food_portions as _food_portions,
                                     guardrails as _guardrails,
@@ -380,6 +381,10 @@ class CoachAPI:
     def weekly_plan(self, from_week: int = 0, n: int = 6,
                     vma: float | None = None, fcmax: int | None = None) -> dict:
         return _build_weekly(from_week, n, vma or 14.0, fcmax or 186)
+
+    def plan_day(self, date_iso: str, vma: float | None = None,
+                 fcmax: int | None = None) -> dict:
+        return _build_day(_schedule.parse_date(date_iso), vma or 14.0, fcmax or 186)
 
     # ---- ROADMAP (plan annuel rétro-planifié RCOS B14) ----
     def roadmap(self, payload: dict) -> dict:

@@ -591,3 +591,19 @@ Rendu de séance **unifié et enrichi** : composants partagés `RunDetail` / `St
 **État** : 123 tests pytest (SQLite) + 4 tests PG + 4 audits PASS (49 routes API), TypeScript strict 0 erreur, export web OK. Aucune régression.
 
 *Addendum v3.3 · 16/06/2026 · Claude Code.*
+
+-----
+
+### Addendum v3.4 — Bips chrono (10 dernières s) + séance du jour cohérente partout (16/06/2026)
+
+> Complète les addendums v3.0–v3.3 sans rien y modifier.
+
+**Bips chrono** (`WodTimer`) : en plus du décompte de départ (3-2-1 + GO), des **bips sur les 10 dernières secondes** — d'un AMRAP comme avant la fin du time cap d'un For Time (les 3 derniers plus marqués, bip de fin).
+
+**Cohérence des séances (correctif majeur)** : la séance d'un même jour différait entre l'écran **JOUR**, l'onglet **SÉANCES** et l'**AGENDA**, car trois chemins de génération indépendants coexistaient (décision adaptative / générateurs libres / plan hebdo). Désormais **une source unique** : le plan hebdomadaire déterministe (mêmes templates 3/2/2/3 + mêmes seeds par semaine/jour).
+- **Backend** : `weekly_plan.build_day(date)` + endpoint `GET /plan/day?date=` (mêmes seeds que `/plan/weekly` → séance identique pour une date). Test de cohérence `/plan/day` ↔ `/plan/weekly` (titres + détails identiques) et déterminisme.
+- **App** : nouveau composant partagé `PlannedSessions` (rendu unique des séances d'un jour) utilisé par l'**Agenda** (plan détaillé), l'écran **JOUR** (séance(s) du jour via `/plan/day`, avec « marquer fait » + RPE intégré) et l'onglet **SÉANCES** (carte « SÉANCE DU JOUR · selon ton plan » par discipline). Les générateurs deviennent une section « EXPLORER / GÉNÉRER UNE VARIANTE » clairement distincte. L'écran JOUR conserve le **conseil adaptatif** (readiness → intensité/prudence) en bandeau, mais le **contenu de la séance est le plan** → identique partout, sur toutes les semaines. Écran `SessionDetailScreen` (format adaptatif divergent) retiré ; sa complétion RPE est reprise dans `PlannedSessions`.
+
+**État** : 126 tests pytest (SQLite) + 4 tests PG + 4 audits PASS (50 routes API), TypeScript strict 0 erreur, export web OK.
+
+*Addendum v3.4 · 16/06/2026 · Claude Code.*

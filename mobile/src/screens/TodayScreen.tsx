@@ -6,11 +6,12 @@
  */
 import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { api, SessionToday } from '../api/client';
+import { api, AthleteProfile, PlanDay, SessionToday } from '../api/client';
 import { ReadinessBar } from '../components/ReadinessBar';
 import { WeekStrip } from '../components/WeekStrip';
 import { MeterBar } from '../components/Chart';
-import { Card, PrimaryButton, Tag } from '../components/ui';
+import { PlannedSessions } from '../components/PlannedSessions';
+import { Card, Tag } from '../components/ui';
 import { daySchedule, WEEK_LABEL } from '../schedule';
 import {
   colors, disciplineLabel, DISCIPLINE, readinessLevelFor, spacing, typography,
@@ -25,17 +26,19 @@ function weeksToSelection(): number {
 
 type Checkin = { readiness: number; fatigue: number; sleep: number; sciatic: boolean };
 
-export function TodayScreen({ checkin, onOpenSession }: {
+export function TodayScreen({ checkin, profile }: {
   checkin: Checkin;
-  onOpenSession: (s: SessionToday, dateIso: string) => void;
+  profile?: AthleteProfile | null;
 }) {
   const [data, setData] = useState<SessionToday | null>(null);
+  const [plan, setPlan] = useState<PlanDay | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const today = new Date();
   const sched = daySchedule(today);
 
   useEffect(() => {
+    // Contexte adaptatif (budget/ACWR/conseil) — readiness du jour.
     api.sessionToday({
       date: sched.date,
       readiness: checkin.readiness,
@@ -46,9 +49,14 @@ export function TodayScreen({ checkin, onOpenSession }: {
     }).then(setData).catch(e => setError(String(e)));
   }, [checkin]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    // Séance(s) du jour = MÊME source que l'Agenda et l'onglet Séances.
+    api.planDay(sched.date, profile?.vma_kmh, profile?.fc_max)
+      .then(setPlan).catch(() => setPlan(null));
+  }, [sched.date, profile]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const level = readinessLevelFor(checkin.readiness, checkin.sciatic);
   const decision = data?.decision;
-  const session = data?.session;
   const ctx = data?.context;
   const acwrAlarm = ctx?.acwr_label === 'elevated_injury_risk'
     || ctx?.acwr_label === 'high_injury_risk';
@@ -101,26 +109,18 @@ export function TodayScreen({ checkin, onOpenSession }: {
         </View>
       )}
 
-      {/* Best Action Today */}
-      {session && decision && (
+      {/* Conseil adaptatif du jour (selon la readiness) — n'altère pas la séance,
+          il l'oriente : intensité, prudence sciatique, etc. */}
+      {decision && (
         <Card style={{ flexDirection: 'row', marginTop: spacing.m }}>
           <ReadinessBar level={level} />
           <View style={styles.cardBody}>
-            <Text style={styles.label}>Meilleure action aujourd'hui</Text>
+            <Text style={styles.label}>Conseil du coach aujourd'hui</Text>
             <View style={styles.actionRow}>
               <Text style={styles.glyph}>{DISCIPLINE[decision.best_action]?.glyph ?? '▸'}</Text>
-              <Text style={styles.action}>
-                {disciplineLabel(decision.best_action)}
-                {decision.secondary_action
-                  ? ` + ${disciplineLabel(decision.secondary_action)}` : ''}
-              </Text>
+              <Text style={styles.action}>{disciplineLabel(decision.best_action)}</Text>
             </View>
-            <Text style={styles.sessionTitle}>{session.title}</Text>
-            <Text style={styles.meta}>
-              {session.duration_min} min · intensité max {session.intensity_cap}/10
-            </Text>
             <Text style={styles.reason}>{decision.reason}</Text>
-
             {decision.safety_notes.length > 0 && (
               <View style={styles.safety}>
                 {decision.safety_notes.map(n => (
@@ -128,31 +128,24 @@ export function TodayScreen({ checkin, onOpenSession }: {
                 ))}
               </View>
             )}
-
-            <View style={{ marginTop: spacing.l }}>
-              <PrimaryButton label="VOIR LA SÉANCE DÉTAILLÉE"
-                onPress={() => onOpenSession(data!, sched.date)} />
-            </View>
           </View>
         </Card>
       )}
 
-      {!data && !error && (
-        <Text style={styles.loading}>Préparation de ta séance…</Text>
-      )}
-
-      {error && (
-        <Card style={{ flexDirection: 'row', marginTop: spacing.m }}>
-          <ReadinessBar level="orange" />
-          <View style={styles.cardBody}>
-            <Text style={styles.label}>Hors connexion</Text>
-            <Text style={styles.reason}>
-              Pas de réseau et pas de séance en cache. Reconnecte-toi pour obtenir
-              la séance du jour, ou pars sur 45' Z2 par défaut.
-            </Text>
-          </View>
-        </Card>
-      )}
+      {/* Séance(s) du jour — IDENTIQUE à l'Agenda et à l'onglet Séances */}
+      <Text style={styles.sectionLabel}>SÉANCE(S) DU JOUR · SELON TON PLAN</Text>
+      <Card style={{ padding: spacing.m }}>
+        {plan ? (
+          <PlannedSessions sessions={plan.sessions} dateIso={sched.date} completable />
+        ) : error ? (
+          <Text style={styles.reason}>
+            Pas de réseau et pas de plan en cache. Reconnecte-toi pour voir la
+            séance du jour, ou pars sur 45' Z2 par défaut.
+          </Text>
+        ) : (
+          <Text style={styles.loading}>Préparation de ta séance…</Text>
+        )}
+      </Card>
     </ScrollView>
   );
 }
@@ -193,6 +186,7 @@ const styles = StyleSheet.create({
   },
   cardBody: { flex: 1, padding: spacing.m },
   label: { color: colors.textSecondary, ...typography.label, marginBottom: spacing.s },
+  sectionLabel: { color: colors.textSecondary, ...typography.label, marginTop: spacing.l, marginBottom: spacing.s },
   actionRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.s },
   glyph: { color: colors.signal, fontSize: 22 },
   action: {
