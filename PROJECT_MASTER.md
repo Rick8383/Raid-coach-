@@ -574,3 +574,20 @@ Rendu de séance **unifié et enrichi** : composants partagés `RunDetail` / `St
 **État** : TypeScript strict 0 erreur, export web OK. Backend inchangé (119 pytest + 4 PG + 4 audits PASS).
 
 *Addendum v3.2 · 16/06/2026 · Claude Code.*
+
+-----
+
+### Addendum v3.3 — Score WOD pris en compte (charge + performance + suivi) (16/06/2026)
+
+> Complète les addendums v3.0/v3.2 sans rien y modifier.
+
+**Question** : le temps/score d'un WOD effectué est-il pris en compte pour l'analyse de performance et le suivi ? **Constat** : la **charge** (stress units → ACWR/fatigue/fitness) comptait déjà (séance `done`, durée dérivée du temps), mais le **score lui-même** n'était ni affiché dans le suivi ni intégré à la dimension « performance » de l'analyse (qui utilisait la *readiness* comme proxy).
+
+**Corrections** :
+- **Chrono** (`WodTimer`) : le résultat inclut désormais le **time cap** (`cap_sec`) pour permettre la normalisation de la performance.
+- **Backend** : helpers `_wod_score` (extrait type/valeur/label du détail) et `_wod_performance` (score 0-100 : For Time = d'autant meilleur qu'on finit sous le cap, capé → 45 ; AMRAP = reps relatives au meilleur score connu). `/analytics/snapshot` calcule désormais `performance_scores` **à partir des WOD chronométrés** (du plus ancien au plus récent, repli readiness si < 3 WOD scorés) → la perf WOD alimente vraiment **fitness + performance + tendance**. Nouveaux champs exposés : `performance`, `performance_source` (`wod`/`readiness_proxy`), `wods_scored`. Le **score** est surfacé dans `/sessions/recent` (champ `score`) et le **label** dans `/agenda/week` (`score_label`).
+- **App** : l'Agenda (vue SUIVI) affiche le score (🏁 temps / 🔁 reps) sur les WOD faits ; l'onglet OBJECTIFS gagne une carte **« DERNIERS WODS — PERFORMANCE »** (date · nom · score) alimentée par l'historique.
+
+**État** : 123 tests pytest (SQLite) + 4 tests PG + 4 audits PASS (49 routes API), TypeScript strict 0 erreur, export web OK. Aucune régression.
+
+*Addendum v3.3 · 16/06/2026 · Claude Code.*

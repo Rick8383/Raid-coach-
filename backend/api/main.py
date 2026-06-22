@@ -4,6 +4,7 @@ Docs auto-générées: http://localhost:8000/docs
 """
 from __future__ import annotations
 
+import json
 import os
 from datetime import date as _date
 
@@ -272,6 +273,57 @@ def _chat_context(for_date: str | None) -> dict:
     return ctx
 
 
+def _detail_of(session: dict) -> dict:
+    """Parse le detail_json d'une séance (stocké en chaîne) → dict (vide si KO)."""
+    raw = session.get("detail_json")
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str) and raw:
+        try:
+            d = json.loads(raw)
+            return d if isinstance(d, dict) else {}
+        except (ValueError, TypeError):
+            return {}
+    return {}
+
+
+def _wod_score(detail: dict) -> dict | None:
+    """Extrait le score d'un WOD chronométré depuis le détail de séance.
+    Renvoie {type, value, label, capped, cap_sec} ou None."""
+    res = detail.get("result")
+    if not isinstance(res, dict) or res.get("mode") not in ("for_time", "amrap"):
+        return None
+    mode = res["mode"]
+    is_time = mode == "for_time"
+    value = res.get("time_sec") if is_time else res.get("reps")
+    return {
+        "type": "time" if is_time else "reps",
+        "value": value,
+        "label": detail.get("score_label"),
+        "capped": bool(res.get("capped")),
+        "cap_sec": res.get("cap_sec"),
+    }
+
+
+def _wod_performance(res: dict, best_reps: float | None) -> float | None:
+    """Score de performance 0-100 d'un WOD chronométré, pour l'analyse.
+    - For Time : plus on finit sous le time cap, mieux c'est (capé → 45).
+    - AMRAP : reps relatives au meilleur score AMRAP connu de l'athlète."""
+    mode = res.get("mode")
+    if mode == "for_time":
+        cap = float(res.get("cap_sec") or 0)
+        t = float(res.get("time_sec") or 0)
+        if res.get("capped") or cap <= 0 or t <= 0:
+            return 45.0
+        return max(0.0, min(100.0, 60.0 + 40.0 * (cap - t) / cap))
+    if mode == "amrap":
+        reps = float(res.get("reps") or 0)
+        if not best_reps or best_reps <= 0:
+            return 65.0  # premier score AMRAP : référence neutre
+        return max(0.0, min(100.0, 40.0 + 60.0 * reps / best_reps))
+    return None
+
+
 def _analytics_from_store() -> dict:
     """Dérive un instantané analytics des séances et métriques enregistrées.
     Renvoie un statut 'warming_up' tant que l'historique est trop court."""
@@ -289,11 +341,28 @@ def _analytics_from_store() -> dict:
                 "message": "Pas encore assez de données — enregistre quelques séances et check-ins.",
                 "sessions_logged": len(loads), "metrics_logged": len(readiness)}
 
+    # Performance réelle = score des WOD chronométrés (For Time vs time cap,
+    # AMRAP vs meilleur score connu). Parcouru du plus ancien au plus récent
+    # pour une tendance cohérente. Repli sur la readiness si < 3 WOD scorés.
+    wod_perf: list[float] = []
+    best_amrap = 0.0
+    for s in reversed(sessions):
+        if s["status"] != "done":
+            continue
+        res = _detail_of(s).get("result")
+        if isinstance(res, dict) and res.get("mode") in ("for_time", "amrap"):
+            p = _wod_performance(res, best_amrap or None)
+            if p is not None:
+                wod_perf.append(p)
+            if res.get("mode") == "amrap":
+                best_amrap = max(best_amrap, float(res.get("reps") or 0))
+    performance_scores = wod_perf if len(wod_perf) >= 3 else readiness
+
     chronic = sum(loads) / len(loads)
     data = AnalyticsInput(
         recent_loads=loads[:7], chronic_load=chronic,
         readiness_scores=readiness, recovery_scores=recovery,
-        performance_scores=readiness,  # proxy en l'absence de score perf dédié
+        performance_scores=performance_scores,
         weakness_scores={})
     r = coach.analytics.analyze(data)
     return {
@@ -303,6 +372,9 @@ def _analytics_from_store() -> dict:
         "acwr": round(r.fatigue.acute_chronic_ratio, 2),
         "readiness": round(r.readiness.score, 1),
         "readiness_trend": r.readiness.trend.value,
+        "performance": round(r.performance.score, 1),
+        "performance_source": "wod" if len(wod_perf) >= 3 else "readiness_proxy",
+        "wods_scored": len(wod_perf),
         "risk": r.risk.level.value,
         "risk_reasons": r.risk.reasons,
         "sessions_logged": len(loads),
@@ -732,7 +804,14 @@ def update_profile(body: ProfileUpdateIn) -> dict:
 @app.get("/sessions/recent")
 def recent_sessions(n: int = 30) -> dict:
     n = max(1, min(n, 200))
-    return {"sessions": store.sessions.last_n(store.athlete_id, n)}
+    rows = store.sessions.last_n(store.athlete_id, n)
+    # Expose le score d'un WOD chronométré (temps/reps) pour le suivi, sans
+    # forcer le client à reparser tout le detail_json.
+    for s in rows:
+        score = _wod_score(_detail_of(s))
+        if score:
+            s["score"] = score
+    return {"sessions": rows}
 
 
 # ---------- Agenda prévisionnel (planning + intention + séances réalisées) ----------
@@ -754,8 +833,13 @@ def agenda_week(body: ScheduleIn) -> dict:
             best[d] = s
     for day in week["days"]:
         rec = best.get(day["date"])
-        day["done"] = ({"discipline": rec["discipline"], "duration_min": rec["duration_min"],
-                        "status": rec["status"], "title": rec.get("family_id")} if rec else None)
+        if rec:
+            score = _wod_score(_detail_of(rec))
+            day["done"] = {"discipline": rec["discipline"], "duration_min": rec["duration_min"],
+                           "status": rec["status"], "title": rec.get("family_id"),
+                           "score_label": score["label"] if score else None}
+        else:
+            day["done"] = None
     return week
 
 

@@ -262,12 +262,32 @@ export interface AthleteProfile {
   current: Record<string, number>;
 }
 
+export interface SessionScore {
+  type: 'time' | 'reps';
+  value: number;
+  label: string | null;
+  capped: boolean;
+  cap_sec: number | null;
+}
+
+export interface SessionRow {
+  session_date: string;
+  discipline: string;
+  duration_min: number;
+  intensity_rpe?: number;
+  stress_units?: number;
+  status: string;
+  family_id?: string | null;
+  score?: SessionScore;
+}
+
 export interface AgendaDay {
   date: string;
   day_of_week: string;
   is_work_day: boolean;
   intent: { focus: string; label: string; load: string };
-  done: { discipline: string; duration_min: number; status: string } | null;
+  done: { discipline: string; duration_min: number; status: string;
+          title?: string | null; score_label?: string | null } | null;
 }
 
 export interface AgendaWeek {
@@ -286,6 +306,9 @@ export interface AnalyticsSnapshot {
   acwr?: number;
   readiness?: number;
   readiness_trend?: string;
+  performance?: number;
+  performance_source?: 'wod' | 'readiness_proxy';
+  wods_scored?: number;
   risk?: string;
   risk_reasons?: string[];
   sessions_logged?: number;
@@ -444,7 +467,7 @@ export const api = {
   analytics: () =>
     cachedGet<AnalyticsSnapshot>('cache:analytics', '/analytics/snapshot', 30),
   recentSessions: (n = 30) =>
-    cachedGet<{ sessions: AgendaDay['done'][] }>('cache:history', `/sessions/recent?n=${n}`, 30),
+    cachedGet<{ sessions: SessionRow[] }>('cache:history', `/sessions/recent?n=${n}`, 30),
 
   // Mise à jour profil (interactive) — met à jour le cache au passage
   updateProfile: async (body: Json): Promise<AthleteProfile> => {

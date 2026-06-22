@@ -14,7 +14,7 @@ import { beepGo, beepTick, beepRound, primeSound } from './sound';
 import { colors, spacing, typography } from '../theme/tokens';
 
 export type ScoreMode = 'for_time' | 'amrap';
-export interface WodResult { mode: ScoreMode; time_sec: number; reps: number; capped: boolean; }
+export interface WodResult { mode: ScoreMode; time_sec: number; reps: number; capped: boolean; cap_sec: number; }
 
 type Phase = 'idle' | 'countdown' | 'running' | 'done';
 
@@ -100,7 +100,7 @@ export function WodTimer({ wod, durationMin, onFinish }: {
     const timeSec = mode === 'for_time'
       ? Math.min(capSec, Math.round((Date.now() - runStartRef.current) / 1000))
       : capSec;
-    const r: WodResult = { mode, time_sec: timeSec, reps, capped };
+    const r: WodResult = { mode, time_sec: timeSec, reps, capped, cap_sec: capSec };
     setResult(r);
     setPhase('done');
     beepGo();

@@ -1,7 +1,7 @@
 /** Benchmarks Sélection : progression vers les cibles élite (top 5%) + suivi chiffré. */
 import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { AthleteProfile, BenchmarkProgression, api } from '../api/client';
+import { AthleteProfile, BenchmarkProgression, SessionRow, api } from '../api/client';
 import { ReadinessBar } from '../components/ReadinessBar';
 import { BarChart } from '../components/Chart';
 import { Card, PrimaryButton } from '../components/ui';
@@ -67,6 +67,44 @@ function BenchmarkTracker() {
   );
 }
 
+function WodPerfHistory() {
+  const [wods, setWods] = useState<SessionRow[]>([]);
+  useEffect(() => {
+    api.recentSessions(60)
+      .then(r => setWods((r.sessions ?? []).filter(s =>
+        s.discipline === 'crossfit' && s.status === 'done' && !!s.score)))
+      .catch(() => setWods([]));
+  }, []);
+
+  return (
+    <Card style={{ padding: spacing.m, marginTop: spacing.l }}>
+      <Text style={styles.trackTitle}>DERNIERS WODS — PERFORMANCE</Text>
+      {wods.length === 0 ? (
+        <Text style={styles.empty}>
+          Aucun WOD chronométré pour l'instant. Lance le chrono sur un WOD et
+          enregistre ton score : il apparaîtra ici et alimentera ton analyse de forme.
+        </Text>
+      ) : (
+        wods.slice(0, 12).map((s, i) => (
+          <View key={i} style={styles.wodRow}>
+            <Text style={styles.wodDate}>{s.session_date.slice(5)}</Text>
+            <Text style={styles.wodName} numberOfLines={1}>
+              {(s.family_id ?? 'WOD').replace(/ — .*/, '')}
+            </Text>
+            <Text style={styles.wodScore}>
+              {s.score?.type === 'time' ? '🏁 ' : '🔁 '}{s.score?.label}
+            </Text>
+          </View>
+        ))
+      )}
+      <Text style={styles.wodNote}>
+        Le temps (For Time) et les reps (AMRAP) comptent dans ta charge et dans
+        la dimension « performance » de l'analyse de forme.
+      </Text>
+    </Card>
+  );
+}
+
 export function BenchmarksScreen({ profile }: { profile: AthleteProfile | null }) {
   const [report, setReport] = useState<any>(null);
   useEffect(() => {
@@ -107,6 +145,7 @@ export function BenchmarksScreen({ profile }: { profile: AthleteProfile | null }
         </>
       )}
 
+      <WodPerfHistory />
       <BenchmarkTracker />
     </ScrollView>
   );
@@ -141,4 +180,12 @@ const styles = StyleSheet.create({
   stepT: { color: colors.signal, fontSize: 22, fontFamily: typography.display.fontFamily },
   logVal: { color: colors.textPrimary, fontFamily: typography.display.fontFamily, fontSize: typography.sizes.h1, minWidth: 90, textAlign: 'center' },
   saved: { color: colors.signal, textAlign: 'center', fontSize: typography.sizes.small, paddingVertical: 14 },
+  wodRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.s,
+    borderTopWidth: 1, borderTopColor: colors.hairline, gap: spacing.s },
+  wodDate: { color: colors.textDisabled, fontSize: typography.sizes.micro, width: 44 },
+  wodName: { color: colors.textPrimary, fontSize: typography.sizes.small, flex: 1 },
+  wodScore: { color: colors.signal, fontFamily: typography.display.fontFamily,
+    fontSize: typography.sizes.body },
+  wodNote: { color: colors.textDisabled, fontSize: typography.sizes.micro,
+    marginTop: spacing.m, lineHeight: 16 },
 });

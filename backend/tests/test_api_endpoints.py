@@ -738,3 +738,60 @@ def test_benchmark_record_and_progression(client):
     prog = client.get("/benchmarks/bench_test_progression/progression").json()
     values = [p["result_value"] for p in prog["results"]]
     assert values == [30, 33]
+
+
+# ---------- Score WOD : suivi + analyse de performance ----------
+def _save_done_wod(client, date, mode, *, time_sec=None, reps=None, cap_sec=720, capped=False):
+    label = (f"{time_sec // 60:02d}:{time_sec % 60:02d}" if mode == "for_time"
+             else f"{reps} reps/rounds")
+    result = {"mode": mode, "time_sec": time_sec or cap_sec, "reps": reps or 0,
+              "capped": capped, "cap_sec": cap_sec}
+    return client.post("/sessions/save", json={
+        "discipline": "crossfit", "session_date": date,
+        "duration_min": max(1, (time_sec or cap_sec) // 60), "intensity_rpe": 9,
+        "title": f"WOD test — {label}", "status": "done",
+        "detail": {"name": "WOD test", "result": result, "score_label": label}})
+
+
+def test_wod_score_surfaced_in_recent(client):
+    _save_done_wod(client, "2028-07-03", "for_time", time_sec=510, cap_sec=900)
+    rows = client.get("/sessions/recent?n=120").json()["sessions"]
+    wod = next(s for s in rows if s["session_date"] == "2028-07-03")
+    assert wod["status"] == "done"
+    assert float(wod["stress_units"]) > 0          # le temps compte dans la charge
+    assert wod["score"]["type"] == "time"
+    assert wod["score"]["value"] == 510
+    assert wod["score"]["label"] == "08:30"
+
+
+def test_wod_score_label_in_agenda(client):
+    # 2028-07-03 est un lundi
+    week = client.post("/agenda/week", json={"date": "2028-07-03"}).json()
+    mon = next(d for d in week["days"] if d["date"] == "2028-07-03")
+    assert mon["done"]["score_label"] == "08:30"
+
+
+def test_analytics_uses_wod_performance(client):
+    # readiness pour débloquer l'analytics
+    for day, r in [("2028-08-01", 70), ("2028-08-02", 72), ("2028-08-03", 68)]:
+        client.post("/metrics/record", json={"date": day, "readiness": r, "fatigue": 30})
+    # 3 WOD For Time chronométrés → la perf vient des WOD, pas du proxy readiness
+    _save_done_wod(client, "2028-08-01", "for_time", time_sec=400, cap_sec=900)
+    _save_done_wod(client, "2028-08-02", "for_time", time_sec=420, cap_sec=900)
+    _save_done_wod(client, "2028-08-03", "for_time", time_sec=380, cap_sec=900)
+    snap = client.get("/analytics/snapshot").json()
+    assert snap["status"] != "warming_up"
+    assert snap["performance_source"] == "wod"
+    assert snap["wods_scored"] >= 3
+    assert isinstance(snap["performance"], (int, float))
+
+
+def test_wod_performance_fast_beats_capped():
+    from api.main import _wod_performance
+    fast = _wod_performance({"mode": "for_time", "time_sec": 300, "cap_sec": 900, "capped": False}, None)
+    slow = _wod_performance({"mode": "for_time", "time_sec": 870, "cap_sec": 900, "capped": False}, None)
+    capped = _wod_performance({"mode": "for_time", "time_sec": 900, "cap_sec": 900, "capped": True}, None)
+    assert fast > slow > capped
+    # AMRAP : battre son meilleur score → perf plus haute
+    assert (_wod_performance({"mode": "amrap", "reps": 200}, 100.0)
+            > _wod_performance({"mode": "amrap", "reps": 80}, 100.0))

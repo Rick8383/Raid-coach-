@@ -111,6 +111,7 @@ export function AgendaScreen({ profile }: { profile?: AthleteProfile | null }) {
                   {day.done.status === 'done' ? '✓' : '○'} {disciplineLabel(day.done.discipline)}
                   {' · '}{day.done.duration_min} min
                   {day.done.status === 'done' ? ' · fait' : ' · prévu'}
+                  {day.done.score_label ? ` · 🏁 ${day.done.score_label}` : ''}
                 </Text>
               ) : (
                 <Text style={styles.pending}>—</Text>
