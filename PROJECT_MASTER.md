@@ -560,3 +560,17 @@ Rendu de séance **unifié et enrichi** : composants partagés `RunDetail` / `St
 **État** : 119 tests pytest (SQLite) + 4 tests PG (PostgreSQL réel) + 4 audits PASS (49 routes API), TypeScript strict 0 erreur, export web OK. Aucune régression.
 
 *Addendum v3.1 · 16/06/2026 · Claude Code.*
+
+-----
+
+### Addendum v3.2 — Coach Chat à cerveau local (réponses concrètes même API en veille) (16/06/2026)
+
+> Complète l'addendum v3.0 sans rien y modifier.
+
+**Problème constaté** : en ligne, le chatbot renvoyait toujours **le même message** quelle que soit la question. Cause : l'app web appelle l'API Render (`/coach/chat`) ; quand Render free est **en veille** (réveil 30-60 s) ou que l'endpoint n'est pas encore redéployé, l'appel échouait et l'écran affichait un **unique message d'erreur générique** — donnant l'impression d'un bot « bête ».
+
+**Correctif** : ajout d'un **coach local** (`mobile/src/coach/localCoach.ts`), miroir TypeScript de `engines/coach_chat`, qui **analyse la question** (mêmes intentions/mots-clés) et compose une **réponse concrète personnalisée** avec le profil mis en cache (poids → protéines/lipides, VMA → allures, FCmax → zones, 1RM → objectifs force, `goal_date` → semaines avant 2029) et le **planning 3/2/2/3 calculé localement** (`schedule.ts`). Le `CoachChatScreen` tente d'abord l'API (réponse enrichie, données du jour) avec un **timeout de 8 s**, puis **bascule sur le coach local** en cas d'échec/latence → **toujours une réponse pertinente**, jamais un message unique, et **fonctionne hors ligne**. Barème RPE partagé avec `RpeScale` (source unique).
+
+**État** : TypeScript strict 0 erreur, export web OK. Backend inchangé (119 pytest + 4 PG + 4 audits PASS).
+
+*Addendum v3.2 · 16/06/2026 · Claude Code.*

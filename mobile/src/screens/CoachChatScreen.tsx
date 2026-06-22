@@ -8,10 +8,20 @@ import {
   ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView,
   StyleSheet, Text, TextInput, View,
 } from 'react-native';
-import { api } from '../api/client';
+import { api, AthleteProfile } from '../api/client';
+import { localCoachAnswer } from '../coach/localCoach';
 import { colors, spacing, typography } from '../theme/tokens';
 
 interface Msg { role: 'user' | 'coach'; text: string; suggestions?: string[]; }
+
+/** Course entre une promesse et un délai → bascule sur le coach local si l'API
+ *  tarde (Render free se réveille lentement) ou échoue. */
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+  ]);
+}
 
 const WELCOME: Msg = {
   role: 'coach',
@@ -38,7 +48,7 @@ function RichText({ text, style }: { text: string; style: any }) {
   );
 }
 
-export function CoachChatScreen() {
+export function CoachChatScreen({ profile }: { profile?: AthleteProfile | null }) {
   const [messages, setMessages] = useState<Msg[]>([WELCOME]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -56,14 +66,14 @@ export function CoachChatScreen() {
     setMessages(m => [...m, { role: 'user', text: q }]);
     setBusy(true);
     try {
-      const res = await api.chat(q, new Date().toISOString().slice(0, 10));
+      // 1) On tente l'API (réponse enrichie : planning du jour, métriques réelles).
+      const res = await withTimeout(api.chat(q, new Date().toISOString().slice(0, 10)), 8000);
       setMessages(m => [...m, { role: 'coach', text: res.reply, suggestions: res.suggestions }]);
     } catch {
-      setMessages(m => [...m, {
-        role: 'coach',
-        text: "Je n'arrive pas à joindre le coach (réseau / API). Réessaie quand "
-          + 'tu es en ligne — je réponds avec tes données réelles.',
-      }]);
+      // 2) API injoignable/lente → cerveau local : analyse la question et répond
+      //    quand même concrètement (jamais un message générique unique).
+      const local = localCoachAnswer(q, profile ?? null);
+      setMessages(m => [...m, { role: 'coach', text: local.reply, suggestions: local.suggestions }]);
     } finally {
       setBusy(false);
     }

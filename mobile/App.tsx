@@ -113,7 +113,7 @@ export default function App() {
           {tab === 'agenda' && <AgendaScreen profile={profile} />}
           {tab === 'nutrition' && <NutritionScreen profile={profile} />}
           {tab === 'benchmarks' && <BenchmarksScreen profile={profile} />}
-          {tab === 'coach' && <CoachChatScreen />}
+          {tab === 'coach' && <CoachChatScreen profile={profile} />}
           {tab === 'profile' && (
             <ProfileScreen profile={profile} onProfile={setProfile}
               onConnectWatch={() => setShowConnect(true)} />
