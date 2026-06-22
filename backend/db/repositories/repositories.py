@@ -189,6 +189,33 @@ class PlanRepository:
         return rows[0] if rows else None
 
 
+class StandbyRepository:
+    """Mode standby / vacances — une ligne par athlète (isolation totale)."""
+
+    def __init__(self, db: Database) -> None:
+        self.db = db
+
+    def get(self, athlete_id: int) -> dict | None:
+        rows = self.db.query(
+            "SELECT * FROM standby_state WHERE athlete_id = ?", (athlete_id,))
+        return rows[0] if rows else None
+
+    def set_window(self, athlete_id: int, mode: str | None, start_date: str | None,
+                   end_date: str | None, params: dict | None,
+                   plan_shift_weeks: int) -> None:
+        self.db.execute(
+            """INSERT INTO standby_state
+               (athlete_id, mode, start_date, end_date, params_json, plan_shift_weeks)
+               VALUES (?,?,?,?,?,?)
+               ON CONFLICT(athlete_id) DO UPDATE SET
+                 mode = excluded.mode, start_date = excluded.start_date,
+                 end_date = excluded.end_date, params_json = excluded.params_json,
+                 plan_shift_weeks = excluded.plan_shift_weeks,
+                 updated_at = datetime('now')""",
+            (athlete_id, mode, start_date, end_date,
+             json.dumps(params or {}), plan_shift_weeks))
+
+
 class DecisionRepository:
     def __init__(self, db: Database) -> None:
         self.db = db

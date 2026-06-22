@@ -73,30 +73,34 @@ def _build_session(spec, w_index, weekday, vma, fcmax):
     return {"moment": moment, "type": stype, "title": title, "duration_min": dur, "detail": detail}
 
 
-def _day_payload(d: date, w_index: int, vma: float, fcmax: int) -> dict:
-    monday = START + timedelta(weeks=w_index)
-    wt = _sched.week_type_for(monday)
+def _day_payload(d: date, shift_weeks: int, vma: float, fcmax: int) -> dict:
+    # La STRUCTURE (jour travaillé/OFF, type de semaine) reste calée sur le
+    # calendrier réel ; seule la PROGRESSION (cycle 5/3/1, seeds) peut être
+    # décalée (shift_weeks) — utilisé par le mode standby « décaler le plan ».
+    real_monday = d - timedelta(days=d.weekday())
+    wt = _sched.week_type_for(real_monday)
     template = _BIG_WORK if wt == _sched.BIG_WORK else _SMALL_WORK
-    wd = d.weekday()
     ds = _sched.day_schedule(d)
-    sessions = [_build_session(spec, w_index, wd, vma, fcmax) for spec in template[wd]]
+    real_w = max(0, (real_monday - START).days // 7)
+    plan_w = max(0, real_w - max(0, int(shift_weeks)))
+    sessions = [_build_session(spec, plan_w, d.weekday(), vma, fcmax)
+                for spec in template[d.weekday()]]
     return {
         "date": d.isoformat(),
         "day_of_week": ds.day_of_week,
         "is_work_day": ds.is_work_day,
         "week_type": wt,
-        "week_index": w_index,
+        "week_index": plan_w,
         "sessions": sessions,
     }
 
 
-def build_day(d: date, vma: float = 14.0, fcmax: int = 186) -> dict:
+def build_day(d: date, vma: float = 14.0, fcmax: int = 186, shift_weeks: int = 0) -> dict:
     """Séances planifiées pour une date précise — MÊME source que build_weekly
     (même template, mêmes seeds par semaine/jour) → l'agenda, l'écran Jour et
-    l'onglet Séances affichent une séance identique pour un jour donné."""
-    monday = d - timedelta(days=d.weekday())
-    w_index = max(0, (monday - START).days // 7)
-    return _day_payload(d, w_index, vma, fcmax)
+    l'onglet Séances affichent une séance identique pour un jour donné.
+    `shift_weeks` décale la progression (mode standby) sans toucher au calendrier."""
+    return _day_payload(d, shift_weeks, vma, fcmax)
 
 
 def build_weekly(from_week: int = 0, n: int = 6, vma: float = 14.0, fcmax: int = 186) -> dict:
@@ -107,7 +111,7 @@ def build_weekly(from_week: int = 0, n: int = 6, vma: float = 14.0, fcmax: int =
         w_index = from_week + offset
         monday = START + timedelta(weeks=w_index)
         wt = _sched.week_type_for(monday)
-        days = [_day_payload(monday + timedelta(days=wd), w_index, vma, fcmax)
+        days = [_day_payload(monday + timedelta(days=wd), 0, vma, fcmax)
                 for wd in range(7)]
         weeks.append({"week_index": w_index, "monday": monday.isoformat(),
                       "week_type": wt, "days": days})

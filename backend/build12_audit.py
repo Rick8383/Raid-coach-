@@ -155,7 +155,8 @@ def run_audit() -> dict:
                   and any(isinstance(d, ast.Call) for d in n.decorator_list)]
         checks["fastapi_layer_syntax_ok"] = True
         # 43 + /strength/progression + 5 nutrition+ + /coach/chat + /plan/day
-        checks["fastapi_routes_count_50"] = len(routes) == 50
+        # + standby (GET/POST/DELETE)
+        checks["fastapi_routes_count_53"] = len(routes) == 53
     except SyntaxError:
         checks["fastapi_layer_syntax_ok"] = False
         exceptions += 1

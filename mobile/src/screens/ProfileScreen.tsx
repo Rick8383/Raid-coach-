@@ -6,6 +6,7 @@ import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View, ScrollView } from 'react-native';
 import { AthleteProfile, api } from '../api/client';
 import { Card } from '../components/ui';
+import { StandbyCard } from '../components/StandbyCard';
 import { Roadmap } from '../components/Roadmap';
 import { applyReminders, loadPrefs, ReminderPrefs } from '../notifications';
 import { colors, spacing, typography } from '../theme/tokens';
@@ -137,6 +138,9 @@ export function ProfileScreen({ profile, onProfile, onConnectWatch }: {
           </Card>
         </>
       )}
+
+      {/* Mode vacances / standby (par athlète) */}
+      <StandbyCard />
 
       {/* Feuille de route → 2029 */}
       <Roadmap weeksToSelection={weeksToGoal(profile.goal_date)} />

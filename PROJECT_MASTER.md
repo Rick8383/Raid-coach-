@@ -607,3 +607,22 @@ Rendu de séance **unifié et enrichi** : composants partagés `RunDetail` / `St
 **État** : 126 tests pytest (SQLite) + 4 tests PG + 4 audits PASS (50 routes API), TypeScript strict 0 erreur, export web OK.
 
 *Addendum v3.4 · 16/06/2026 · Claude Code.*
+
+-----
+
+### Addendum v3.5 — Mode standby / vacances (par athlète) (16/06/2026)
+
+> Complète les sections précédentes sans rien y modifier. Répond au « mode standby » du prompt initial.
+
+Quand l'athlète s'absente, deux modes adaptent l'entraînement, **configurés dans Profil** via une fenêtre de dates (« départ dans N jours » + durée), **stockés par athlète** (`standby_state`, une ligne/athlète, isolation totale — aucun impact sur les autres comptes) :
+
+- **PAUSE** (pas de salle / pas le temps) : le plan est **gelé** pendant l'absence ; au retour, **une semaine de reprise progressive (deload)** — volume/intensité réduits, anti-lombaire — puis le plan **reprend exactement là où il s'était arrêté** : la progression est **décalée** (cumulée dans `plan_shift_weeks`), donc **aucun cycle 5/3/1 n'est perdu**. Pliage paresseux : une fois la pause + sa semaine de reprise passées, le décalage est figé.
+- **VACANCES** (plus de temps) : **bloc intensif salle complète**, **réglable à l'activation** (durée 5-7 j via la fenêtre, **1 ou 2 séances/jour**), rotation 6 jours orientée RAID (force push/pull/legs + course seuil/VMA/Z2 + WOD), cohérent et **anti-lombaire**. Le plan normal reprend à la fin (sans décalage : tu t'es entraîné).
+
+**Implémentation** :
+- Backend : table `standby_state` + `StandbyRepository` ; moteur `engines/standby/` (classification jour, pliage, générateurs reprise/vacances réutilisant run/force/WOD) ; refonte `weekly_plan._day_payload` pour décaler **seulement la progression** (cycle/seeds) en gardant la **structure calendaire réelle** (jours travaillés/OFF, type de semaine). Endpoints `GET/POST/DELETE /standby` ; `/plan/day` et `/plan/weekly` tiennent compte du standby → **JOUR, SÉANCES et AGENDA restent cohérents**. Vérifié sur **PostgreSQL réel** (table créée, upsert sans doublon).
+- App : carte **« MODE VACANCES / STANDBY »** dans Profil (choix mode, fenêtre, séances/jour, activation/annulation) ; bandeau standby (⏸ standby / ↩ reprise / 🏝 vacances) affiché dans l'écran Jour, l'onglet Séances et l'Agenda via le composant partagé `PlannedSessions`. Invalidation des caches de plan à l'activation.
+
+**État** : 131 tests pytest (SQLite) + 4 tests PG + 4 audits PASS (53 routes API), TypeScript strict 0 erreur, export web OK.
+
+*Addendum v3.5 · 16/06/2026 · Claude Code.*

@@ -15,7 +15,8 @@ from db.database import Database
 from db.repositories.repositories import (AthleteRepository,
                                           BenchmarkRepository,
                                           MetricsRepository,
-                                          SessionRepository)
+                                          SessionRepository,
+                                          StandbyRepository)
 
 DEFAULT_DB_PATH = os.environ.get("RAID_COACH_DB", "data/raid_coach.db")
 
@@ -57,6 +58,7 @@ class Store:
         self.metrics = MetricsRepository(self.db)
         self.sessions = SessionRepository(self.db)
         self.benchmarks = BenchmarkRepository(self.db)
+        self.standby = StandbyRepository(self.db)
         self.athlete_id = self._ensure_default_athlete()
 
     def _ensure_default_athlete(self) -> int:

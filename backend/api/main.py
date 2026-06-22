@@ -21,6 +21,7 @@ from api.garmin import GarminTokenStore
 from api.persistence import Store
 from api.services.coach_api import CoachAPI
 from engines.coach_chat import answer as _coach_chat_answer
+from engines import standby as _standby
 # CoachAPI met engines/legacy sur sys.path à l'import → AnalyticsInput accessible
 from build6_analytics_engine.models import AnalyticsInput  # noqa: E402
 
@@ -236,6 +237,15 @@ class ProfileUpdateIn(BaseModel):
     vma_kmh: float | None = Field(default=None, ge=8, le=26)
     main_goal: str | None = None
     goal_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
+class StandbyIn(BaseModel):
+    """Active le mode standby/vacances sur une fenêtre de dates (par athlète)."""
+    mode: str = Field(pattern="^(pause|vacation)$")
+    start_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    end_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    sessions_per_day: int = Field(default=1, ge=1, le=2)  # mode vacances
+    equipment: str = Field(default="gym", pattern="^(gym|minimal|bodyweight)$")
 
 
 class GenerateIn(BaseModel):
@@ -499,22 +509,75 @@ def plan_annual() -> dict:
     return coach.annual_plan()
 
 
+def _standby_state() -> dict:
+    """État standby de l'athlète (replié paresseusement si une pause est passée)."""
+    row = store.standby.get(store.athlete_id) or {}
+    folded, changed = _standby.fold_if_complete(row, _date.today())
+    if changed:
+        store.standby.set_window(
+            store.athlete_id, folded.get("mode"), folded.get("start_date"),
+            folded.get("end_date"), None, int(folded.get("plan_shift_weeks") or 0))
+    return folded
+
+
+def _resolve_day(date_iso: str, vma: float | None, fcmax: int | None) -> dict:
+    return _standby.planned_day(date_iso, _standby_state(), vma or 14.0, fcmax or 186)
+
+
 @app.get("/plan/weekly")
 def plan_weekly(from_week: int = 0, n: int = 6,
                 vma: float | None = None, fcmax: int | None = None) -> dict:
-    """Mission 1B — N semaines détaillées jour par jour (course/force/WOD/natation)
-    assemblées via les générateurs, calées sur le planning 3/2/2/3."""
-    return coach.weekly_plan(from_week, n, vma, fcmax)
+    """Mission 1B — N semaines détaillées jour par jour (course/force/WOD/natation),
+    calées sur le 3/2/2/3 et tenant compte du mode standby/vacances."""
+    base = coach.weekly_plan(from_week, n, vma, fcmax)
+    state = _standby_state()
+    for wk in base["weeks"]:
+        for i, day in enumerate(wk["days"]):
+            wk["days"][i] = _standby.planned_day(day["date"], state, vma or 14.0, fcmax or 186)
+    return base
 
 
 @app.get("/plan/day")
 def plan_day(date: str, vma: float | None = None, fcmax: int | None = None) -> dict:
     """Séances planifiées pour une date — MÊME source que /plan/weekly (mêmes
-    seeds par semaine/jour). Garantit que l'écran Jour, l'onglet Séances et
-    l'Agenda affichent une séance identique pour un jour donné."""
+    seeds par semaine/jour), avec prise en compte du mode standby. Garantit que
+    l'écran Jour, l'onglet Séances et l'Agenda affichent une séance identique."""
     if not _DATE_RE.match(date or ""):
         raise HTTPException(status_code=422, detail="date attendue au format YYYY-MM-DD")
-    return coach.plan_day(date, vma, fcmax)
+    return _resolve_day(date, vma, fcmax)
+
+
+# ---------- Mode standby / vacances (par athlète) ----------
+@app.get("/standby")
+def get_standby() -> dict:
+    st = _standby_state()
+    params = st.get("params_json")
+    if isinstance(params, str) and params:
+        try:
+            params = json.loads(params)
+        except (ValueError, TypeError):
+            params = {}
+    return {"mode": st.get("mode"), "start_date": st.get("start_date"),
+            "end_date": st.get("end_date"), "params": params or {},
+            "plan_shift_weeks": int(st.get("plan_shift_weeks") or 0)}
+
+
+@app.post("/standby")
+def set_standby(body: StandbyIn) -> dict:
+    if body.end_date < body.start_date:
+        raise HTTPException(status_code=422, detail="end_date avant start_date")
+    base = int(_standby_state().get("plan_shift_weeks") or 0)
+    params = {"sessions_per_day": body.sessions_per_day, "equipment": body.equipment}
+    store.standby.set_window(store.athlete_id, body.mode, body.start_date,
+                             body.end_date, params, base)
+    return get_standby()
+
+
+@app.delete("/standby")
+def clear_standby() -> dict:
+    base = int(_standby_state().get("plan_shift_weeks") or 0)
+    store.standby.set_window(store.athlete_id, None, None, None, None, base)
+    return get_standby()
 
 
 @app.get("/generate/run")

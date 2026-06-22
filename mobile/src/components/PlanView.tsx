@@ -50,7 +50,7 @@ export function PlanView({ profile }: { profile: AthleteProfile | null }) {
             <Tag label={day.is_work_day ? 'SERVICE' : 'OFF'}
               color={day.is_work_day ? colors.textSecondary : colors.signal} filled={!day.is_work_day} />
           </View>
-          <PlannedSessions sessions={day.sessions} />
+          <PlannedSessions sessions={day.sessions} standby={day.standby} />
         </Card>
       ))}
     </View>

@@ -10,7 +10,7 @@
  */
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { PlanSession, api } from '../api/client';
+import { PlanSession, StandbyInfo, api } from '../api/client';
 import { RunDetail, StrengthDetail, WodDetail } from './SessionDetail';
 import { RpeScale } from './RpeScale';
 import { colors, spacing, typography } from '../theme/tokens';
@@ -71,18 +71,38 @@ function CompleteRow({ s, dateIso }: { s: PlanSession; dateIso: string }) {
   );
 }
 
-export function PlannedSessions({ sessions, dateIso, completable = false }: {
+const STANDBY_COLOR: Record<string, string> = {
+  pause: colors.readyYellow, reboot: colors.signal, vacation: colors.signal,
+};
+
+export function PlannedSessions({ sessions, dateIso, completable = false, standby = null }: {
   sessions: PlanSession[];
   dateIso?: string;
   completable?: boolean;
+  standby?: StandbyInfo | null;
 }) {
   const [open, setOpen] = useState<number | null>(completable && sessions.length === 1 ? 0 : null);
 
+  const banner = standby ? (
+    <View style={[styles.standby, { borderLeftColor: STANDBY_COLOR[standby.mode] ?? colors.signal }]}>
+      <Text style={[styles.standbyTag, { color: STANDBY_COLOR[standby.mode] ?? colors.signal }]}>
+        {standby.mode === 'pause' ? '⏸ STANDBY' : standby.mode === 'reboot' ? '↩ REPRISE' : '🏝 VACANCES'}
+      </Text>
+      <Text style={styles.standbyMsg}>{standby.message}</Text>
+    </View>
+  ) : null;
+
   if (!sessions.length) {
-    return <Text style={styles.rest}>Repos — rien de prescrit aujourd'hui.</Text>;
+    return (
+      <View>
+        {banner}
+        {!standby && <Text style={styles.rest}>Repos — rien de prescrit aujourd'hui.</Text>}
+      </View>
+    );
   }
   return (
     <View>
+      {banner}
       {sessions.map((s, i) => {
         const opened = open === i;
         return (
@@ -119,6 +139,9 @@ const styles = StyleSheet.create({
   detail: { paddingLeft: spacing.m, paddingBottom: spacing.s, gap: 2 },
   detailLine: { color: colors.textSecondary, fontSize: typography.sizes.small, lineHeight: 19 },
   rest: { color: colors.textDisabled, fontSize: typography.sizes.small, paddingVertical: spacing.m },
+  standby: { borderLeftWidth: 3, paddingLeft: spacing.s, paddingVertical: spacing.xs, marginBottom: spacing.s, backgroundColor: colors.bgElevated, borderRadius: 6 },
+  standbyTag: { ...typography.label, fontSize: 10 },
+  standbyMsg: { color: colors.textSecondary, fontSize: typography.sizes.small, lineHeight: 18, marginTop: 2 },
   completeBox: { marginTop: spacing.m },
   markBtn: { paddingVertical: 12, borderRadius: spacing.cardRadius, borderWidth: 1, borderColor: colors.signal, alignItems: 'center' },
   markBtnT: { color: colors.signal, ...typography.label, fontSize: 11 },

@@ -155,9 +155,27 @@ CREATE TABLE IF NOT EXISTS garmin_tokens (
     connected_at TEXT,
     UNIQUE(athlete_id)
 );
+
+-- ============ MODE STANDBY / VACANCES ============
+-- Une ligne par athlète (isolation totale entre utilisateurs). `mode` :
+--   NULL/''  = pas de standby actif
+--   'pause'  = absence sans entraînement → plan gelé, décalé au retour + deload
+--   'vacation' = bloc d'entraînement intensif sur la fenêtre
+-- plan_shift_weeks = décalage cumulé du plan (semaines), dû aux pauses passées.
+CREATE TABLE IF NOT EXISTS standby_state (
+    id INTEGER PRIMARY KEY,
+    athlete_id INTEGER NOT NULL REFERENCES athlete_profiles(id),
+    mode TEXT,
+    start_date TEXT,
+    end_date TEXT,
+    params_json TEXT,
+    plan_shift_weeks INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(athlete_id)
+);
 """
 
 TABLES = ["users", "athlete_profiles", "sessions", "daily_metrics",
           "pr_records", "benchmark_results", "analytics_snapshots",
           "training_plans", "coach_decisions", "nutrition_logs",
-          "garmin_tokens"]
+          "garmin_tokens", "standby_state"]

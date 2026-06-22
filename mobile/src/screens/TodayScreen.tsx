@@ -136,7 +136,8 @@ export function TodayScreen({ checkin, profile }: {
       <Text style={styles.sectionLabel}>SÉANCE(S) DU JOUR · SELON TON PLAN</Text>
       <Card style={{ padding: spacing.m }}>
         {plan ? (
-          <PlannedSessions sessions={plan.sessions} dateIso={sched.date} completable />
+          <PlannedSessions sessions={plan.sessions} dateIso={sched.date} completable
+            standby={plan.standby} />
         ) : error ? (
           <Text style={styles.reason}>
             Pas de réseau et pas de plan en cache. Reconnecte-toi pour voir la

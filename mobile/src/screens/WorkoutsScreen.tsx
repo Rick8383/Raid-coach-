@@ -75,10 +75,11 @@ export function WorkoutsScreen({ profile }: { profile: AthleteProfile | null }) 
       )}
 
       {/* Séance du jour selon le plan — identique à l'écran Jour et à l'Agenda */}
-      {todaySessions.length > 0 && (
+      {(todaySessions.length > 0 || planToday?.standby) && (
         <Card style={{ padding: spacing.m, marginBottom: spacing.m }}>
           <Text style={styles.todayLbl}>SÉANCE DU JOUR · SELON TON PLAN</Text>
-          <PlannedSessions sessions={todaySessions} dateIso={todayIso} completable />
+          <PlannedSessions sessions={todaySessions} dateIso={todayIso} completable
+            standby={planToday?.standby} />
         </Card>
       )}
 

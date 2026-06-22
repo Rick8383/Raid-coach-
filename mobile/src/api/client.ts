@@ -96,18 +96,32 @@ export async function queueWrite(path: string, body: Json): Promise<void> {
   await AsyncStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
 }
 
+async function del<T = Json>(path: string): Promise<T> {
+  const res = await fetch(`${BASE_URL}${path}`, { method: 'DELETE' });
+  if (!res.ok) throw new ApiError(res.status, await res.text());
+  return res.json() as Promise<T>;
+}
+
+async function removeCacheByPrefix(...prefixes: string[]): Promise<void> {
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const stale = keys.filter(k => prefixes.some(p => k === p || k.startsWith(p)));
+    if (stale.length) await AsyncStorage.multiRemove(stale);
+  } catch {
+    /* best-effort */
+  }
+}
+
 // Vide les entrées de cache dépendant des séances (agenda, historique,
 // analytics) après une écriture, pour éviter d'afficher un agenda périmé.
 export async function invalidateAgendaCaches(): Promise<void> {
-  try {
-    const keys = await AsyncStorage.getAllKeys();
-    const stale = keys.filter(k =>
-      k.startsWith('cache:agenda:') || k === 'cache:history' || k === 'cache:analytics');
-    if (stale.length) await AsyncStorage.multiRemove(stale);
-  } catch {
-    // best-effort : l'absence d'invalidation ne casse rien (cachedPost refait
-    // l'appel réseau quand il est en ligne).
-  }
+  await removeCacheByPrefix('cache:agenda:', 'cache:history', 'cache:analytics');
+}
+
+// Le mode standby change tout le plan : on vide aussi les caches de plan.
+export async function invalidatePlanCaches(): Promise<void> {
+  await removeCacheByPrefix('cache:agenda:', 'cache:history', 'cache:analytics',
+    'cache:planday:', 'cache:weekly:');
 }
 
 export async function flushSyncQueue(): Promise<number> {
@@ -238,10 +252,21 @@ export interface SessionToday {
 export interface PlanSession {
   moment: string; type: string; title: string; duration_min: number; detail: any;
 }
+export interface StandbyInfo { mode: string; message: string }
+
 export interface PlanDay {
   date: string; day_of_week: string; is_work_day: boolean; week_type: string;
   week_index?: number;
   sessions: PlanSession[];
+  standby?: StandbyInfo | null;
+}
+
+export interface StandbyState {
+  mode: 'pause' | 'vacation' | null;
+  start_date: string | null;
+  end_date: string | null;
+  params: { sessions_per_day?: number; equipment?: string };
+  plan_shift_weeks: number;
 }
 export interface PlanWeek {
   week_index: number; monday: string; week_type: string; days: PlanDay[];
@@ -487,6 +512,19 @@ export const api = {
   // Coach Chat — assistant déterministe (pas de cache : réponses contextuelles).
   chat: (message: string, date?: string) =>
     post<ChatReply>('/coach/chat', date ? { message, date } : { message }),
+
+  // Mode standby / vacances (par athlète)
+  getStandby: () => get<StandbyState>('/standby'),
+  setStandby: async (body: Json): Promise<StandbyState> => {
+    const res = await post<StandbyState>('/standby', body);
+    await invalidatePlanCaches();
+    return res;
+  },
+  clearStandby: async (): Promise<StandbyState> => {
+    const res = await del<StandbyState>('/standby');
+    await invalidatePlanCaches();
+    return res;
+  },
 
   // Sauvegarde d'une séance générée (planifiée/faite) → tentée en direct,
   // mise en file si hors connexion. Invalide le cache agenda/historique pour

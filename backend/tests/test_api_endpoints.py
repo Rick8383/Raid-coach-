@@ -820,3 +820,55 @@ def test_plan_day_deterministic_across_weeks(client):
 
 def test_plan_day_validation(client):
     assert client.get("/plan/day?date=15-07-2026").status_code == 422
+
+
+# ---------- Mode standby / vacances ----------
+def test_standby_default_empty(client):
+    st = client.get("/standby").json()
+    assert st["mode"] is None and st["plan_shift_weeks"] == 0
+
+
+def test_standby_pause_freezes_then_reboot_then_shift(client):
+    r = client.post("/standby", json={
+        "mode": "pause", "start_date": "2026-06-22", "end_date": "2026-07-05"})
+    assert r.status_code == 200 and r.json()["mode"] == "pause"
+    during = client.get("/plan/day?date=2026-06-24").json()
+    assert during["standby"]["mode"] == "pause" and during["sessions"] == []
+    reboot = client.get("/plan/day?date=2026-07-08").json()
+    assert reboot["standby"]["mode"] == "reboot" and len(reboot["sessions"]) >= 1
+    after = client.get("/plan/day?date=2026-07-20").json()
+    assert after["standby"] is None and after["sessions"]
+    client.delete("/standby")
+
+
+def test_standby_pause_shifts_progression(client):
+    client.delete("/standby")
+    base_day = client.get("/plan/day?date=2026-09-07").json()
+    base_week = base_day["week_index"]
+    client.post("/standby", json={
+        "mode": "pause", "start_date": "2026-06-22", "end_date": "2026-07-05"})
+    shifted = client.get("/plan/day?date=2026-09-07").json()
+    assert shifted["standby"] is None
+    assert shifted["week_index"] < base_week
+    client.delete("/standby")
+
+
+def test_standby_vacation_block(client):
+    r = client.post("/standby", json={
+        "mode": "vacation", "start_date": "2027-08-02", "end_date": "2027-08-08",
+        "sessions_per_day": 2})
+    assert r.status_code == 200
+    day = client.get("/plan/day?date=2027-08-03").json()
+    assert day["standby"]["mode"] == "vacation"
+    assert len(day["sessions"]) == 2
+    for s in day["sessions"]:
+        if s["type"] == "crossfit":
+            assert s["detail"]["lumbar_safe"] is True
+    client.delete("/standby")
+
+
+def test_standby_validation(client):
+    assert client.post("/standby", json={
+        "mode": "pause", "start_date": "2026-07-10", "end_date": "2026-07-01"}).status_code == 422
+    assert client.post("/standby", json={
+        "mode": "x", "start_date": "2026-07-01", "end_date": "2026-07-10"}).status_code == 422
