@@ -12,7 +12,7 @@ import { WeekStrip } from '../components/WeekStrip';
 import { MeterBar } from '../components/Chart';
 import { PlannedSessions } from '../components/PlannedSessions';
 import { Card, Tag } from '../components/ui';
-import { daySchedule, WEEK_LABEL } from '../schedule';
+import { configFrom, daySchedule, WEEK_LABEL } from '../schedule';
 import {
   colors, disciplineLabel, DISCIPLINE, readinessLevelFor, spacing, typography,
 } from '../theme/tokens';
@@ -35,7 +35,8 @@ export function TodayScreen({ checkin, profile }: {
   const [error, setError] = useState<string | null>(null);
 
   const today = new Date();
-  const sched = daySchedule(today);
+  const cfg = configFrom(profile?.work_schedule);
+  const sched = daySchedule(today, cfg);
 
   useEffect(() => {
     // Contexte adaptatif (budget/ACWR/conseil) — readiness du jour.
@@ -69,14 +70,19 @@ export function TodayScreen({ checkin, profile }: {
         <Text style={styles.countdownLabel}>semaines avant la sélection</Text>
       </View>
 
-      {/* Planning 3/2/2/3 synchronisé */}
-      <WeekStrip today={today} />
+      {/* Planning synchronisé sur le rythme de l'athlète */}
+      <WeekStrip today={today} config={cfg} />
 
-      {/* Statut du jour */}
+      {/* Statut du jour (selon le rythme de l'athlète) */}
       <View style={styles.todayRow}>
-        <Tag label={sched.isWorkDay ? 'JOUR DE SERVICE' : 'JOUR OFF · ENTRAÎNEMENT'}
-          color={sched.isWorkDay ? colors.textSecondary : colors.signal}
-          filled={!sched.isWorkDay} />
+        {sched.weekType === 'weekly' ? (
+          <Tag label={sched.trains ? 'JOUR D\'ENTRAÎNEMENT' : 'JOUR DE REPOS'}
+            color={sched.trains ? colors.signal : colors.textSecondary} filled={sched.trains} />
+        ) : (
+          <Tag label={sched.isWorkDay ? 'JOUR DE SERVICE' : 'JOUR OFF · ENTRAÎNEMENT'}
+            color={sched.isWorkDay ? colors.textSecondary : colors.signal}
+            filled={!sched.isWorkDay} />
+        )}
         <Tag label={WEEK_LABEL[sched.weekType]} color={colors.textDisabled} />
       </View>
 

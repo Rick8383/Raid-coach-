@@ -310,6 +310,7 @@ export interface AthleteProfile {
   main_goal?: string;
   goal_date?: string;
   injuries?: { zone: string; type: string; note?: string }[];
+  work_schedule?: { type?: string; anchor_big_week_monday?: string; training_days?: string[] };
   current: Record<string, number>;
 }
 

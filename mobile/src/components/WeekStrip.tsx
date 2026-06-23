@@ -5,12 +5,14 @@
  */
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { DAY_LABELS, DaySchedule, WEEK_LABEL, weekSchedule } from '../schedule';
+import { DAY_LABELS, DaySchedule, ScheduleConfig, WEEK_LABEL, weekSchedule } from '../schedule';
 import { colors, spacing, typography } from '../theme/tokens';
 import { Tag } from './ui';
 
-export function WeekStrip({ today = new Date() }: { today?: Date }) {
-  const { weekType, days } = weekSchedule(today);
+export function WeekStrip({ today = new Date(), config }:
+  { today?: Date; config?: ScheduleConfig }) {
+  const { weekType, days } = weekSchedule(today, config);
+  const weekly = weekType === 'weekly';
   const todayIso = new Date(Date.UTC(
     today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())).toISOString().slice(0, 10);
 
@@ -24,7 +26,8 @@ export function WeekStrip({ today = new Date() }: { today?: Date }) {
       <View style={styles.row}>
         {days.map((d: DaySchedule) => {
           const isToday = d.date === todayIso;
-          const off = !d.isWorkDay;
+          // « actif » = jour d'entraînement mis en avant (OFF police / jour choisi weekly)
+          const active = weekly ? d.trains : !d.isWorkDay;
           return (
             <View key={d.date} style={[styles.dayCol, isToday && styles.todayCol]}>
               <Text style={[styles.dayCode, isToday && styles.todayText]}>
@@ -32,18 +35,20 @@ export function WeekStrip({ today = new Date() }: { today?: Date }) {
               </Text>
               <View style={[
                 styles.dot,
-                off ? styles.dotOff : styles.dotWork,
+                active ? styles.dotOff : styles.dotWork,
                 isToday && styles.dotToday,
               ]} />
-              <Text style={[styles.slot, off ? styles.slotOff : styles.slotWork]}>
-                {off ? 'OFF' : 'SERV.'}
+              <Text style={[styles.slot, active ? styles.slotOff : styles.slotWork]}>
+                {weekly ? (d.trains ? 'ENTR.' : 'REPOS') : (d.isWorkDay ? 'SERV.' : 'OFF')}
               </Text>
             </View>
           );
         })}
       </View>
       <Text style={styles.legend}>
-        OFF = entraînement · SERV. = service police (séance courte)
+        {weekly
+          ? 'ENTR. = jour d\'entraînement choisi · REPOS = jour off'
+          : 'OFF = entraînement · SERV. = service police (séance courte)'}
       </Text>
     </View>
   );

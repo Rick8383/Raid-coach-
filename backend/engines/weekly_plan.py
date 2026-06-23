@@ -13,6 +13,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from engines import schedule as _sched
+from engines.schedule import user_schedule as _us
 from engines.run_generator import generate_run
 from engines.strength_531 import generate_strength_531
 from engines.wod_generator import generate_wod
@@ -73,46 +74,48 @@ def _build_session(spec, w_index, weekday, vma, fcmax):
     return {"moment": moment, "type": stype, "title": title, "duration_min": dur, "detail": detail}
 
 
-def _day_payload(d: date, shift_weeks: int, vma: float, fcmax: int) -> dict:
-    # La STRUCTURE (jour travaillé/OFF, type de semaine) reste calée sur le
-    # calendrier réel ; seule la PROGRESSION (cycle 5/3/1, seeds) peut être
-    # décalée (shift_weeks) — utilisé par le mode standby « décaler le plan ».
+def _day_payload(d: date, shift_weeks: int, vma: float, fcmax: int,
+                 config: dict | None = None) -> dict:
+    # La STRUCTURE (jours d'entraînement, type de semaine) suit le RYTHME de
+    # l'athlète (config) calé sur le calendrier réel ; seule la PROGRESSION
+    # (cycle 5/3/1, seeds) peut être décalée (shift_weeks) — mode standby.
+    cfg = _us.normalize(config)
     real_monday = d - timedelta(days=d.weekday())
-    wt = _sched.week_type_for(real_monday)
-    template = _BIG_WORK if wt == _sched.BIG_WORK else _SMALL_WORK
-    ds = _sched.day_schedule(d)
+    ds = _us.day_schedule(cfg, d)
+    wt = ds["week_type"]
     real_w = max(0, (real_monday - START).days // 7)
     plan_w = max(0, real_w - max(0, int(shift_weeks)))
+    template = _us.week_template(cfg, plan_w, wt, _BIG_WORK, _SMALL_WORK)
     sessions = [_build_session(spec, plan_w, d.weekday(), vma, fcmax)
                 for spec in template[d.weekday()]]
     return {
         "date": d.isoformat(),
-        "day_of_week": ds.day_of_week,
-        "is_work_day": ds.is_work_day,
+        "day_of_week": ds["day_of_week"],
+        "is_work_day": ds["is_work_day"],
         "week_type": wt,
         "week_index": plan_w,
         "sessions": sessions,
     }
 
 
-def build_day(d: date, vma: float = 14.0, fcmax: int = 186, shift_weeks: int = 0) -> dict:
-    """Séances planifiées pour une date précise — MÊME source que build_weekly
-    (même template, mêmes seeds par semaine/jour) → l'agenda, l'écran Jour et
-    l'onglet Séances affichent une séance identique pour un jour donné.
-    `shift_weeks` décale la progression (mode standby) sans toucher au calendrier."""
-    return _day_payload(d, shift_weeks, vma, fcmax)
+def build_day(d: date, vma: float = 14.0, fcmax: int = 186, shift_weeks: int = 0,
+              config: dict | None = None) -> dict:
+    """Séances planifiées pour une date — MÊME source que build_weekly (mêmes
+    seeds), calées sur le RYTHME de l'athlète (config). `shift_weeks` décale la
+    progression (standby) sans toucher au calendrier."""
+    return _day_payload(d, shift_weeks, vma, fcmax, config)
 
 
-def build_weekly(from_week: int = 0, n: int = 6, vma: float = 14.0, fcmax: int = 186) -> dict:
+def build_weekly(from_week: int = 0, n: int = 6, vma: float = 14.0, fcmax: int = 186,
+                 config: dict | None = None) -> dict:
     from_week = max(0, min(int(from_week), 200))
     n = max(1, min(int(n), 12))
     weeks = []
     for offset in range(n):
         w_index = from_week + offset
         monday = START + timedelta(weeks=w_index)
-        wt = _sched.week_type_for(monday)
-        days = [_day_payload(monday + timedelta(days=wd), 0, vma, fcmax)
+        days = [_day_payload(monday + timedelta(days=wd), 0, vma, fcmax, config)
                 for wd in range(7)]
         weeks.append({"week_index": w_index, "monday": monday.isoformat(),
-                      "week_type": wt, "days": days})
+                      "week_type": days[0]["week_type"], "days": days})
     return {"from_week": from_week, "n": n, "weeks": weeks}

@@ -8,6 +8,7 @@ import {
   loadToken, clearToken, setUnauthorizedHandler,
 } from './src/api/client';
 import { AuthScreen } from './src/screens/AuthScreen';
+import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { CheckinScreen } from './src/screens/CheckinScreen';
 import { TodayScreen } from './src/screens/TodayScreen';
 import { AgendaScreen } from './src/screens/AgendaScreen';
@@ -41,6 +42,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('today');
   const [showConnect, setShowConnect] = useState(false);
   const [profile, setProfile] = useState<AthleteProfile | null>(null);
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
 
@@ -59,8 +61,9 @@ export default function App() {
 
   // Charge le profil de l'utilisateur connecté + programme les rappels.
   useEffect(() => {
-    if (!user) return;
-    api.profile().then(setProfile).catch(() => {});
+    if (!user) { setProfileLoaded(false); return; }
+    setProfileLoaded(false);
+    api.profile().then(setProfile).catch(() => {}).finally(() => setProfileLoaded(true));
     initReminders().catch(() => {});
   }, [user]);
 
@@ -71,10 +74,13 @@ export default function App() {
 
   const logout = async () => {
     await clearToken().catch(() => {});
-    setUser(null); setCheckin(null); setProfile(null); setTab('today');
+    setUser(null); setCheckin(null); setProfile(null); setProfileLoaded(false); setTab('today');
   };
 
-  if (!fontsLoaded || !authChecked) {
+  // Onboarding requis tant que le rythme de travail n'est pas défini (nouveaux comptes).
+  const needsOnboarding = !!user && profileLoaded && !profile?.work_schedule;
+
+  if (!fontsLoaded || !authChecked || (user && !profileLoaded)) {
     return (
       <View style={styles.splash}>
         <Text style={styles.splashTitle}>RAID COACH</Text>
@@ -88,6 +94,16 @@ export default function App() {
       <SafeAreaProvider>
         <SafeAreaView style={styles.root}>
           <AuthScreen onAuth={setUser} />
+        </SafeAreaView>
+      </SafeAreaProvider>
+    );
+  }
+
+  if (needsOnboarding) {
+    return (
+      <SafeAreaProvider>
+        <SafeAreaView style={styles.root}>
+          <OnboardingScreen onDone={(p) => { setProfile(p); }} />
         </SafeAreaView>
       </SafeAreaProvider>
     );

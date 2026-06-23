@@ -121,3 +121,33 @@ def test_anonymous_falls_back_to_owner_when_not_enforced(client):
     r = client.get("/profile")
     assert r.status_code == 200
     assert r.json()["current"].get("pullups_max") == 16
+
+
+# ---------- Rythme de travail par utilisateur (plan adapté) ----------
+def test_per_user_weekly_schedule(client, monkeypatch):
+    monkeypatch.setenv("INVITE_CODE", "RAID2029")
+    tok = client.post("/auth/register", json={
+        "email": "weekly@b.com", "password": "password1", "invite_code": "RAID2029"}).json()["token"]
+    H = _bearer(tok)
+    # rythme hebdo : entraînement lun/mer/ven uniquement
+    client.patch("/profile", json={"work_schedule": {
+        "type": "weekly", "training_days": ["mon", "wed", "fri"]}}, headers=H)
+    # 2026-06-22 = lundi (entraînement), 2026-06-23 = mardi (repos)
+    mon = client.get("/plan/day?date=2026-06-22", headers=H).json()
+    tue = client.get("/plan/day?date=2026-06-23", headers=H).json()
+    assert mon["week_type"] == "weekly"
+    assert len(mon["sessions"]) >= 1          # lundi : séance
+    assert tue["sessions"] == []              # mardi : repos
+
+
+def test_per_user_opposite_police_phase(client, monkeypatch):
+    monkeypatch.setenv("INVITE_CODE", "RAID2029")
+    tok = client.post("/auth/register", json={
+        "email": "police2@b.com", "password": "password1", "invite_code": "RAID2029"}).json()["token"]
+    H = _bearer(tok)
+    # phase opposée au propriétaire : ancre décalée d'une semaine
+    client.patch("/profile", json={"work_schedule": {
+        "type": "police_3223", "anchor_big_week_monday": "2026-06-22"}}, headers=H)
+    # semaine du 15/06 : propriétaire = grande ; cet utilisateur = petite (ancre 22/06)
+    wk = client.get("/plan/day?date=2026-06-15", headers=H).json()
+    assert wk["week_type"] == "small_work"

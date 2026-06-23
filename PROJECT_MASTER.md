@@ -662,3 +662,23 @@ Comptes **email + mot de passe**, **par athlète**, avec **isolation stricte** d
 **État** : 139 tests pytest (SQLite) + 4 tests PG + auth vérifiée sur PG réel + 4 audits PASS (56 routes API), TypeScript strict 0 erreur, export web OK.
 
 *Addendum v3.7 · 16/06/2026 · Claude Code.*
+
+-----
+
+### Addendum v3.8 — Rythme de travail par utilisateur + onboarding (construit, NON déployé) (16/06/2026)
+
+> Suite de l'auth (même branche, non déployée). Chaque compte a son propre rythme de travail ; le plan s'adapte.
+
+**Rythme par athlète** (stocké dans `athlete_profiles.work_schedule`, JSON, par compte → isolation totale) :
+- **3/2/2/3 (police)** avec **ancre propre** → gère les collègues en **cycle opposé** (ancre décalée d'une semaine). Le propriétaire garde son ancre.
+- **Hebdomadaire** : l'athlète choisit ses **jours d'entraînement** ; les autres = repos. Rotation équilibrée force/course/WOD (anti-lombaire) répartie sur ces jours, variée par semaine.
+
+**Backend** : nouveau `engines/schedule/user_schedule.py` (config-driven : `normalize`, `day_schedule`, `week_schedule`, `week_template`). `police_schedule` paramétré par **ancre** (rétro-compatible). `weekly_plan` (build_day/build_weekly), `standby` (planned_day/reboot), et `coach_api` (schedule_day/week, session_today, plan) prennent désormais une **config**. L'API résout la config de l'utilisateur courant (`_schedule_config()`) et la passe partout (`/plan/day`, `/plan/weekly`, `/agenda/week`, `/coach/session`, `/schedule/*`). `PATCH /profile` accepte `work_schedule` (normalisé serveur). Garde-fou budget hebdo pour le type weekly. Tests : plan hebdo (séances seulement les jours choisis), phase police opposée (type de semaine inversé), isolation par compte.
+
+**App** : `schedule.ts` rendu config-aware (mirror) → `WeekStrip` et l'écran Jour affichent le rythme de chacun (3/2/2/3 grande/petite, ou hebdo entraînement/repos). Nouvel **OnboardingScreen** (après 1ère connexion, si pas de rythme) : niveau (VMA/FCmax), objectif (but + échéance) et rythme (3/2/2/3 « grande/petite cette semaine » ou hebdo « jours choisis ») → `PATCH /profile`. Gate d'onboarding dans `App.tsx`. Modifiable ensuite.
+
+> Personnalisation des **charges de force** (TM 5/3/1 selon le 1RM de chacun) = prochaine étape ; aujourd'hui les allures course se personnalisent déjà via VMA/FCmax du compte.
+
+**État** : 141 tests pytest (SQLite) + auth/schéma vérifiés sur PostgreSQL réel + 4 audits PASS (56 routes), TypeScript strict 0 erreur, export web OK. **Non déployé.**
+
+*Addendum v3.8 · 16/06/2026 · Claude Code.*

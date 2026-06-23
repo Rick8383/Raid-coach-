@@ -38,9 +38,9 @@ def parse_date(value: str) -> date:
     return date.fromisoformat(value)
 
 
-def week_type_for(d: date) -> str:
-    """big_work / small_work pour la semaine contenant `d`."""
-    weeks = (_monday_of(d) - ANCHOR_MONDAY).days // 7
+def week_type_for(d: date, anchor: date = ANCHOR_MONDAY) -> str:
+    """big_work / small_work pour la semaine contenant `d` (ancre par athlète)."""
+    weeks = (_monday_of(d) - anchor).days // 7
     # Python : le modulo d'un négatif reste positif → alternance correcte
     # de part et d'autre de l'ancre.
     return BIG_WORK if weeks % 2 == 0 else SMALL_WORK
@@ -50,8 +50,8 @@ def work_days_for(week_type: str) -> frozenset[str]:
     return _BIG_WORK_DAYS if week_type == BIG_WORK else _SMALL_WORK_DAYS
 
 
-def is_work_day(d: date) -> bool:
-    return DAY_CODES[d.weekday()] in work_days_for(week_type_for(d))
+def is_work_day(d: date, anchor: date = ANCHOR_MONDAY) -> bool:
+    return DAY_CODES[d.weekday()] in work_days_for(week_type_for(d, anchor))
 
 
 @dataclass(frozen=True)
@@ -83,8 +83,8 @@ def training_intent(day_of_week: str, week_type: str, is_work_day: bool) -> dict
     return {"focus": "double", "label": "Double séance (course + force)", "load": "high"}
 
 
-def day_schedule(d: date) -> DaySchedule:
-    wt = week_type_for(d)
+def day_schedule(d: date, anchor: date = ANCHOR_MONDAY) -> DaySchedule:
+    wt = week_type_for(d, anchor)
     return DaySchedule(
         date=d.isoformat(),
         day_of_week=DAY_CODES[d.weekday()],
@@ -93,11 +93,11 @@ def day_schedule(d: date) -> DaySchedule:
     )
 
 
-def week_schedule(d: date) -> dict:
+def week_schedule(d: date, anchor: date = ANCHOR_MONDAY) -> dict:
     """Vue Lundi→Dimanche de la semaine contenant `d`."""
     monday = _monday_of(d)
-    wt = week_type_for(monday)
-    days = [day_schedule(monday + timedelta(days=i)).to_dict() for i in range(7)]
+    wt = week_type_for(monday, anchor)
+    days = [day_schedule(monday + timedelta(days=i), anchor).to_dict() for i in range(7)]
     return {
         "monday": monday.isoformat(),
         "week_type": wt,

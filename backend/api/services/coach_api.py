@@ -379,12 +379,14 @@ class CoachAPI:
         return _build_annual_plan()
 
     def weekly_plan(self, from_week: int = 0, n: int = 6,
-                    vma: float | None = None, fcmax: int | None = None) -> dict:
-        return _build_weekly(from_week, n, vma or 14.0, fcmax or 186)
+                    vma: float | None = None, fcmax: int | None = None,
+                    config: dict | None = None) -> dict:
+        return _build_weekly(from_week, n, vma or 14.0, fcmax or 186, config)
 
     def plan_day(self, date_iso: str, vma: float | None = None,
-                 fcmax: int | None = None) -> dict:
-        return _build_day(_schedule.parse_date(date_iso), vma or 14.0, fcmax or 186)
+                 fcmax: int | None = None, config: dict | None = None) -> dict:
+        return _build_day(_schedule.parse_date(date_iso), vma or 14.0, fcmax or 186,
+                          config=config)
 
     # ---- ROADMAP (plan annuel rétro-planifié RCOS B14) ----
     def roadmap(self, payload: dict) -> dict:
@@ -410,27 +412,32 @@ class CoachAPI:
             "milestones": plan.key_milestones,
         }
 
-    # ---- SCHEDULE (planning police 3/2/2/3) ----
-    def schedule_day(self, payload: dict) -> dict:
+    # ---- SCHEDULE (rythme de travail PAR ATHLÈTE : 3/2/2/3 ou hebdo) ----
+    def schedule_day(self, payload: dict, config: dict | None = None) -> dict:
+        cfg = _schedule.user_schedule.normalize(config)
         d = _schedule.parse_date(payload["date"])
-        return _schedule.day_schedule(d).to_dict()
+        return _schedule.user_schedule.day_schedule(cfg, d)
 
-    def schedule_week(self, payload: dict) -> dict:
+    def schedule_week(self, payload: dict, config: dict | None = None) -> dict:
+        cfg = _schedule.user_schedule.normalize(config)
         d = _schedule.parse_date(payload["date"])
-        return _schedule.week_schedule(d)
+        return _schedule.user_schedule.week_schedule(cfg, d)
 
     # ---- SÉANCE DÉTAILLÉE (décision + structure complète) ----
-    def session_today(self, payload: dict) -> dict:
+    def session_today(self, payload: dict, config: dict | None = None) -> dict:
         """Décision du coach + séance détaillée prête à exécuter.
         Si date fournie, le type de semaine / jour travaillé est calé sur le
-        planning 3/2/2/3 (sauf si explicitement fourni dans le payload)."""
+        rythme de l'athlète (sauf si explicitement fourni dans le payload)."""
         payload = dict(payload)
         if payload.get("date"):
+            cfg = _schedule.user_schedule.normalize(config)
             d = _schedule.parse_date(payload["date"])
-            sched = _schedule.day_schedule(d)
-            payload.setdefault("day_of_week", sched.day_of_week)
-            payload.setdefault("is_work_day", sched.is_work_day)
-            payload.setdefault("week_type", sched.week_type)
+            sched = _schedule.user_schedule.day_schedule(cfg, d)
+            payload.setdefault("day_of_week", sched["day_of_week"])
+            payload.setdefault("is_work_day", sched["is_work_day"])
+            wt = sched["week_type"]
+            # le moteur de décision n'accepte que big_work/small_work
+            payload.setdefault("week_type", wt if wt in ("big_work", "small_work") else "small_work")
         decision = self.daily_decision(payload)
         session = _build_session(self, payload, decision)
         return {"decision": decision, "session": session}

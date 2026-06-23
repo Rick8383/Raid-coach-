@@ -24,6 +24,7 @@ from api.services.coach_api import CoachAPI
 from api import auth as _auth
 from engines.coach_chat import answer as _coach_chat_answer
 from engines import standby as _standby
+from engines.schedule import user_schedule as _us
 # CoachAPI met engines/legacy sur sys.path à l'import → AnalyticsInput accessible
 from build6_analytics_engine.models import AnalyticsInput  # noqa: E402
 
@@ -105,6 +106,18 @@ def _require_uid() -> int:
     if uid is None:
         raise HTTPException(status_code=401, detail="Authentification requise")
     return uid
+
+
+def _schedule_config() -> dict:
+    """Rythme de travail de l'athlète courant (3/2/2/3 ou hebdo), normalisé."""
+    prof = store.athletes.get_profile(_aid()) or {}
+    ws = prof.get("work_schedule")
+    if isinstance(ws, str) and ws:
+        try:
+            ws = json.loads(ws)
+        except (ValueError, TypeError):
+            ws = None
+    return _us.normalize(ws if isinstance(ws, dict) else None)
 
 
 def _safe(fn, payload: dict) -> dict:
@@ -297,6 +310,9 @@ class ProfileUpdateIn(BaseModel):
     vma_kmh: float | None = Field(default=None, ge=8, le=26)
     main_goal: str | None = None
     goal_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    # rythme de travail : {"type":"police_3223","anchor_big_week_monday":"YYYY-MM-DD"}
+    # ou {"type":"weekly","training_days":["mon","wed",...]} (validé/normalisé serveur)
+    work_schedule: dict | None = None
 
 
 class RegisterIn(BaseModel):
@@ -345,7 +361,7 @@ def _chat_context(for_date: str | None) -> dict:
         ctx["metrics"] = latest
     try:
         day = for_date or _date.today().isoformat()
-        ctx["today"] = coach.schedule_day({"date": day})
+        ctx["today"] = coach.schedule_day({"date": day}, _schedule_config())
     except (ValueError, KeyError):
         pass
     goal_date = (ctx["profile"] or {}).get("goal_date")
@@ -534,7 +550,7 @@ def _adaptive_context(payload: dict) -> dict:
     if not payload.get("date"):
         return {}
     day = date.fromisoformat(payload["date"])
-    week_type = coach.schedule_day({"date": payload["date"]})["week_type"]
+    week_type = coach.schedule_day({"date": payload["date"]}, _schedule_config())["week_type"]
     monday = (day - timedelta(days=day.weekday())).isoformat()
     yesterday = (day - timedelta(days=1)).isoformat()
 
@@ -542,7 +558,8 @@ def _adaptive_context(payload: dict) -> dict:
     last_two = [s["discipline"] for s in done[:2]]
 
     consumed = store.sessions.stress_units_between(_aid(), monday, payload["date"])
-    budget = coach.weekly_budget_su(week_type)
+    # le budget hebdo n'existe que pour le 3/2/2/3 ; sinon (hebdo) → base modérée
+    budget = coach.weekly_budget_su(week_type if week_type in ("big_work", "small_work") else "small_work")
     budget_pct = round(consumed / budget * 100, 1) if budget else 0.0
 
     # jours d'entraînement consécutifs jusqu'à hier (run/crossfit/strength)
@@ -589,7 +606,8 @@ def coach_session(body: SessionTodayIn) -> dict:
     meta = adaptive.pop("_meta", {})
     for k, v in adaptive.items():
         payload.setdefault(k, v)  # l'override explicite du client est prioritaire
-    result = _safe(coach.session_today, payload)
+    cfg = _schedule_config()
+    result = _safe(lambda p: coach.session_today(p, cfg), payload)
     result["context"] = {
         "budget_consumed_pct": payload.get("budget_consumed_pct", 0),
         "days_since_rest": payload.get("days_since_rest", 0),
@@ -606,12 +624,14 @@ def weekly_budget(body: WeeklyBudgetIn) -> dict:
 
 @app.post("/schedule/day")
 def schedule_day(body: ScheduleIn) -> dict:
-    return _safe(coach.schedule_day, body.model_dump())
+    cfg = _schedule_config()
+    return _safe(lambda p: coach.schedule_day(p, cfg), body.model_dump())
 
 
 @app.post("/schedule/week")
 def schedule_week(body: ScheduleIn) -> dict:
-    return _safe(coach.schedule_week, body.model_dump())
+    cfg = _schedule_config()
+    return _safe(lambda p: coach.schedule_week(p, cfg), body.model_dump())
 
 
 @app.post("/roadmap")
@@ -637,7 +657,8 @@ def _standby_state() -> dict:
 
 
 def _resolve_day(date_iso: str, vma: float | None, fcmax: int | None) -> dict:
-    return _standby.planned_day(date_iso, _standby_state(), vma or 14.0, fcmax or 186)
+    return _standby.planned_day(date_iso, _standby_state(), _schedule_config(),
+                                vma or 14.0, fcmax or 186)
 
 
 @app.get("/plan/weekly")
@@ -645,11 +666,12 @@ def plan_weekly(from_week: int = 0, n: int = 6,
                 vma: float | None = None, fcmax: int | None = None) -> dict:
     """Mission 1B — N semaines détaillées jour par jour (course/force/WOD/natation),
     calées sur le 3/2/2/3 et tenant compte du mode standby/vacances."""
-    base = coach.weekly_plan(from_week, n, vma, fcmax)
+    cfg = _schedule_config()
+    base = coach.weekly_plan(from_week, n, vma, fcmax, cfg)
     state = _standby_state()
     for wk in base["weeks"]:
         for i, day in enumerate(wk["days"]):
-            wk["days"][i] = _standby.planned_day(day["date"], state, vma or 14.0, fcmax or 186)
+            wk["days"][i] = _standby.planned_day(day["date"], state, cfg, vma or 14.0, fcmax or 186)
     return base
 
 
@@ -987,6 +1009,8 @@ def get_profile() -> dict:
 @app.patch("/profile")
 def update_profile(body: ProfileUpdateIn) -> dict:
     fields = body.model_dump(exclude_none=True)
+    if "work_schedule" in fields:  # normalise le rythme avant stockage
+        fields["work_schedule"] = _us.normalize(fields["work_schedule"])
     if fields:
         store.athletes.update_profile(_aid(), **fields)
     return store.profile_payload(_aid())
@@ -1009,7 +1033,7 @@ def recent_sessions(n: int = 30) -> dict:
 # ---------- Agenda prévisionnel (planning + intention + séances réalisées) ----------
 @app.post("/agenda/week")
 def agenda_week(body: ScheduleIn) -> dict:
-    week = coach.schedule_week(body.model_dump())
+    week = coach.schedule_week(body.model_dump(), _schedule_config())
     # Plusieurs séances peuvent partager une date (ex. course le matin + force
     # marquée faite ensuite). On garde la plus pertinente : une séance 'done'
     # l'emporte sur une 'planned', et à statut égal la plus récente (id le plus

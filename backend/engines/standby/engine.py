@@ -16,6 +16,7 @@ import json
 from datetime import date, timedelta
 
 from engines import schedule as _sched
+from engines.schedule import user_schedule as _us
 from engines.run_generator import generate_run
 from engines.strength_531 import generate_strength_531
 from engines.weekly_plan import START as _START, build_day as _build_day
@@ -130,28 +131,37 @@ def _swim(moment: str = "matin") -> dict:
                 "4×25m apnée progressive (jamais forcer)", "100m retour au calme"]}}
 
 
-def _wrap(d: date, sessions: list, kind: str, message: str) -> dict:
-    ds = _sched.day_schedule(d)
+def _wrap(d: date, config: dict, sessions: list, kind: str, message: str) -> dict:
+    ds = _us.day_schedule(config, d)
     return {
         "date": d.isoformat(),
-        "day_of_week": ds.day_of_week,
-        "is_work_day": ds.is_work_day,
-        "week_type": ds.week_type,
+        "day_of_week": ds["day_of_week"],
+        "is_work_day": ds["is_work_day"],
+        "week_type": ds["week_type"],
         "sessions": sessions,
         "standby": {"mode": kind, "message": message},
     }
 
 
-def _reboot_sessions(d: date, state: dict, vma: float, fcmax: int) -> list:
-    """Semaine de reprise (deload) : volume/intensité réduits, anti-lombaire."""
-    ds = _sched.day_schedule(d)
+def _reboot_sessions(d: date, state: dict, config: dict, vma: float, fcmax: int) -> list:
+    """Semaine de reprise (deload) : volume/intensité réduits, anti-lombaire,
+    calée sur le rythme de l'athlète."""
+    ds = _us.day_schedule(config, d)
     base = int(state.get("plan_shift_weeks") or 0)
     start, end = _d(state["start_date"]), _d(state["end_date"])
     plan_w = max(0, _real_week(d) - base - _pause_weeks(start, end) - 1)
     cycle = plan_w // 4
-    if not ds.is_work_day and ds.day_of_week == "sun" and ds.week_type == _sched.SMALL_WORK:
+    if config["type"] == "weekly":
+        if not ds["trains"]:
+            return []
+        # jour d'entraînement : footing facile, ou force deload un jour sur deux
+        if (_real_week(d) + d.weekday()) % 2 == 0:
+            return [_run("z2", _seed(d, 1), vma, fcmax)]
+        sub = ("push", "pull", "legs")[(_real_week(d) + d.weekday()) % 3]
+        return [_strength(sub, 4, cycle)]
+    if not ds["is_work_day"] and ds["day_of_week"] == "sun" and ds["week_type"] == _sched.SMALL_WORK:
         return [_swim()]
-    if ds.is_work_day:
+    if ds["is_work_day"]:
         return [_run("z2", _seed(d, 1), vma, fcmax)]
     sub = ("push", "pull", "legs")[(_real_week(d) + d.weekday()) % 3]
     return [_run("z2", _seed(d, 1), vma, fcmax, "matin"),
@@ -192,22 +202,24 @@ def _camp_sessions(d: date, state: dict, index: int, vma: float, fcmax: int) -> 
     return sessions
 
 
-def planned_day(date_iso: str, state: dict, vma: float = 14.0, fcmax: int = 186) -> dict:
-    """Séance(s) du jour en tenant compte du mode standby. Même contrat que
-    weekly_plan.build_day, plus un champ `standby`."""
+def planned_day(date_iso: str, state: dict, config: dict | None = None,
+                vma: float = 14.0, fcmax: int = 186) -> dict:
+    """Séance(s) du jour en tenant compte du mode standby ET du rythme de
+    l'athlète (config). Même contrat que weekly_plan.build_day + champ `standby`."""
+    cfg = _us.normalize(config)
     d = _d(date_iso)
     c = classify_day(d, state or {})
     if c["kind"] == "pause":
-        return _wrap(d, [], "pause",
+        return _wrap(d, cfg, [], "pause",
                      "Standby — récupération. Au retour : une semaine de reprise "
                      "progressive, puis le plan reprend là où il s'était arrêté.")
     if c["kind"] == "reboot":
-        return _wrap(d, _reboot_sessions(d, state, vma, fcmax), "reboot",
+        return _wrap(d, cfg, _reboot_sessions(d, state, cfg, vma, fcmax), "reboot",
                      "Semaine de reprise (deload) après ta coupure — charges et "
                      "volume réduits pour relancer en douceur (sciatique préservée).")
     if c["kind"] == "vacation":
-        return _wrap(d, _camp_sessions(d, state, c["index"], vma, fcmax), "vacation",
+        return _wrap(d, cfg, _camp_sessions(d, state, c["index"], vma, fcmax), "vacation",
                      "Mode vacances — bloc intensif salle complète, orienté RAID.")
-    payload = _build_day(d, vma, fcmax, shift_weeks=c["shift"])
+    payload = _build_day(d, vma, fcmax, shift_weeks=c["shift"], config=cfg)
     payload["standby"] = None
     return payload
