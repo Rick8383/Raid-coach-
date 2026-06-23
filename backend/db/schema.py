@@ -173,9 +173,15 @@ CREATE TABLE IF NOT EXISTS standby_state (
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(athlete_id)
 );
+-- ============ MÉTA APPLICATION (secret d'auth, propriétaire…) ============
+CREATE TABLE IF NOT EXISTS app_meta (
+    id INTEGER PRIMARY KEY,
+    key TEXT UNIQUE NOT NULL,
+    value TEXT
+);
 """
 
 TABLES = ["users", "athlete_profiles", "sessions", "daily_metrics",
           "pr_records", "benchmark_results", "analytics_snapshots",
           "training_plans", "coach_decisions", "nutrition_logs",
-          "garmin_tokens", "standby_state"]
+          "garmin_tokens", "standby_state", "app_meta"]

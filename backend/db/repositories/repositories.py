@@ -52,6 +52,47 @@ class AthleteRepository:
             f"UPDATE athlete_profiles SET {sets}, updated_at = datetime('now') WHERE id = ?",
             tuple(vals) + (athlete_id,))
 
+    # ---- Authentification multi-utilisateurs ----
+    def find_user_by_email(self, email: str) -> dict | None:
+        rows = self.db.query("SELECT * FROM users WHERE email = ?", (email,))
+        return rows[0] if rows else None
+
+    def get_user(self, user_id: int) -> dict | None:
+        rows = self.db.query("SELECT * FROM users WHERE id = ?", (user_id,))
+        return rows[0] if rows else None
+
+    def set_user_credentials(self, user_id: int, email: str, password_hash: str) -> None:
+        self.db.execute("UPDATE users SET email = ?, password_hash = ? WHERE id = ?",
+                        (email, password_hash, user_id))
+
+    def athlete_id_for_user(self, user_id: int) -> int | None:
+        rows = self.db.query(
+            "SELECT id FROM athlete_profiles WHERE user_id = ? ORDER BY id LIMIT 1",
+            (user_id,))
+        return rows[0]["id"] if rows else None
+
+    def user_id_for_athlete(self, athlete_id: int) -> int | None:
+        rows = self.db.query(
+            "SELECT user_id FROM athlete_profiles WHERE id = ?", (athlete_id,))
+        return rows[0]["user_id"] if rows else None
+
+
+class AppMetaRepository:
+    """Clé/valeur applicatif (secret d'auth, identifiant du propriétaire…)."""
+
+    def __init__(self, db: Database) -> None:
+        self.db = db
+
+    def get(self, key: str) -> str | None:
+        rows = self.db.query("SELECT value FROM app_meta WHERE key = ?", (key,))
+        return rows[0]["value"] if rows else None
+
+    def set(self, key: str, value: str) -> None:
+        self.db.execute(
+            """INSERT INTO app_meta (key, value) VALUES (?, ?)
+               ON CONFLICT(key) DO UPDATE SET value = excluded.value""",
+            (key, value))
+
 
 class SessionRepository:
     def __init__(self, db: Database) -> None:

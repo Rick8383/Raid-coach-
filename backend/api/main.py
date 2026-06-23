@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from contextvars import ContextVar
 from datetime import date as _date
 
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -20,6 +21,7 @@ from api import garmin
 from api.garmin import GarminTokenStore
 from api.persistence import Store
 from api.services.coach_api import CoachAPI
+from api import auth as _auth
 from engines.coach_chat import answer as _coach_chat_answer
 from engines import standby as _standby
 # CoachAPI met engines/legacy sur sys.path à l'import → AnalyticsInput accessible
@@ -50,6 +52,59 @@ garmin_tokens = GarminTokenStore(store.db)
 print("[raid-coach] DB backend: "
       + ("postgres (persistant)" if store.db.is_postgres else "sqlite (EPHEMERE — voir DEPLOY.md)"),
       flush=True)
+
+# ---------- Authentification multi-utilisateurs (par athlète) ----------
+# Secret de signature des jetons (stable, stocké en base → survit aux redéploys).
+_AUTH_SECRET = store.auth_secret()
+# user_id de la requête courante, posé par le middleware (None si anonyme).
+_current_uid: ContextVar[int | None] = ContextVar("current_uid", default=None)
+
+
+class _AuthMiddleware:
+    """Middleware ASGI pur (contextvar fiable jusqu'au handler, même sync) :
+    lit le jeton Bearer, en déduit l'user_id, le pose dans le contexte."""
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "http":
+            uid = None
+            for k, v in scope.get("headers", []):
+                if k == b"authorization":
+                    tok = _auth.bearer(v.decode("latin-1"))
+                    if tok:
+                        uid = _auth.verify_token(tok, _AUTH_SECRET)
+                    break
+            _current_uid.set(uid)
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(_AuthMiddleware)
+
+
+def _owner_athlete() -> int:
+    return store.__dict__["athlete_id"]  # athlète primaire = propriétaire
+
+
+def _aid() -> int:
+    """athlete_id de l'utilisateur connecté. Repli sur le propriétaire si aucun
+    jeton (compat mono-utilisateur), sauf si AUTH_REQUIRED est défini → 401."""
+    uid = _current_uid.get()
+    if uid is not None:
+        aid = store.athletes.athlete_id_for_user(uid)
+        if aid is not None:
+            return aid
+    if os.environ.get("AUTH_REQUIRED"):
+        raise HTTPException(status_code=401, detail="Authentification requise")
+    return _owner_athlete()
+
+
+def _require_uid() -> int:
+    uid = _current_uid.get()
+    if uid is None:
+        raise HTTPException(status_code=401, detail="Authentification requise")
+    return uid
 
 
 def _safe(fn, payload: dict) -> dict:
@@ -244,6 +299,18 @@ class ProfileUpdateIn(BaseModel):
     goal_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
 
 
+class RegisterIn(BaseModel):
+    email: str = Field(pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$", max_length=200)
+    password: str = Field(min_length=8, max_length=200)
+    invite_code: str | None = Field(default=None, max_length=200)
+    name: str | None = Field(default=None, max_length=80)
+
+
+class LoginIn(BaseModel):
+    email: str = Field(pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$", max_length=200)
+    password: str = Field(min_length=1, max_length=200)
+
+
 class StandbyIn(BaseModel):
     """Active le mode standby/vacances sur une fenêtre de dates (par athlète)."""
     mode: str = Field(pattern="^(pause|vacation)$")
@@ -272,8 +339,8 @@ class ChatIn(BaseModel):
 def _chat_context(for_date: str | None) -> dict:
     """Assemble le contexte du coach (profil, métriques du jour, planning) depuis
     le store pour personnaliser la réponse du chat."""
-    ctx: dict = {"profile": store.profile_payload()}
-    latest = store.metrics.latest(store.athlete_id)
+    ctx: dict = {"profile": store.profile_payload(_aid())}
+    latest = store.metrics.latest(_aid())
     if latest:
         ctx["metrics"] = latest
     try:
@@ -345,12 +412,12 @@ def _wod_performance(res: dict, best_reps: float | None) -> float | None:
 def _analytics_from_store() -> dict:
     """Dérive un instantané analytics des séances et métriques enregistrées.
     Renvoie un statut 'warming_up' tant que l'historique est trop court."""
-    sessions = store.sessions.last_n(store.athlete_id, 28)
+    sessions = store.sessions.last_n(_aid(), 28)
     loads = [float(s["stress_units"] or 0) for s in sessions if s["status"] == "done"]
     metrics = store.db.query(
         """SELECT readiness, fatigue, sleep_quality FROM daily_metrics
            WHERE athlete_id = ? ORDER BY metric_date DESC LIMIT 14""",
-        (store.athlete_id,))
+        (_aid(),))
     readiness = [float(m["readiness"]) for m in metrics if m["readiness"] is not None]
     recovery = [100.0 - float(m["fatigue"]) for m in metrics if m["fatigue"] is not None]
 
@@ -410,6 +477,50 @@ def health() -> dict:
             "persistent": persistent}
 
 
+# ---------- Authentification (inscription par code d'invitation, 1er = proprio) ----------
+def _user_public(uid: int, email: str) -> dict:
+    return {"id": uid, "email": email, "is_owner": store.owner_user_id() == uid}
+
+
+@app.post("/auth/register")
+def auth_register(body: RegisterIn) -> dict:
+    email = body.email.strip().lower()
+    if store.athletes.find_user_by_email(email):
+        raise HTTPException(status_code=409, detail="Cet email a déjà un compte.")
+    if store.owner_user_id() is None:
+        # 1er inscrit = propriétaire → récupère le profil existant (données intactes)
+        uid, _ = store.claim_owner(email, _auth.hash_password(body.password))
+    else:
+        code = os.environ.get("INVITE_CODE")
+        if not code:
+            raise HTTPException(status_code=403,
+                                detail="Inscriptions fermées (aucun code d'invitation configuré).")
+        if (body.invite_code or "") != code:
+            raise HTTPException(status_code=403, detail="Code d'invitation invalide.")
+        uid, _ = store.register_user(email, _auth.hash_password(body.password), body.name or "Athlète")
+    return {"token": _auth.make_token(uid, _AUTH_SECRET), "user": _user_public(uid, email)}
+
+
+@app.post("/auth/login")
+def auth_login(body: LoginIn) -> dict:
+    email = body.email.strip().lower()
+    user = store.athletes.find_user_by_email(email)
+    if not user or not _auth.verify_password(body.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect.")
+    return {"token": _auth.make_token(user["id"], _AUTH_SECRET),
+            "user": _user_public(user["id"], user["email"])}
+
+
+@app.get("/auth/me")
+def auth_me() -> dict:
+    uid = _require_uid()
+    user = store.athletes.get_user(uid)
+    if not user:
+        raise HTTPException(status_code=401, detail="Session expirée.")
+    return {"user": _user_public(uid, user["email"]),
+            "registration_open": store.owner_user_id() is None or bool(os.environ.get("INVITE_CODE"))}
+
+
 @app.post("/coach/daily-decision")
 def daily_decision(body: DailyDecisionIn) -> dict:
     return _safe(coach.daily_decision, body.model_dump())
@@ -427,10 +538,10 @@ def _adaptive_context(payload: dict) -> dict:
     monday = (day - timedelta(days=day.weekday())).isoformat()
     yesterday = (day - timedelta(days=1)).isoformat()
 
-    done = [s for s in store.sessions.last_n(store.athlete_id, 40) if s["status"] == "done"]
+    done = [s for s in store.sessions.last_n(_aid(), 40) if s["status"] == "done"]
     last_two = [s["discipline"] for s in done[:2]]
 
-    consumed = store.sessions.stress_units_between(store.athlete_id, monday, payload["date"])
+    consumed = store.sessions.stress_units_between(_aid(), monday, payload["date"])
     budget = coach.weekly_budget_su(week_type)
     budget_pct = round(consumed / budget * 100, 1) if budget else 0.0
 
@@ -450,9 +561,9 @@ def _adaptive_context(payload: dict) -> dict:
     # Tant que la base chronique est trop courte (< 21 j d'historique), l'ACWR
     # n'est pas fiable → on l'affiche comme "insuffisant" plutôt que d'alarmer.
     acute = store.sessions.stress_units_between(
-        store.athlete_id, (day - timedelta(days=7)).isoformat(), payload["date"])
+        _aid(), (day - timedelta(days=7)).isoformat(), payload["date"])
     chronic_total = store.sessions.stress_units_between(
-        store.athlete_id, (day - timedelta(days=28)).isoformat(), payload["date"])
+        _aid(), (day - timedelta(days=28)).isoformat(), payload["date"])
     earliest = min((s["session_date"] for s in done), default=payload["date"])
     history_days = (day - date.fromisoformat(earliest)).days
     if history_days < 21:
@@ -516,11 +627,11 @@ def plan_annual() -> dict:
 
 def _standby_state() -> dict:
     """État standby de l'athlète (replié paresseusement si une pause est passée)."""
-    row = store.standby.get(store.athlete_id) or {}
+    row = store.standby.get(_aid()) or {}
     folded, changed = _standby.fold_if_complete(row, _date.today())
     if changed:
         store.standby.set_window(
-            store.athlete_id, folded.get("mode"), folded.get("start_date"),
+            _aid(), folded.get("mode"), folded.get("start_date"),
             folded.get("end_date"), None, int(folded.get("plan_shift_weeks") or 0))
     return folded
 
@@ -573,7 +684,7 @@ def set_standby(body: StandbyIn) -> dict:
         raise HTTPException(status_code=422, detail="end_date avant start_date")
     base = int(_standby_state().get("plan_shift_weeks") or 0)
     params = {"sessions_per_day": body.sessions_per_day, "equipment": body.equipment}
-    store.standby.set_window(store.athlete_id, body.mode, body.start_date,
+    store.standby.set_window(_aid(), body.mode, body.start_date,
                              body.end_date, params, base)
     return get_standby()
 
@@ -581,7 +692,7 @@ def set_standby(body: StandbyIn) -> dict:
 @app.delete("/standby")
 def clear_standby() -> dict:
     base = int(_standby_state().get("plan_shift_weeks") or 0)
-    store.standby.set_window(store.athlete_id, None, None, None, None, base)
+    store.standby.set_window(_aid(), None, None, None, None, base)
     return get_standby()
 
 
@@ -758,7 +869,7 @@ def record_metrics(body: MetricsRecordIn) -> dict:
     metric_date = data.pop("date")
     data["pain_flag"] = int(body.pain_flag)
     data["sciatic_flare"] = int(body.sciatic_flare)
-    store.metrics.upsert(store.athlete_id, metric_date, **data)
+    store.metrics.upsert(_aid(), metric_date, **data)
     return {"status": "recorded", "date": metric_date}
 
 
@@ -767,7 +878,7 @@ def complete_session(body: SessionCompleteIn) -> dict:
     # charge (SU) calculée serveur si non fournie → cohérente avec budget/ACWR
     su = body.stress_units or coach.compute_su(body.duration_min, body.intensity_rpe)
     session_id = store.sessions.record(
-        store.athlete_id, body.discipline, body.session_date,
+        _aid(), body.discipline, body.session_date,
         body.duration_min, body.intensity_rpe, su,
         body.detail, status="done",
         family_id=body.family_id, template_id=body.template_id)
@@ -782,7 +893,7 @@ def save_session(body: SessionSaveIn) -> dict:
     → visible dans l'historique et l'agenda. SU calculées si 'done'."""
     su = coach.compute_su(body.duration_min, body.intensity_rpe) if body.status == "done" else 0.0
     session_id = store.sessions.record(
-        store.athlete_id, body.discipline, body.session_date,
+        _aid(), body.discipline, body.session_date,
         body.duration_min, body.intensity_rpe, su,
         body.detail, status=body.status, family_id=body.title)
     return {"status": "saved", "session_id": session_id, "persisted_status": body.status}
@@ -791,7 +902,7 @@ def save_session(body: SessionSaveIn) -> dict:
 @app.post("/benchmarks/record")
 def record_benchmark(body: BenchmarkRecordIn) -> dict:
     bench_id = store.benchmarks.record(
-        store.athlete_id, body.benchmark_id, body.result_value,
+        _aid(), body.benchmark_id, body.result_value,
         body.result_unit, body.test_date, body.detail)
     return {"status": "recorded", "id": bench_id}
 
@@ -800,7 +911,7 @@ def record_benchmark(body: BenchmarkRecordIn) -> dict:
 @app.get("/garmin/status")
 def garmin_status() -> dict:
     return {"configured": garmin.is_configured(),
-            "connected": garmin_tokens.is_connected(store.athlete_id)}
+            "connected": garmin_tokens.is_connected(_aid())}
 
 
 @app.get("/garmin/connect")
@@ -812,13 +923,13 @@ def garmin_connect() -> dict:
         authorize_url, token, secret = garmin.start_oauth()
     except Exception as e:  # noqa: BLE001 — erreurs réseau/OAuth → message clair
         raise HTTPException(status_code=502, detail=f"Garmin OAuth: {e}")
-    garmin_tokens.save_request_token(store.athlete_id, token, secret)
+    garmin_tokens.save_request_token(_aid(), token, secret)
     return {"authorize_url": authorize_url}
 
 
 @app.get("/garmin/callback")
 def garmin_callback(oauth_token: str, oauth_verifier: str) -> HTMLResponse:
-    row = garmin_tokens.get(store.athlete_id)
+    row = garmin_tokens.get(_aid())
     if not row or row.get("request_token") != oauth_token:
         return HTMLResponse("<h2>Lien d'autorisation expiré. Relance la connexion.</h2>",
                             status_code=400)
@@ -827,7 +938,7 @@ def garmin_callback(oauth_token: str, oauth_verifier: str) -> HTMLResponse:
             oauth_token, row["request_token_secret"], oauth_verifier)
     except Exception as e:  # noqa: BLE001
         return HTMLResponse(f"<h2>Échec de connexion Garmin: {e}</h2>", status_code=502)
-    garmin_tokens.save_access_token(store.athlete_id, access_token, access_secret)
+    garmin_tokens.save_access_token(_aid(), access_token, access_secret)
     return HTMLResponse(
         "<h2>✅ Montre Garmin connectée</h2><p>Tu peux fermer cette page et "
         "revenir dans l'app, puis lancer une synchronisation.</p>")
@@ -835,7 +946,7 @@ def garmin_callback(oauth_token: str, oauth_verifier: str) -> HTMLResponse:
 
 @app.post("/garmin/sync")
 def garmin_sync() -> dict:
-    row = garmin_tokens.get(store.athlete_id)
+    row = garmin_tokens.get(_aid())
     if not row or not row.get("access_token"):
         raise HTTPException(status_code=400, detail="Garmin non connecté.")
     day = _date.today().isoformat()
@@ -845,47 +956,47 @@ def garmin_sync() -> dict:
         raise HTTPException(status_code=502, detail=f"Garmin sync: {e}")
     metrics = garmin.map_to_metrics(wellness)
     if metrics:
-        store.metrics.upsert(store.athlete_id, day, **metrics)
+        store.metrics.upsert(_aid(), day, **metrics)
     return {"status": "synced", "date": day, "metrics": metrics}
 
 
 @app.post("/garmin/disconnect")
 def garmin_disconnect() -> dict:
-    garmin_tokens.disconnect(store.athlete_id)
+    garmin_tokens.disconnect(_aid())
     return {"status": "disconnected"}
 
 
 @app.get("/metrics/latest")
 def latest_metrics() -> dict:
-    row = store.metrics.latest(store.athlete_id)
+    row = store.metrics.latest(_aid())
     return row or {}
 
 
 @app.get("/benchmarks/{benchmark_id}/progression")
 def benchmark_progression(benchmark_id: str) -> dict:
     return {"benchmark_id": benchmark_id,
-            "results": store.benchmarks.progression(store.athlete_id, benchmark_id)}
+            "results": store.benchmarks.progression(_aid(), benchmark_id)}
 
 
 # ---------- Profil athlète ----------
 @app.get("/profile")
 def get_profile() -> dict:
-    return store.profile_payload()
+    return store.profile_payload(_aid())
 
 
 @app.patch("/profile")
 def update_profile(body: ProfileUpdateIn) -> dict:
     fields = body.model_dump(exclude_none=True)
     if fields:
-        store.athletes.update_profile(store.athlete_id, **fields)
-    return store.profile_payload()
+        store.athletes.update_profile(_aid(), **fields)
+    return store.profile_payload(_aid())
 
 
 # ---------- Historique d'entraînement ----------
 @app.get("/sessions/recent")
 def recent_sessions(n: int = 30) -> dict:
     n = max(1, min(n, 200))
-    rows = store.sessions.last_n(store.athlete_id, n)
+    rows = store.sessions.last_n(_aid(), n)
     # Expose le score d'un WOD chronométré (temps/reps) pour le suivi, sans
     # forcer le client à reparser tout le detail_json.
     for s in rows:
@@ -905,7 +1016,7 @@ def agenda_week(body: ScheduleIn) -> dict:
     # élevé). last_n est trié par date DESC, id DESC → le premier vu pour une
     # date est déjà le plus récent ; on ne remplace que si on trouve un 'done'.
     best: dict[str, dict] = {}
-    for s in store.sessions.last_n(store.athlete_id, 60):
+    for s in store.sessions.last_n(_aid(), 60):
         d = s["session_date"]
         cur = best.get(d)
         if cur is None:

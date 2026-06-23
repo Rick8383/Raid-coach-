@@ -3,7 +3,11 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-google-fonts/inter';
 import { BarlowCondensed_700Bold } from '@expo-google-fonts/barlow-condensed';
-import { AthleteProfile, api, flushSyncQueue } from './src/api/client';
+import {
+  AthleteProfile, AuthUser, api, flushSyncQueue,
+  loadToken, clearToken, setUnauthorizedHandler,
+} from './src/api/client';
+import { AuthScreen } from './src/screens/AuthScreen';
 import { CheckinScreen } from './src/screens/CheckinScreen';
 import { TodayScreen } from './src/screens/TodayScreen';
 import { AgendaScreen } from './src/screens/AgendaScreen';
@@ -37,24 +41,55 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('today');
   const [showConnect, setShowConnect] = useState(false);
   const [profile, setProfile] = useState<AthleteProfile | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [user, setUser] = useState<AuthUser | null>(null);
 
-  // Charge le profil réel (avec cache offline) + programme les rappels au lancement.
+  // Auth : restaure la session au lancement ; un 401 ailleurs → retour login.
   useEffect(() => {
+    setUnauthorizedHandler(() => { clearToken().catch(() => {}); setUser(null); setCheckin(null); });
+    (async () => {
+      const tok = await loadToken().catch(() => null);
+      if (tok) {
+        try { setUser((await api.me()).user); } catch { await clearToken().catch(() => {}); }
+      }
+      setAuthChecked(true);
+    })();
+    return () => setUnauthorizedHandler(null);
+  }, []);
+
+  // Charge le profil de l'utilisateur connecté + programme les rappels.
+  useEffect(() => {
+    if (!user) return;
     api.profile().then(setProfile).catch(() => {});
     initReminders().catch(() => {});
-  }, []);
+  }, [user]);
 
   // Vide la file d'écritures offline au lancement et après chaque check-in.
   useEffect(() => {
     flushSyncQueue().catch(() => {});
   }, [checkin]);
 
-  if (!fontsLoaded) {
+  const logout = async () => {
+    await clearToken().catch(() => {});
+    setUser(null); setCheckin(null); setProfile(null); setTab('today');
+  };
+
+  if (!fontsLoaded || !authChecked) {
     return (
       <View style={styles.splash}>
         <Text style={styles.splashTitle}>RAID COACH</Text>
         <ActivityIndicator color={colors.signal} style={{ marginTop: 16 }} />
       </View>
+    );
+  }
+
+  if (!user) {
+    return (
+      <SafeAreaProvider>
+        <SafeAreaView style={styles.root}>
+          <AuthScreen onAuth={setUser} />
+        </SafeAreaView>
+      </SafeAreaProvider>
     );
   }
 
@@ -94,7 +129,8 @@ export default function App() {
           {tab === 'coach' && <CoachChatScreen profile={profile} />}
           {tab === 'profile' && (
             <ProfileScreen profile={profile} onProfile={setProfile}
-              onConnectWatch={() => setShowConnect(true)} />
+              onConnectWatch={() => setShowConnect(true)}
+              user={user} onLogout={logout} />
           )}
         </View>
         <View style={styles.tabbar}>

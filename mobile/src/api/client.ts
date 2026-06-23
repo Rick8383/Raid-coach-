@@ -25,14 +25,39 @@ class ApiError extends Error {
   }
 }
 
+// ---- Jeton d'authentification ----
+const TOKEN_KEY = 'raid_coach:token';
+let authToken: string | null = null;
+let onUnauthorized: (() => void) | null = null;
+
+export function setUnauthorizedHandler(fn: (() => void) | null): void { onUnauthorized = fn; }
+export async function loadToken(): Promise<string | null> {
+  authToken = await AsyncStorage.getItem(TOKEN_KEY);
+  return authToken;
+}
+export async function setToken(t: string): Promise<void> {
+  authToken = t; await AsyncStorage.setItem(TOKEN_KEY, t);
+}
+export async function clearToken(): Promise<void> {
+  authToken = null; await AsyncStorage.removeItem(TOKEN_KEY);
+}
+function authHeaders(): Record<string, string> {
+  return authToken ? { Authorization: `Bearer ${authToken}` } : {};
+}
+// 401 hors des routes /auth → session invalide : on prévient l'app (retour login).
+function handleStatus(status: number, path: string): void {
+  if (status === 401 && !path.startsWith('/auth/') && onUnauthorized) onUnauthorized();
+}
+
 async function post<T = Json>(path: string, body: Json): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(body),
   });
   if (!res.ok) {
     const detail = await res.text();
+    handleStatus(res.status, path);
     throw new ApiError(res.status, detail);
   }
   return res.json() as Promise<T>;
@@ -56,8 +81,8 @@ async function cachedPost<T = Json>(key: string, path: string, body: Json,
 }
 
 async function get<T = Json>(path: string): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`);
-  if (!res.ok) throw new ApiError(res.status, await res.text());
+  const res = await fetch(`${BASE_URL}${path}`, { headers: authHeaders() });
+  if (!res.ok) { handleStatus(res.status, path); throw new ApiError(res.status, await res.text()); }
   return res.json() as Promise<T>;
 }
 
@@ -79,10 +104,10 @@ async function cachedGet<T = Json>(key: string, path: string, ttlMin = 60): Prom
 async function patch<T = Json>(path: string, body: Json): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new ApiError(res.status, await res.text());
+  if (!res.ok) { handleStatus(res.status, path); throw new ApiError(res.status, await res.text()); }
   return res.json() as Promise<T>;
 }
 
@@ -97,8 +122,8 @@ export async function queueWrite(path: string, body: Json): Promise<void> {
 }
 
 async function del<T = Json>(path: string): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, { method: 'DELETE' });
-  if (!res.ok) throw new ApiError(res.status, await res.text());
+  const res = await fetch(`${BASE_URL}${path}`, { method: 'DELETE', headers: authHeaders() });
+  if (!res.ok) { handleStatus(res.status, path); throw new ApiError(res.status, await res.text()); }
   return res.json() as Promise<T>;
 }
 
@@ -346,6 +371,9 @@ export interface ChatReply {
   suggestions: string[];
 }
 
+export interface AuthUser { id: number; email: string; is_owner: boolean }
+export interface AuthResponse { token: string; user: AuthUser }
+
 export interface RoadmapBlock {
   phase: string;
   week_start: number;
@@ -508,6 +536,14 @@ export const api = {
     await AsyncStorage.setItem('cache:profile', JSON.stringify({ t: Date.now(), data }));
     return data;
   },
+
+  // Authentification (inscription par code d'invitation, 1er inscrit = propriétaire)
+  register: (email: string, password: string, inviteCode?: string, name?: string) =>
+    post<AuthResponse>('/auth/register', {
+      email, password, invite_code: inviteCode ?? null, name: name ?? null }),
+  login: (email: string, password: string) =>
+    post<AuthResponse>('/auth/login', { email, password }),
+  me: () => get<{ user: AuthUser; registration_open: boolean }>('/auth/me'),
 
   // Coach Chat — assistant déterministe (pas de cache : réponses contextuelles).
   chat: (message: string, date?: string) =>

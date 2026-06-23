@@ -640,3 +640,25 @@ Quand l'athlète s'absente, deux modes adaptent l'entraînement, **configurés d
 **État** : 131 tests pytest + 4 tests PG + 4 audits PASS (53 routes), TypeScript strict 0 erreur, export web OK.
 
 *Addendum v3.6 · 16/06/2026 · Claude Code.*
+
+-----
+
+### Addendum v3.7 — Authentification multi-utilisateurs (construit, NON déployé) (16/06/2026)
+
+> ⚠️ Code prêt sur la branche de travail mais **pas encore déployé** (choix utilisateur : valider avant d'exiger une connexion sur le site). PostgreSQL confirmé persistant au préalable (`/health` → `"persistent": true`).
+
+Comptes **email + mot de passe**, **par athlète**, avec **isolation stricte** des données. Choix retenus : inscription **par code d'invitation**, **1er inscrit = propriétaire** (récupère le profil existant, données intactes), auth **simple**.
+
+**Backend** (sans dépendance externe) :
+- `api/auth.py` : mots de passe **PBKDF2-HMAC-SHA256** (sel par utilisateur), **jetons signés HMAC** (payload `{uid, exp}`, TTL 30 j). Secret serveur **généré et stocké en base** (`app_meta`) → stable entre redéploiements, sans variable d'env.
+- Endpoints `POST /auth/register` (1er = propriétaire via `claim_owner` sur le profil primaire ; sinon `INVITE_CODE` requis), `POST /auth/login`, `GET /auth/me`.
+- Résolution de l'utilisateur courant par **middleware ASGI pur** (contextvar fiable jusqu'au handler sync) → `_aid()` remplace l'athlète fixe dans tous les endpoints data. **Repli sur le propriétaire si aucun jeton** (compat mono-utilisateur, non-bloquant) ; passe en **401** si `AUTH_REQUIRED` est défini (enforcement serveur). Générateurs (`/generate/*`, infos nutrition) restent publics.
+- Tables : `app_meta` ajoutée (id + key unique). Aucune modification de colonnes sur tables existantes → migration auto au démarrage. **Vérifié sur PostgreSQL 16 réel** : inscription propriétaire (données intactes), ami par code, **isolation** (métriques/séances cloisonnées), et **login conservé après redémarrage** (secret + comptes persistés). Bug attrapé sur PG (RETURNING id sur table sans `id`) → corrigé.
+
+**App** : écran **Connexion / Inscription** (`AuthScreen`) ; le client stocke le jeton (AsyncStorage) et l'envoie sur chaque requête ; **401 → retour login**. `App.tsx` restaure la session au lancement (`/auth/me`) et gate l'accès. Carte **COMPTE** dans Profil (email, badge propriétaire, déconnexion).
+
+**Pour activer (quand prêt)** : (1) déployer la branche, (2) s'inscrire en 1er = propriétaire (profil récupéré), (3) définir `INVITE_CODE` dans Render pour ouvrir l'inscription aux amis, (4) optionnel : `AUTH_REQUIRED=1` pour l'enforcement serveur. Détails à ajouter dans DEPLOY.md à l'activation.
+
+**État** : 139 tests pytest (SQLite) + 4 tests PG + auth vérifiée sur PG réel + 4 audits PASS (56 routes API), TypeScript strict 0 erreur, export web OK.
+
+*Addendum v3.7 · 16/06/2026 · Claude Code.*

@@ -4,7 +4,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View, ScrollView } from 'react-native';
-import { AthleteProfile, api } from '../api/client';
+import { AthleteProfile, AuthUser, api } from '../api/client';
 import { Card } from '../components/ui';
 import { StandbyCard } from '../components/StandbyCard';
 import { Roadmap } from '../components/Roadmap';
@@ -23,10 +23,12 @@ const MAX_LABELS: Record<string, string> = {
   cooper_m: 'Cooper (m)', bench_ratio: 'Dév. couché (kg)', squat_ratio: 'Squat (kg)',
 };
 
-export function ProfileScreen({ profile, onProfile, onConnectWatch }: {
+export function ProfileScreen({ profile, onProfile, onConnectWatch, user, onLogout }: {
   profile: AthleteProfile | null;
   onProfile: (p: AthleteProfile) => void;
   onConnectWatch?: () => void;
+  user?: AuthUser | null;
+  onLogout?: () => void;
 }) {
   const [saving, setSaving] = useState(false);
   const [reminders, setReminders] = useState<ReminderPrefs | null>(null);
@@ -142,6 +144,24 @@ export function ProfileScreen({ profile, onProfile, onConnectWatch }: {
       {/* Mode vacances / standby (par athlète) */}
       <StandbyCard />
 
+      {/* Compte */}
+      {user && (
+        <>
+          <Text style={styles.section}>COMPTE</Text>
+          <Card style={{ padding: spacing.m }}>
+            <View style={styles.acctRow}>
+              <Text style={styles.acctEmail}>{user.email}</Text>
+              {user.is_owner && <Text style={styles.ownerTag}>PROPRIÉTAIRE</Text>}
+            </View>
+            {onLogout && (
+              <Pressable onPress={onLogout} style={styles.logoutBtn}>
+                <Text style={styles.logoutT}>SE DÉCONNECTER</Text>
+              </Pressable>
+            )}
+          </Card>
+        </>
+      )}
+
       {/* Feuille de route → 2029 */}
       <Roadmap weeksToSelection={weeksToGoal(profile.goal_date)} />
     </ScrollView>
@@ -211,4 +231,9 @@ const styles = StyleSheet.create({
   maxLabel: { color: colors.textSecondary, fontSize: typography.sizes.body },
   maxValue: { color: colors.textPrimary, fontFamily: typography.display.fontFamily, fontSize: typography.sizes.h2 },
   hint: { color: colors.textDisabled, fontSize: typography.sizes.micro, marginTop: spacing.s, lineHeight: 16 },
+  acctRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  acctEmail: { color: colors.textPrimary, fontSize: typography.sizes.body, flex: 1 },
+  ownerTag: { color: colors.signal, ...typography.label, fontSize: 9 },
+  logoutBtn: { marginTop: spacing.m, paddingVertical: 12, borderRadius: spacing.cardRadius, borderWidth: 1, borderColor: colors.hairlineStrong, alignItems: 'center' },
+  logoutT: { color: colors.readyOrange, ...typography.label, fontSize: 11 },
 });
