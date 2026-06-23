@@ -36,30 +36,39 @@ gratuite) : supprimer le bloc `databases:` du `render.yaml`, créer une base
 
 Si le backend a été déployé **avant** que le bloc `databases:` ne soit actif, il
 tourne encore sur **SQLite éphémère** (les données — et donc tout compte
-utilisateur — sont perdues à chaque redéploiement/réveil). Pour basculer en
-PostgreSQL **persistant**, deux options :
+utilisateur — sont perdues à chaque redéploiement/réveil).
 
-**Option A — Re-synchroniser le Blueprint Render (recommandé)**
+> **Durabilité** : la base **PostgreSQL *free* de Render est supprimée au bout de
+> ~30 jours**. Pour un usage **multi-utilisateurs durable**, préférer une base
+> **Neon** (gratuite, sans expiration) — c'est l'**option A** ci-dessous, recommandée.
+> L'option B (Blueprint Render) est plus rapide mais sa base free expire.
+
+**Option A — Neon (gratuit, durable) → recommandé pour le multi-comptes**
+1. Créer un compte sur [neon.tech](https://neon.tech) → **New Project** (région proche, ex. EU).
+2. Copier la *connection string* (Dashboard → **Connection Details** →
+   « Connection string », format `postgresql://user:pass@ep-xxx.eu.aws.neon.tech/neondb?sslmode=require`).
+3. Render → ton service `raid-coach-api` → **Environment** → **Add Environment Variable** :
+   - Key = `DATABASE_URL`  ·  Value = la connection string Neon.
+   - **Save Changes** → Render redéploie automatiquement.
+4. (Conseillé) Retirer le bloc `databases:` du `render.yaml` pour ne pas
+   provisionner en double la base Render éphémère.
+
+**Option B — Re-synchroniser le Blueprint Render (rapide, base free ~30 j)**
 1. Render → ton service → onglet **Blueprint** → **Sync** (Render relit
-   `render.yaml` et **provisionne la base `raid-coach-db`** + injecte
-   `DATABASE_URL`). Si l'option n'apparaît pas : **New → Blueprint** sur le dépôt
-   pour recréer le groupe Blueprint (service + base liés).
+   `render.yaml`, **provisionne `raid-coach-db`** et injecte `DATABASE_URL`).
+   Si l'option n'apparaît pas : **New → Blueprint** sur le dépôt (recrée le
+   groupe service + base liés).
 2. Attendre le redéploiement.
 
-**Option B — Base externe gratuite (Neon / Supabase)**
-1. Créer une base PostgreSQL gratuite (Neon ou Supabase), copier sa
-   *connection string* (`postgresql://…?sslmode=require`).
-2. Render → service → **Environment** → ajouter `DATABASE_URL` = cette URL →
-   **Save** (déclenche un redéploiement).
-
-**Vérifier que c'est bien actif** — ouvrir `https://<ton-api>/health` :
+**Vérifier que c'est bien actif** — ouvrir `https://raid-coach-api.onrender.com/health` :
 ```json
 { "status": "ok", "db_backend": "postgres", "persistent": true }
 ```
-`"persistent": true` ⇒ les données (comptes inclus) survivent désormais aux
-redéploiements. Si tu vois `"db_backend": "sqlite"`, `DATABASE_URL` n'est pas
-injecté → reprendre l'option A ou B. Le schéma se crée tout seul au démarrage
-(aucune migration manuelle), y compris la table `users` du multi-comptes.
+`"persistent": true` ⇒ les données (comptes, profils, séances, mode standby…)
+survivent désormais aux redéploiements. Si tu vois `"db_backend": "sqlite"`,
+`DATABASE_URL` n'est pas injecté → reprendre l'option A ou B. Le schéma (toutes
+les tables, dont `users` et `standby_state`) se crée **tout seul au démarrage**,
+aucune migration manuelle.
 
 ## 2. Pointer l'app sur l'API en ligne
 

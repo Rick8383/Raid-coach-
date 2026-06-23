@@ -626,3 +626,17 @@ Quand l'athlète s'absente, deux modes adaptent l'entraînement, **configurés d
 **État** : 131 tests pytest (SQLite) + 4 tests PG + 4 audits PASS (53 routes API), TypeScript strict 0 erreur, export web OK.
 
 *Addendum v3.5 · 16/06/2026 · Claude Code.*
+
+-----
+
+### Addendum v3.6 — Préparation persistance PostgreSQL : runbook durable + log de démarrage (16/06/2026)
+
+> Complète les addendums v3.1/v3.5. Étape côté code pour fiabiliser le passage en production persistante (l'activation reste une action dans le dashboard Render, non automatisable depuis le dépôt).
+
+- **DEPLOY.md** : runbook « Activer PostgreSQL » restructuré. Avertissement clé : la base **PostgreSQL *free* de Render est supprimée après ~30 jours** → pour un **multi-utilisateurs durable**, l'option recommandée est **Neon** (gratuit, sans expiration), avec procédure pas-à-pas (`DATABASE_URL` dans Render → Environment). Vérification via `/health` (`"persistent": true`).
+- **Log de démarrage** : l'API logue désormais son backced DB (`postgres (persistant)` / `sqlite (EPHEMERE)`) → visible dans les logs Render pour confirmer la persistance sans appel réseau.
+- Rappel : le schéma complet (toutes les tables, dont `users` et `standby_state`) se crée automatiquement au démarrage sur PostgreSQL — vérifié sur un PostgreSQL 16 réel (création + données conservées après redémarrage simulé).
+
+**État** : 131 tests pytest + 4 tests PG + 4 audits PASS (53 routes), TypeScript strict 0 erreur, export web OK.
+
+*Addendum v3.6 · 16/06/2026 · Claude Code.*

@@ -46,6 +46,11 @@ coach = CoachAPI()
 store = Store()
 garmin_tokens = GarminTokenStore(store.db)
 
+# Visible dans les logs Render → confirme la persistance d'un coup d'œil.
+print("[raid-coach] DB backend: "
+      + ("postgres (persistant)" if store.db.is_postgres else "sqlite (EPHEMERE — voir DEPLOY.md)"),
+      flush=True)
+
 
 def _safe(fn, payload: dict) -> dict:
     try:
