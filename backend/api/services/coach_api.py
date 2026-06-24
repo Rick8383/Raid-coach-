@@ -354,20 +354,23 @@ class CoachAPI:
             fmt=payload.get("format", "auto"),
             duration_min=payload.get("duration_min", 12),
             seed=payload.get("seed", "wod"),
-            exclude_lumbar=payload.get("exclude_lumbar", True))
+            exclude_lumbar=payload.get("exclude_lumbar", True),
+            bodyweight=payload.get("bodyweight", False))
 
     def random_wod(self, exclude_lumbar: bool = True) -> dict:
         return _random_wod(exclude_lumbar)
 
     # ---- FORCE 5/3/1 (Mission 4) ----
-    def strength_531(self, day: str, week: int = 1, cycle: int = 0) -> dict:
-        return _gen_531(day, week, cycle)
+    def strength_531(self, day: str, week: int = 1, cycle: int = 0,
+                     maxes: dict | None = None) -> dict:
+        return _gen_531(day, week, cycle, maxes)
 
-    def strength_cycle(self, cycle: int = 0) -> dict:
-        return _cycle_531(cycle)
+    def strength_cycle(self, cycle: int = 0, maxes: dict | None = None) -> dict:
+        return _cycle_531(cycle, maxes)
 
-    def strength_progression(self, lift: str, cycles: int = 6) -> dict:
-        return _prog_531(lift, cycles)
+    def strength_progression(self, lift: str, cycles: int = 6,
+                             maxes: dict | None = None) -> dict:
+        return _prog_531(lift, cycles, maxes)
 
     # ---- PLAN ANNUEL (Mission 1 — squelette jusqu'à 2029) ----
     def annual_plan(self) -> dict:
@@ -380,13 +383,14 @@ class CoachAPI:
 
     def weekly_plan(self, from_week: int = 0, n: int = 6,
                     vma: float | None = None, fcmax: int | None = None,
-                    config: dict | None = None) -> dict:
-        return _build_weekly(from_week, n, vma or 14.0, fcmax or 186, config)
+                    config: dict | None = None, maxes: dict | None = None) -> dict:
+        return _build_weekly(from_week, n, vma or 14.0, fcmax or 186, config, maxes)
 
     def plan_day(self, date_iso: str, vma: float | None = None,
-                 fcmax: int | None = None, config: dict | None = None) -> dict:
+                 fcmax: int | None = None, config: dict | None = None,
+                 maxes: dict | None = None) -> dict:
         return _build_day(_schedule.parse_date(date_iso), vma or 14.0, fcmax or 186,
-                          config=config)
+                          config=config, maxes=maxes)
 
     # ---- ROADMAP (plan annuel rétro-planifié RCOS B14) ----
     def roadmap(self, payload: dict) -> dict:

@@ -50,7 +50,7 @@ def _swim_session() -> dict:
                                   "100m retour au calme"]}}
 
 
-def _build_session(spec, w_index, weekday, vma, fcmax):
+def _build_session(spec, w_index, weekday, vma, fcmax, maxes=None):
     moment, stype, sub = spec
     if stype == "run":
         seed = ((w_index * 3 + weekday) % 100) + 1
@@ -60,7 +60,7 @@ def _build_session(spec, w_index, weekday, vma, fcmax):
     elif stype == "strength":
         week_in_cycle = (w_index % 4) + 1
         cycle = w_index // 4
-        detail = generate_strength_531(sub, week_in_cycle, cycle)
+        detail = generate_strength_531(sub, week_in_cycle, cycle, maxes)
         dur = 70 if week_in_cycle != 4 else 55
         title = f"Force {sub.upper()} — S{week_in_cycle}" + (" deload" if week_in_cycle == 4 else "")
     elif stype == "crossfit":
@@ -75,7 +75,7 @@ def _build_session(spec, w_index, weekday, vma, fcmax):
 
 
 def _day_payload(d: date, shift_weeks: int, vma: float, fcmax: int,
-                 config: dict | None = None) -> dict:
+                 config: dict | None = None, maxes: dict | None = None) -> dict:
     # La STRUCTURE (jours d'entraînement, type de semaine) suit le RYTHME de
     # l'athlète (config) calé sur le calendrier réel ; seule la PROGRESSION
     # (cycle 5/3/1, seeds) peut être décalée (shift_weeks) — mode standby.
@@ -86,7 +86,7 @@ def _day_payload(d: date, shift_weeks: int, vma: float, fcmax: int,
     real_w = max(0, (real_monday - START).days // 7)
     plan_w = max(0, real_w - max(0, int(shift_weeks)))
     template = _us.week_template(cfg, plan_w, wt, _BIG_WORK, _SMALL_WORK)
-    sessions = [_build_session(spec, plan_w, d.weekday(), vma, fcmax)
+    sessions = [_build_session(spec, plan_w, d.weekday(), vma, fcmax, maxes)
                 for spec in template[d.weekday()]]
     return {
         "date": d.isoformat(),
@@ -99,22 +99,22 @@ def _day_payload(d: date, shift_weeks: int, vma: float, fcmax: int,
 
 
 def build_day(d: date, vma: float = 14.0, fcmax: int = 186, shift_weeks: int = 0,
-              config: dict | None = None) -> dict:
+              config: dict | None = None, maxes: dict | None = None) -> dict:
     """Séances planifiées pour une date — MÊME source que build_weekly (mêmes
-    seeds), calées sur le RYTHME de l'athlète (config). `shift_weeks` décale la
-    progression (standby) sans toucher au calendrier."""
-    return _day_payload(d, shift_weeks, vma, fcmax, config)
+    seeds), calées sur le RYTHME (config) et le NIVEAU (maxes = 1RM) de l'athlète.
+    `shift_weeks` décale la progression (standby) sans toucher au calendrier."""
+    return _day_payload(d, shift_weeks, vma, fcmax, config, maxes)
 
 
 def build_weekly(from_week: int = 0, n: int = 6, vma: float = 14.0, fcmax: int = 186,
-                 config: dict | None = None) -> dict:
+                 config: dict | None = None, maxes: dict | None = None) -> dict:
     from_week = max(0, min(int(from_week), 200))
     n = max(1, min(int(n), 12))
     weeks = []
     for offset in range(n):
         w_index = from_week + offset
         monday = START + timedelta(weeks=w_index)
-        days = [_day_payload(monday + timedelta(days=wd), 0, vma, fcmax, config)
+        days = [_day_payload(monday + timedelta(days=wd), 0, vma, fcmax, config, maxes)
                 for wd in range(7)]
         weeks.append({"week_index": w_index, "monday": monday.isoformat(),
                       "week_type": days[0]["week_type"], "days": days})

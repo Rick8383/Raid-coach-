@@ -7,6 +7,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, Vie
 import { Wod, api } from '../api/client';
 import { WodDetail } from './SessionDetail';
 import { WodTimer, WodResult } from './WodTimer';
+import { NumberField } from './NumberField';
 import { Card, PrimaryButton, Tag } from './ui';
 import { colors, spacing, typography } from '../theme/tokens';
 
@@ -38,6 +39,7 @@ export function WodGenerator() {
   const [format, setFormat] = useState('auto');
   const [duration, setDuration] = useState(12);
   const [excludeLumbar, setExcludeLumbar] = useState(true);
+  const [bodyweight, setBodyweight] = useState(false);
   const [seed, setSeed] = useState(0);
   const [wod, setWod] = useState<Wod | null>(null);
   const [loading, setLoading] = useState(false);
@@ -50,7 +52,8 @@ export function WodGenerator() {
     setSeed(next); setLoading(true); setError(false); setSaved(false); setScoreSaved(null);
     try {
       const w = await api.generateWod({
-        format, duration_min: duration, seed: `w${next}`, exclude_lumbar: excludeLumbar,
+        format, duration_min: duration, seed: `w${next}`,
+        exclude_lumbar: excludeLumbar, bodyweight,
       });
       setWod(w);
     } catch {
@@ -99,16 +102,19 @@ export function WodGenerator() {
 
       <View style={styles.controls}>
         <Text style={styles.lbl}>DURÉE</Text>
-        <View style={styles.durRow}>
-          <Pressable onPress={() => setDuration(d => Math.max(5, d - 1))} style={styles.durBtn}><Text style={styles.durBtnT}>–</Text></Pressable>
-          <Text style={styles.durVal}>{duration} min</Text>
-          <Pressable onPress={() => setDuration(d => Math.min(25, d + 1))} style={styles.durBtn}><Text style={styles.durBtnT}>+</Text></Pressable>
-        </View>
+        <NumberField value={duration} step={1} min={4} max={30} unit="min"
+          onChange={setDuration} />
       </View>
 
       <View style={styles.lumbarRow}>
         <Text style={styles.lumbarLbl}>Éviter mouvements lombaires (sciatique)</Text>
         <Switch value={excludeLumbar} onValueChange={setExcludeLumbar}
+          trackColor={{ true: colors.signalDim, false: colors.hairline }} />
+      </View>
+
+      <View style={styles.lumbarRow}>
+        <Text style={styles.lumbarLbl}>PDC — poids du corps uniquement (sans matériel)</Text>
+        <Switch value={bodyweight} onValueChange={setBodyweight}
           trackColor={{ true: colors.signalDim, false: colors.hairline }} />
       </View>
 

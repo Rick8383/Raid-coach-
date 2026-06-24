@@ -67,5 +67,9 @@ BY_ID = {m["id"]: m for m in MOVEMENTS}
 CARDIO_MACHINES = ["assault", "echo", "ski", "row"]
 
 
-def pool(exclude_lumbar: bool = True) -> list[dict]:
-    return [m for m in MOVEMENTS if not (exclude_lumbar and m["lumbar"])]
+def pool(exclude_lumbar: bool = True, bodyweight: bool = False) -> list[dict]:
+    out = [m for m in MOVEMENTS if not (exclude_lumbar and m["lumbar"])]
+    if bodyweight:
+        # PDC (poids du corps) : gym sans charge, ni machine cardio ni haltéro.
+        out = [m for m in out if m["cat"] == "gym" and not m.get("load")]
+    return out

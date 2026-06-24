@@ -872,3 +872,40 @@ def test_standby_validation(client):
         "mode": "pause", "start_date": "2026-07-10", "end_date": "2026-07-01"}).status_code == 422
     assert client.post("/standby", json={
         "mode": "x", "start_date": "2026-07-01", "end_date": "2026-07-10"}).status_code == 422
+
+
+# ---------- 1RM personnalisé → charges 5/3/1 de l'utilisateur ----------
+def test_strength_uses_personal_1rm(client):
+    # défaut moteur : TM bench 90. On enregistre un 1RM perso de 120 → TM = 107.5.
+    client.post("/benchmarks/record", json={
+        "benchmark_id": "bench_1rm", "result_value": 120, "result_unit": "kg",
+        "test_date": "2026-06-20"})
+    s = client.get("/generate/strength?day=push&week=1&cycle=0").json()
+    assert s["main_lift"]["training_max"] == 107.5   # round_2.5(0.9 * 120)
+    assert s["main_lift"]["training_max"] != 90.0     # plus le défaut imposé
+    # et la progression reflète aussi ce 1RM (push = développé couché)
+    prog = client.get("/strength/progression?lift=bench").json()
+    assert prog["points"][0]["training_max"] == 107.5
+
+
+# ---------- WOD poids du corps (PDC) ----------
+def test_bodyweight_wod(client):
+    w = client.post("/generate/wod", json={
+        "format": "amrap", "duration_min": 12, "seed": "pdc1", "bodyweight": True}).json()
+    assert w["bodyweight"] is True
+    assert w["lumbar_safe"] is True
+    # aucune charge (@..kg) dans un WOD PDC
+    assert all("@" not in line for line in w["description"])
+
+
+# ---------- Suppression d'une séance (annulation mauvaise manip) ----------
+def test_delete_session(client):
+    r = client.post("/sessions/save", json={
+        "discipline": "run", "session_date": "2028-09-09", "duration_min": 40,
+        "title": "À supprimer", "status": "done"})
+    sid = r.json()["session_id"]
+    assert client.delete(f"/sessions/{sid}").status_code == 200
+    rows = client.get("/sessions/recent?n=120").json()["sessions"]
+    assert all(s["id"] != sid for s in rows)
+    # suppression d'une séance inexistante → 404
+    assert client.delete("/sessions/99999").status_code == 404

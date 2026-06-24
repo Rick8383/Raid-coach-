@@ -39,9 +39,13 @@ export function AgendaScreen({ profile }: { profile?: AthleteProfile | null }) {
   const [stats, setStats] = useState<AnalyticsSnapshot | null>(null);
   const todayIso = mondayISO(0); // lundi de la semaine courante (pour repère)
 
-  useEffect(() => {
-    api.agendaWeek(mondayISO(offset)).then(setWeek).catch(() => setWeek(null));
-  }, [offset]);
+  const reload = () => api.agendaWeek(mondayISO(offset)).then(setWeek).catch(() => setWeek(null));
+  useEffect(() => { reload(); }, [offset]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const removeDone = async (id?: number) => {
+    if (!id) return;
+    try { await api.deleteSession(id); await reload(); } catch { /* ignore */ }
+  };
 
   useEffect(() => {
     api.analytics().then(setStats).catch(() => {});
@@ -107,12 +111,19 @@ export function AgendaScreen({ profile }: { profile?: AthleteProfile | null }) {
               </View>
               <Text style={styles.intent}>{day.intent.label}</Text>
               {day.done ? (
-                <Text style={day.done.status === 'done' ? styles.done : styles.planned}>
-                  {day.done.status === 'done' ? '✓' : '○'} {disciplineLabel(day.done.discipline)}
-                  {' · '}{day.done.duration_min} min
-                  {day.done.status === 'done' ? ' · fait' : ' · prévu'}
-                  {day.done.score_label ? ` · 🏁 ${day.done.score_label}` : ''}
-                </Text>
+                <View style={styles.doneRow}>
+                  <Text style={[day.done.status === 'done' ? styles.done : styles.planned, { flex: 1 }]}>
+                    {day.done.status === 'done' ? '✓' : '○'} {disciplineLabel(day.done.discipline)}
+                    {' · '}{day.done.duration_min} min
+                    {day.done.status === 'done' ? ' · fait' : ' · prévu'}
+                    {day.done.score_label ? ` · 🏁 ${day.done.score_label}` : ''}
+                  </Text>
+                  {day.done.id ? (
+                    <Pressable onPress={() => removeDone(day.done!.id)} hitSlop={8} style={styles.delBtn}>
+                      <Text style={styles.delT}>✕</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
               ) : (
                 <Text style={styles.pending}>—</Text>
               )}
@@ -187,7 +198,10 @@ const styles = StyleSheet.create({
   dayHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   dayName: { color: colors.textPrimary, fontFamily: typography.display.fontFamily, fontSize: typography.sizes.h2 },
   intent: { color: colors.textSecondary, fontSize: typography.sizes.small, marginTop: spacing.xs },
-  done: { color: colors.signal, fontSize: typography.sizes.small, marginTop: spacing.xs },
-  planned: { color: colors.readyYellow, fontSize: typography.sizes.small, marginTop: spacing.xs },
+  doneRow: { flexDirection: 'row', alignItems: 'center', marginTop: spacing.xs },
+  done: { color: colors.signal, fontSize: typography.sizes.small },
+  planned: { color: colors.readyYellow, fontSize: typography.sizes.small },
+  delBtn: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.hairlineStrong, marginLeft: spacing.s },
+  delT: { color: colors.readyOrange, fontSize: 13 },
   pending: { color: colors.textDisabled, fontSize: typography.sizes.body, marginTop: spacing.xs },
 });

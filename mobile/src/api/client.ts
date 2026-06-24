@@ -338,7 +338,7 @@ export interface AgendaDay {
   day_of_week: string;
   is_work_day: boolean;
   intent: { focus: string; label: string; load: string };
-  done: { discipline: string; duration_min: number; status: string;
+  done: { id?: number; discipline: string; duration_min: number; status: string;
           title?: string | null; score_label?: string | null } | null;
 }
 
@@ -545,6 +545,25 @@ export const api = {
   login: (email: string, password: string) =>
     post<AuthResponse>('/auth/login', { email, password }),
   me: () => get<{ user: AuthUser; registration_open: boolean }>('/auth/me'),
+
+  // Code d'invitation géré par le propriétaire (in-app, privé)
+  getInviteCode: () => get<{ invite_code: string; env_fallback: boolean }>('/auth/invite-code'),
+  setInviteCode: (code: string) => post<{ invite_code: string }>('/auth/invite-code', { invite_code: code }),
+
+  // 1RM par mouvement → charges 5/3/1 personnalisées (immédiat + invalide le plan)
+  lift1RM: (lift: string) => get<BenchmarkProgression>(`/benchmarks/${lift}_1rm/progression`),
+  setLift1RM: async (lift: string, oneRm: number): Promise<void> => {
+    await post('/benchmarks/record', {
+      benchmark_id: `${lift}_1rm`, result_value: oneRm, result_unit: 'kg',
+      test_date: new Date().toISOString().slice(0, 10) });
+    await invalidatePlanCaches();
+  },
+
+  // Supprimer une séance (annulation mauvaise manip)
+  deleteSession: async (id: number): Promise<void> => {
+    await del(`/sessions/${id}`);
+    await invalidateAgendaCaches();
+  },
 
   // Coach Chat — assistant déterministe (pas de cache : réponses contextuelles).
   chat: (message: string, date?: string) =>

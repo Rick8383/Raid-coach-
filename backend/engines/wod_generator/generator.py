@@ -246,12 +246,12 @@ _BUILDERS = {
 
 
 def generate_wod(fmt: str = "auto", duration_min: int = 12, seed: str = "wod",
-                 exclude_lumbar: bool = True) -> dict:
-    rng = _rng(f"{fmt}:{duration_min}:{seed}:{exclude_lumbar}")
+                 exclude_lumbar: bool = True, bodyweight: bool = False) -> dict:
+    rng = _rng(f"{fmt}:{duration_min}:{seed}:{exclude_lumbar}:{bodyweight}")
     if fmt == "auto" or fmt not in _BUILDERS:
         fmt = rng.choice(WOD_FORMATS)
     dur = max(4, min(int(duration_min), 30))
-    pool = _pool(exclude_lumbar)
+    pool = _pool(exclude_lumbar, bodyweight)
     lines, label, cap, score, moves = _BUILDERS[fmt](rng, dur, pool)
 
     # Règle WOD long : aucun mouvement lombaire en dernière position
@@ -276,6 +276,7 @@ def generate_wod(fmt: str = "auto", duration_min: int = 12, seed: str = "wod",
         "lumbar_safe": not has_lumbar,
         "seed": seed,
         "exclude_lumbar": exclude_lumbar,
+        "bodyweight": bodyweight,
     }
 
 

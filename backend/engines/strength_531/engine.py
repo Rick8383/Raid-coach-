@@ -68,13 +68,25 @@ def _round25(x: float) -> float:
     return round(x / 2.5) * 2.5
 
 
-def _tm_for(lift: str, cycle: int) -> float:
-    base = TRAINING_MAX[lift]
-    return base["tm"] + max(0, cycle) * base["inc"]
+def resolve_maxes(maxes: dict | None = None) -> dict:
+    """Fusionne les 1RM par utilisateur dans la structure TRAINING_MAX.
+    `maxes` = {lift: 1RM_kg}. TM = 90% du 1RM (arrondi 2,5 kg). Les lifts absents
+    gardent les valeurs par défaut."""
+    base = {k: dict(v) for k, v in TRAINING_MAX.items()}
+    for lift, one_rm in (maxes or {}).items():
+        if lift in base and one_rm:
+            base[lift] = {**base[lift], "tm": _round25(0.9 * float(one_rm))}
+    return base
 
 
-def _main_lift(lift: str, week: int, cycle: int) -> dict:
-    tm = _tm_for(lift, cycle)
+def _tm_for(lift: str, cycle: int, base: dict | None = None) -> float:
+    b = (base or TRAINING_MAX)[lift]
+    return b["tm"] + max(0, cycle) * b["inc"]
+
+
+def _main_lift(lift: str, week: int, cycle: int, base: dict | None = None) -> dict:
+    base = base or TRAINING_MAX
+    tm = _tm_for(lift, cycle, base)
     sets = []
     for pct, reps in _WEEK_SCHEME[week]:
         sets.append({
@@ -86,7 +98,7 @@ def _main_lift(lift: str, week: int, cycle: int) -> dict:
     note = ""
     if lift == "squat":
         note = "Sciatique : profondeur contrôlée, gainage McGill avant ; jamais de flexion lombaire en fatigue."
-    return {"lift": lift, "name": TRAINING_MAX[lift]["name"], "training_max": tm,
+    return {"lift": lift, "name": base[lift]["name"], "training_max": tm,
             "sets": sets, "note": note}
 
 
@@ -110,12 +122,14 @@ def _finisher(day: str, week: int, cycle: int) -> dict:
     return wod
 
 
-def generate_strength_531(day: str, week: int = 1, cycle: int = 0) -> dict:
+def generate_strength_531(day: str, week: int = 1, cycle: int = 0,
+                          maxes: dict | None = None) -> dict:
     if day not in DAYS:
         raise ValueError(f"jour inconnu: {day} (attendus: {', '.join(DAYS)})")
     week = max(1, min(int(week), 4))
     cycle = max(0, int(cycle))
     lift = _MAIN_BY_DAY[day]
+    base = resolve_maxes(maxes)
 
     session = {
         "day": day,
@@ -123,7 +137,7 @@ def generate_strength_531(day: str, week: int = 1, cycle: int = 0) -> dict:
         "cycle": cycle,
         "is_deload": week == 4,
         "warmup_mcgill": _MCGILL,
-        "main_lift": _main_lift(lift, week, cycle),
+        "main_lift": _main_lift(lift, week, cycle, base),
         "accessories": _accessories(day),
         "finisher_wod": _finisher(day, week, cycle),
         "notes": [
@@ -139,24 +153,26 @@ def generate_strength_531(day: str, week: int = 1, cycle: int = 0) -> dict:
     return session
 
 
-def build_cycle_overview(cycle: int = 0) -> dict:
+def build_cycle_overview(cycle: int = 0, maxes: dict | None = None) -> dict:
     """Vue d'ensemble du cycle 4 semaines × 3 jours + Training Max courants."""
+    base = resolve_maxes(maxes)
     weeks = {}
     for w in range(1, 5):
-        weeks[w] = {d: generate_strength_531(d, w, cycle)["main_lift"]["sets"] for d in DAYS}
+        weeks[w] = {d: generate_strength_531(d, w, cycle, maxes)["main_lift"]["sets"] for d in DAYS}
     return {
         "cycle": cycle,
-        "training_max": {k: _tm_for(k, cycle) for k in TRAINING_MAX},
-        "next_cycle_progression": {k: TRAINING_MAX[k]["inc"] for k in TRAINING_MAX},
+        "training_max": {k: _tm_for(k, cycle, base) for k in base},
+        "next_cycle_progression": {k: base[k]["inc"] for k in base},
         "weeks": weeks,
     }
 
 
-def build_progression(lift: str, cycles: int = 6) -> dict:
+def build_progression(lift: str, cycles: int = 6, maxes: dict | None = None) -> dict:
     """Projection de la charge sur N cycles (top set semaine 3 = 95% TM) + e1RM estimé."""
-    if lift not in TRAINING_MAX:
-        raise ValueError(f"mouvement inconnu: {lift} (attendus: {', '.join(TRAINING_MAX)})")
-    base = TRAINING_MAX[lift]
+    resolved = resolve_maxes(maxes)
+    if lift not in resolved:
+        raise ValueError(f"mouvement inconnu: {lift} (attendus: {', '.join(resolved)})")
+    base = resolved[lift]
     points = []
     for c in range(max(1, min(cycles, 24))):
         tm = base["tm"] + c * base["inc"]

@@ -6,6 +6,9 @@ import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View, ScrollView } from 'react-native';
 import { AthleteProfile, AuthUser, api } from '../api/client';
 import { Card } from '../components/ui';
+import { NumberField } from '../components/NumberField';
+import { LiftMaxes } from '../components/LiftMaxes';
+import { InviteCodeCard } from '../components/InviteCodeCard';
 import { StandbyCard } from '../components/StandbyCard';
 import { Roadmap } from '../components/Roadmap';
 import { applyReminders, loadPrefs, ReminderPrefs } from '../notifications';
@@ -44,11 +47,10 @@ export function ProfileScreen({ profile, onProfile, onConnectWatch, user, onLogo
     return <View style={styles.root}><Text style={styles.empty}>Profil indisponible.</Text></View>;
   }
 
-  const adjustWeight = async (delta: number) => {
-    const next = Math.round(((profile.weight_kg ?? 75) + delta) * 10) / 10;
+  const setWeight = async (next: number) => {
     setSaving(true);
     try {
-      const updated = await api.updateProfile({ weight_kg: next });
+      const updated = await api.updateProfile({ weight_kg: Math.round(next * 10) / 10 });
       onProfile(updated);
     } catch {
       /* hors connexion : on ignore, la valeur reste celle du cache */
@@ -68,9 +70,8 @@ export function ProfileScreen({ profile, onProfile, onConnectWatch, user, onLogo
       <Card style={{ padding: spacing.l, marginTop: spacing.m, alignItems: 'center' }}>
         <Text style={styles.fieldLabel}>POIDS ACTUEL</Text>
         <View style={styles.weightRow}>
-          <Stepper label="–" onPress={() => adjustWeight(-0.5)} disabled={saving} />
-          <Text style={styles.weight}>{(profile.weight_kg ?? 75).toFixed(1)}<Text style={styles.unit}> kg</Text></Text>
-          <Stepper label="+" onPress={() => adjustWeight(0.5)} disabled={saving} />
+          <NumberField value={profile.weight_kg ?? 75} step={0.5} min={40} max={180}
+            decimals={1} unit="kg" onChange={setWeight} />
         </View>
         <Text style={styles.target}>Objectif : {profile.target_weight_kg ?? 79} kg sec</Text>
       </Card>
@@ -140,6 +141,12 @@ export function ProfileScreen({ profile, onProfile, onConnectWatch, user, onLogo
           </Card>
         </>
       )}
+
+      {/* 1RM éditables → charges personnalisées du plan force */}
+      <LiftMaxes />
+
+      {/* Code d'invitation — propriétaire uniquement */}
+      {user?.is_owner && <InviteCodeCard />}
 
       {/* Mode vacances / standby (par athlète) */}
       <StandbyCard />

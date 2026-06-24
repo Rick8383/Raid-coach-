@@ -151,3 +151,40 @@ def test_per_user_opposite_police_phase(client, monkeypatch):
     # semaine du 15/06 : propriétaire = grande ; cet utilisateur = petite (ancre 22/06)
     wk = client.get("/plan/day?date=2026-06-15", headers=H).json()
     assert wk["week_type"] == "small_work"
+
+
+# ---------- Code d'invitation géré dans l'app par le propriétaire ----------
+def test_owner_managed_invite_code(client, monkeypatch):
+    monkeypatch.delenv("INVITE_CODE", raising=False)  # pas de code via env
+    owner = client.post("/auth/login", json={
+        "email": "rick@example.com", "password": "motdepasse1"}).json()["token"]
+    # sans code défini → inscription fermée
+    assert client.post("/auth/register", json={
+        "email": "x1@b.com", "password": "password1"}).status_code == 403
+    # le propriétaire définit le code dans l'app
+    r = client.post("/auth/invite-code", json={"invite_code": "1995"}, headers=_bearer(owner))
+    assert r.status_code == 200 and r.json()["invite_code"] == "1995"
+    # un ami s'inscrit avec ce code
+    assert client.post("/auth/register", json={
+        "email": "pote@b.com", "password": "password1", "invite_code": "1995"}).status_code == 200
+    # mauvais code → refus
+    assert client.post("/auth/register", json={
+        "email": "pote2@b.com", "password": "password1", "invite_code": "0000"}).status_code == 403
+    # un non-propriétaire ne peut pas changer le code
+    friend = client.post("/auth/login", json={"email": "pote@b.com", "password": "password1"}).json()["token"]
+    assert client.post("/auth/invite-code", json={"invite_code": "hack"},
+                       headers=_bearer(friend)).status_code == 403
+
+
+def test_delete_session_isolated(client, monkeypatch):
+    monkeypatch.setenv("INVITE_CODE", "1995")
+    a = client.post("/auth/login", json={"email": "rick@example.com", "password": "motdepasse1"}).json()["token"]
+    b = client.post("/auth/register", json={
+        "email": "delfriend@b.com", "password": "password1", "invite_code": "1995"}).json()["token"]
+    sid = client.post("/sessions/save", json={
+        "discipline": "run", "session_date": "2028-10-10", "duration_min": 30,
+        "title": "Test", "status": "done"}, headers=_bearer(a)).json()["session_id"]
+    # un autre utilisateur ne peut pas supprimer la séance de A
+    assert client.delete(f"/sessions/{sid}", headers=_bearer(b)).status_code == 404
+    # le propriétaire de la séance peut
+    assert client.delete(f"/sessions/{sid}", headers=_bearer(a)).status_code == 200

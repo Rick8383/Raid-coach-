@@ -682,3 +682,19 @@ Comptes **email + mot de passe**, **par athlète**, avec **isolation stricte** d
 **État** : 141 tests pytest (SQLite) + auth/schéma vérifiés sur PostgreSQL réel + 4 audits PASS (56 routes), TypeScript strict 0 erreur, export web OK. **Non déployé.**
 
 *Addendum v3.8 · 16/06/2026 · Claude Code.*
+
+-----
+
+### Addendum v3.9 — Personnalisation (1RM par utilisateur), saisie clavier, PDC, suppression de séance, code d'invitation in-app (16/06/2026)
+
+> Retours utilisateurs (amis). Déployé.
+
+- **1RM par utilisateur → charges 5/3/1 personnalisées** (fini le DC 90 kg imposé). Le moteur force accepte des `maxes` (1RM par mouvement) ; chaque athlète stocke ses 1RM (benchmarks `{lift}_1rm`), TM = 90 % arrondi 2,5 kg. Threadé dans `weekly_plan`, `standby`, `coach_api`, et l'API (`_strength_maxes()` par athlète) → `/generate/strength`, `/strength/cycle`, `/strength/progression`, `/plan/day`, `/plan/weekly` utilisent les 1RM de chacun. App : composant **`LiftMaxes`** dans Profil (DC/Squat/OHP/Row éditables, recalcul du plan à l'enregistrement). Test : 1RM 120 → TM 107,5 (≠ défaut 90).
+- **Saisie clavier** : composant **`NumberField`** (boutons +/− ET appui sur la valeur → clavier numérique). Remplace les steppers clés : poids (Profil), VMA/FC/échéance (Onboarding), durée WOD, suivi benchmarks.
+- **Séances PDC (poids du corps)** : `generate_wod(..., bodyweight=True)` filtre les mouvements gym sans charge (ni machine, ni haltéro) ; toggle **« PDC »** dans le générateur WOD. Test dédié (aucune charge `@kg`).
+- **Supprimer une séance « faite »** (annulation mauvaise manip) : `DELETE /sessions/{id}` (isolé par athlète) ; bouton ✕ dans l'Agenda (vue Suivi). Test d'isolation (un autre compte ne peut pas supprimer).
+- **Code d'invitation géré dans l'app** (sans Render) : stocké en base (`app_meta`, privé), réglé par le **propriétaire** (`GET/POST /auth/invite-code`) ; l'inscription accepte le code app_meta **ou** la variable d'env. App : carte **`InviteCodeCard`** dans Profil (propriétaire). Test : owner définit le code, l'ami s'inscrit, un non-propriétaire ne peut pas le changer.
+
+**État** : 146 tests pytest (SQLite) + auth/schéma/PG vérifiés + 4 audits PASS (59 routes API), TypeScript strict 0 erreur, export web OK.
+
+*Addendum v3.9 · 16/06/2026 · Claude Code.*

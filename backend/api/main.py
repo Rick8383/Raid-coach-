@@ -120,6 +120,22 @@ def _schedule_config() -> dict:
     return _us.normalize(ws if isinstance(ws, dict) else None)
 
 
+# 1RM par mouvement (benchmark `{lift}_1rm`) → charges 5/3/1 personnalisées.
+_STRENGTH_LIFTS = ("bench", "squat", "ohp", "row")
+
+
+def _strength_maxes() -> dict:
+    """1RM (kg) de l'athlète courant par mouvement, depuis ses benchmarks
+    `{lift}_1rm`. Mouvement absent → défaut du moteur (l'utilisateur peut régler)."""
+    aid = _aid()
+    out: dict[str, float] = {}
+    for lift in _STRENGTH_LIFTS:
+        prog = store.benchmarks.progression(aid, f"{lift}_1rm")
+        if prog:
+            out[lift] = float(prog[-1]["result_value"])
+    return out
+
+
 def _safe(fn, payload: dict) -> dict:
     try:
         return fn(payload)
@@ -327,6 +343,10 @@ class LoginIn(BaseModel):
     password: str = Field(min_length=1, max_length=200)
 
 
+class InviteCodeIn(BaseModel):
+    invite_code: str = Field(default="", max_length=80)
+
+
 class StandbyIn(BaseModel):
     """Active le mode standby/vacances sur une fenêtre de dates (par athlète)."""
     mode: str = Field(pattern="^(pause|vacation)$")
@@ -507,11 +527,13 @@ def auth_register(body: RegisterIn) -> dict:
         # 1er inscrit = propriétaire → récupère le profil existant (données intactes)
         uid, _ = store.claim_owner(email, _auth.hash_password(body.password))
     else:
-        code = os.environ.get("INVITE_CODE")
+        # Code d'invitation : géré dans l'app par le propriétaire (app_meta),
+        # avec repli sur la variable d'env INVITE_CODE.
+        code = store.meta.get("invite_code") or os.environ.get("INVITE_CODE")
         if not code:
             raise HTTPException(status_code=403,
-                                detail="Inscriptions fermées (aucun code d'invitation configuré).")
-        if (body.invite_code or "") != code:
+                                detail="Inscriptions fermées (aucun code d'invitation défini).")
+        if (body.invite_code or "").strip() != code:
             raise HTTPException(status_code=403, detail="Code d'invitation invalide.")
         uid, _ = store.register_user(email, _auth.hash_password(body.password), body.name or "Athlète")
     return {"token": _auth.make_token(uid, _AUTH_SECRET), "user": _user_public(uid, email)}
@@ -527,6 +549,10 @@ def auth_login(body: LoginIn) -> dict:
             "user": _user_public(user["id"], user["email"])}
 
 
+def _invite_code() -> str | None:
+    return store.meta.get("invite_code") or os.environ.get("INVITE_CODE")
+
+
 @app.get("/auth/me")
 def auth_me() -> dict:
     uid = _require_uid()
@@ -534,7 +560,30 @@ def auth_me() -> dict:
     if not user:
         raise HTTPException(status_code=401, detail="Session expirée.")
     return {"user": _user_public(uid, user["email"]),
-            "registration_open": store.owner_user_id() is None or bool(os.environ.get("INVITE_CODE"))}
+            "registration_open": store.owner_user_id() is None or bool(_invite_code())}
+
+
+def _require_owner() -> int:
+    uid = _require_uid()
+    if store.owner_user_id() != uid:
+        raise HTTPException(status_code=403, detail="Réservé au propriétaire.")
+    return uid
+
+
+@app.get("/auth/invite-code")
+def get_invite_code() -> dict:
+    """Code d'invitation courant (propriétaire uniquement) — à donner aux amis."""
+    _require_owner()
+    return {"invite_code": store.meta.get("invite_code") or "",
+            "env_fallback": bool(os.environ.get("INVITE_CODE"))}
+
+
+@app.post("/auth/invite-code")
+def set_invite_code(body: InviteCodeIn) -> dict:
+    """Définit/efface le code d'invitation (propriétaire) — stocké en base, privé."""
+    _require_owner()
+    store.meta.set("invite_code", body.invite_code.strip())
+    return {"invite_code": store.meta.get("invite_code") or ""}
 
 
 @app.post("/coach/daily-decision")
@@ -658,7 +707,7 @@ def _standby_state() -> dict:
 
 def _resolve_day(date_iso: str, vma: float | None, fcmax: int | None) -> dict:
     return _standby.planned_day(date_iso, _standby_state(), _schedule_config(),
-                                vma or 14.0, fcmax or 186)
+                                vma or 14.0, fcmax or 186, _strength_maxes())
 
 
 @app.get("/plan/weekly")
@@ -667,11 +716,13 @@ def plan_weekly(from_week: int = 0, n: int = 6,
     """Mission 1B — N semaines détaillées jour par jour (course/force/WOD/natation),
     calées sur le 3/2/2/3 et tenant compte du mode standby/vacances."""
     cfg = _schedule_config()
-    base = coach.weekly_plan(from_week, n, vma, fcmax, cfg)
+    maxes = _strength_maxes()
+    base = coach.weekly_plan(from_week, n, vma, fcmax, cfg, maxes)
     state = _standby_state()
     for wk in base["weeks"]:
         for i, day in enumerate(wk["days"]):
-            wk["days"][i] = _standby.planned_day(day["date"], state, cfg, vma or 14.0, fcmax or 186)
+            wk["days"][i] = _standby.planned_day(day["date"], state, cfg,
+                                                 vma or 14.0, fcmax or 186, maxes)
     return base
 
 
@@ -740,6 +791,7 @@ class WodGenIn(BaseModel):
     duration_min: int = Field(default=12, ge=4, le=30)
     seed: str = "wod"
     exclude_lumbar: bool = True   # règle sciatique L5-S1, ON par défaut
+    bodyweight: bool = False      # PDC : poids du corps uniquement (sans matériel)
 
 
 @app.post("/generate/wod")
@@ -756,10 +808,10 @@ def random_wod_ep(exclude_lumbar: bool = True) -> dict:
 
 @app.get("/generate/strength")
 def strength_531_ep(day: str, week: int = 1, cycle: int = 0) -> dict:
-    """Mission 4 — séance force 5/3/1 (Push/Pull/Legs) : Big 3 McGill, mouvement
-    principal au cycle courant, accessoires double-progression, finisher WOD."""
+    """Mission 4 — séance force 5/3/1 (Push/Pull/Legs) calée sur les 1RM de
+    l'utilisateur : Big 3 McGill, principal au cycle courant, accessoires, finisher."""
     try:
-        return coach.strength_531(day, week, cycle)
+        return coach.strength_531(day, week, cycle, _strength_maxes())
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
@@ -767,14 +819,14 @@ def strength_531_ep(day: str, week: int = 1, cycle: int = 0) -> dict:
 @app.get("/strength/cycle")
 def strength_cycle_ep(cycle: int = 0) -> dict:
     """Mission 4 — vue du cycle 4 semaines × 3 jours + Training Max courants."""
-    return coach.strength_cycle(cycle)
+    return coach.strength_cycle(cycle, _strength_maxes())
 
 
 @app.get("/strength/progression")
 def strength_progression_ep(lift: str = "bench", cycles: int = 6) -> dict:
     """Projection des charges (top set + 1RM estimé) sur N cycles."""
     try:
-        return coach.strength_progression(lift, cycles)
+        return coach.strength_progression(lift, cycles, _strength_maxes())
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
@@ -1030,6 +1082,16 @@ def recent_sessions(n: int = 30) -> dict:
     return {"sessions": rows}
 
 
+@app.delete("/sessions/{session_id}")
+def delete_session(session_id: int) -> dict:
+    """Supprime une séance enregistrée (annule une mauvaise manip). Ne supprime
+    que si elle appartient à l'utilisateur courant. Invalide les caches agenda."""
+    ok = store.sessions.delete(_aid(), session_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Séance introuvable.")
+    return {"status": "deleted", "session_id": session_id}
+
+
 # ---------- Agenda prévisionnel (planning + intention + séances réalisées) ----------
 @app.post("/agenda/week")
 def agenda_week(body: ScheduleIn) -> dict:
@@ -1051,7 +1113,8 @@ def agenda_week(body: ScheduleIn) -> dict:
         rec = best.get(day["date"])
         if rec:
             score = _wod_score(_detail_of(rec))
-            day["done"] = {"discipline": rec["discipline"], "duration_min": rec["duration_min"],
+            day["done"] = {"id": rec["id"], "discipline": rec["discipline"],
+                           "duration_min": rec["duration_min"],
                            "status": rec["status"], "title": rec.get("family_id"),
                            "score_label": score["label"] if score else None}
         else:

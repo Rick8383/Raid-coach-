@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AthleteProfile, BenchmarkProgression, SessionRow, api } from '../api/client';
 import { ReadinessBar } from '../components/ReadinessBar';
 import { BarChart } from '../components/Chart';
+import { NumberField } from '../components/NumberField';
 import { Card, PrimaryButton } from '../components/ui';
 import { colors, spacing, typography } from '../theme/tokens';
 
@@ -57,9 +58,8 @@ function BenchmarkTracker() {
         ? <BarChart data={points} unit={sel.unit === 'm' ? '' : ''} />
         : <Text style={styles.empty}>Aucun test enregistré pour le moment.</Text>}
       <View style={styles.logRow}>
-        <Pressable onPress={() => setVal(v => Math.max(0, v - sel.step))} style={styles.stepBtn}><Text style={styles.stepT}>–</Text></Pressable>
-        <Text style={styles.logVal}>{val} {sel.unit}</Text>
-        <Pressable onPress={() => setVal(v => v + sel.step)} style={styles.stepBtn}><Text style={styles.stepT}>+</Text></Pressable>
+        <NumberField value={val} step={sel.step} min={0} max={100000}
+          unit={sel.unit} onChange={setVal} />
       </View>
       {saved ? <Text style={styles.saved}>✓ Test enregistré</Text>
         : <PrimaryButton label="ENREGISTRER LE TEST DU JOUR" onPress={logTest} />}

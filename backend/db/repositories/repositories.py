@@ -116,6 +116,18 @@ class SessionRepository:
             "UPDATE sessions SET status = 'done', feedback_json = ? WHERE id = ?",
             (json.dumps(feedback or {}), session_id))
 
+    def delete(self, athlete_id: int, session_id: int) -> bool:
+        """Supprime une séance de l'athlète (annulation d'une mauvaise manip).
+        Ne supprime que si elle lui appartient → renvoie True si supprimée."""
+        before = self.db.query(
+            "SELECT id FROM sessions WHERE id = ? AND athlete_id = ?",
+            (session_id, athlete_id))
+        if not before:
+            return False
+        self.db.execute("DELETE FROM sessions WHERE id = ? AND athlete_id = ?",
+                        (session_id, athlete_id))
+        return True
+
     def last_n(self, athlete_id: int, n: int = 20) -> list[dict]:
         return self.db.query(
             """SELECT * FROM sessions WHERE athlete_id = ?

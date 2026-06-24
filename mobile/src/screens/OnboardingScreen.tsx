@@ -9,6 +9,7 @@ import {
   StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { AthleteProfile, api } from '../api/client';
+import { NumberField } from '../components/NumberField';
 import { DayCode, DAY_CODES, DAY_LABELS } from '../schedule';
 import { colors, spacing, typography } from '../theme/tokens';
 
@@ -75,19 +76,19 @@ export function OnboardingScreen({ onDone }: { onDone: (p: AthleteProfile) => vo
         <Text style={styles.sub}>Configure ton profil — le plan s'adaptera à toi.</Text>
 
         <Text style={styles.section}>TON NIVEAU</Text>
-        <Stepper label="VMA (km/h)" value={vma.toFixed(1)}
-          onMinus={() => setVma(v => Math.max(8, +(v - 0.5).toFixed(1)))}
-          onPlus={() => setVma(v => Math.min(22, +(v + 0.5).toFixed(1)))} />
-        <Stepper label="FC max (bpm)" value={`${fcmax}`}
-          onMinus={() => setFcmax(v => Math.max(150, v - 1))}
-          onPlus={() => setFcmax(v => Math.min(210, v + 1))} />
+        <FieldRow label="VMA (km/h)">
+          <NumberField value={vma} step={0.5} min={8} max={22} decimals={1} onChange={setVma} />
+        </FieldRow>
+        <FieldRow label="FC max (bpm)">
+          <NumberField value={fcmax} step={1} min={150} max={210} onChange={setFcmax} />
+        </FieldRow>
 
         <Text style={styles.section}>TON OBJECTIF</Text>
         <TextInput style={styles.input} value={goal} onChangeText={setGoal}
           placeholder="ex. Hyrox, trail 50 km, sélection…" placeholderTextColor={colors.textDisabled} />
-        <Stepper label="Échéance (mois)" value={`${horizon}`}
-          onMinus={() => setHorizon(v => Math.max(3, v - 1))}
-          onPlus={() => setHorizon(v => Math.min(48, v + 1))} />
+        <FieldRow label="Échéance (mois)">
+          <NumberField value={horizon} step={1} min={3} max={48} onChange={setHorizon} />
+        </FieldRow>
 
         <Text style={styles.section}>TON RYTHME DE TRAVAIL</Text>
         <View style={styles.modeRow}>
@@ -137,16 +138,11 @@ export function OnboardingScreen({ onDone }: { onDone: (p: AthleteProfile) => vo
   );
 }
 
-function Stepper({ label, value, onMinus, onPlus }:
-  { label: string; value: string; onMinus: () => void; onPlus: () => void }) {
+function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <View style={styles.stepRow}>
       <Text style={styles.stepLbl}>{label}</Text>
-      <View style={styles.stepCtrl}>
-        <Pressable onPress={onMinus} style={styles.stepBtn}><Text style={styles.stepBtnT}>–</Text></Pressable>
-        <Text style={styles.stepVal}>{value}</Text>
-        <Pressable onPress={onPlus} style={styles.stepBtn}><Text style={styles.stepBtnT}>+</Text></Pressable>
-      </View>
+      {children}
     </View>
   );
 }
