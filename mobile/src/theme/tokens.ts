@@ -117,6 +117,11 @@ export const DISCIPLINE: Record<string, { label: string; glyph: string }> = {
   swim: { label: 'NATATION', glyph: '≈' },
   recovery: { label: 'RÉCUPÉRATION', glyph: '◍' },
   rest: { label: 'REPOS', glyph: '◦' },
+  cycling: { label: 'VÉLO', glyph: '⊚' },
+  combat: { label: 'SPORT DE COMBAT', glyph: '✦' },
+  hiking: { label: 'RANDO', glyph: '⛰' },
+  mobility: { label: 'MOBILITÉ', glyph: '◍' },
+  other: { label: 'SÉANCE LIBRE', glyph: '◆' },
 };
 
 export function disciplineLabel(code: string): string {

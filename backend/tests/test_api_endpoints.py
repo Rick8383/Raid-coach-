@@ -909,3 +909,37 @@ def test_delete_session(client):
     assert all(s["id"] != sid for s in rows)
     # suppression d'une séance inexistante → 404
     assert client.delete("/sessions/99999").status_code == 404
+
+
+# ---------- Séance libre (manuelle, hors plan) ----------
+def test_manual_session_counts_in_suivi(client):
+    r = client.post("/sessions/manual", json={
+        "activity": "Vélo de route", "discipline": "cycling",
+        "session_date": "2028-11-11", "duration_min": 90, "intensity_rpe": 6,
+        "distance_km": 45, "elevation_m": 600, "hr_avg": 140, "calories": 700,
+        "notes": "sortie longue"})
+    assert r.status_code == 200
+    sid = r.json()["session_id"]
+    rows = client.get("/sessions/recent?n=150").json()["sessions"]
+    s = next(x for x in rows if x["id"] == sid)
+    assert s["status"] == "done" and float(s["stress_units"]) > 0   # compte dans la charge
+    assert s["discipline"] == "cycling"
+    assert s["family_id"] == "Vélo de route"
+    # apparaît dans l'agenda (2028-11-11 = samedi)
+    wk = client.post("/agenda/week", json={"date": "2028-11-11"}).json()
+    day = next(d for d in wk["days"] if d["date"] == "2028-11-11")
+    assert day["done"] and day["done"]["title"] == "Vélo de route"
+
+
+def test_manual_session_validation(client):
+    assert client.post("/sessions/manual", json={
+        "activity": "X", "session_date": "2028-11-11", "duration_min": 0}).status_code == 422
+
+
+# ---------- Chat : repli déterministe quand pas de clé LLM ----------
+def test_chat_falls_back_without_llm(client, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    r = client.post("/coach/chat", json={"message": "Combien de protéines ?"})
+    assert r.status_code == 200
+    assert r.json()["source"] == "rules"
+    assert r.json()["reply"]

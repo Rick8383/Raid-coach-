@@ -698,3 +698,18 @@ Comptes **email + mot de passe**, **par athlète**, avec **isolation stricte** d
 **État** : 146 tests pytest (SQLite) + auth/schéma/PG vérifiés + 4 audits PASS (59 routes API), TypeScript strict 0 erreur, export web OK.
 
 *Addendum v3.9 · 16/06/2026 · Claude Code.*
+
+-----
+
+### Addendum v3.10 — Séances libres (hors plan) + coach chatbot LLM (16/06/2026)
+
+> Retours utilisateurs. Déployé.
+
+- **Séances LIBRES (hors plan)** : vélo, boxe, JJB, natation, rando, mobilité, autre. Endpoint `POST /sessions/manual` (activité libre + durée + RPE + métriques optionnelles : distance, FC moy/max, dénivelé, calories, notes) → enregistrée **faite**, SU calculées → **comptée dans le suivi** (charge/ACWR, agenda, historique). App : **segment « AUTRE »** dans l'onglet SÉANCES (`ManualSessionForm`), saisie clavier, sélection du jour, métriques optionnelles. Libellés/glyphes ajoutés (vélo/combat/rando/mobilité/libre). Tests : la séance compte dans la charge et apparaît dans l'agenda.
+- **Coach chatbot LLM** : `/coach/chat` route désormais vers l'**API Claude** si `ANTHROPIC_API_KEY` est défini (sinon repli sur le coach déterministe, et repli local côté app). `engines/coach_chat/llm.py` (urllib, sans dépendance) : prompt système « coach personnel expert » + **contexte athlète** (profil, blessure, jour) + **historique de conversation** → répond à **toute** question (sport, nutrition, compléments, sommeil, récup, blessure…). Modèle configurable (`COACH_MODEL`, défaut Haiku). App : le chat envoie l'historique récent ; message d'accueil élargi. Test : repli déterministe sans clé.
+
+**Activation du coach intelligent (côté utilisateur)** : Render → service → Environment → `ANTHROPIC_API_KEY` = clé Anthropic (facturation à l'usage, ~centimes ; modèle Haiku économique). Sans clé, le coach reste déterministe.
+
+**État** : 149 tests pytest (SQLite) + auth/schéma/PG vérifiés + 4 audits PASS (60 routes API), TypeScript strict 0 erreur, export web OK.
+
+*Addendum v3.10 · 16/06/2026 · Claude Code.*

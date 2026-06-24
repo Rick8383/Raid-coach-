@@ -5,5 +5,6 @@ de connaissances, personnalise la réponse avec le profil athlète et le context
 du jour. Offline-friendly, testable, sans dépendance réseau.
 """
 from .engine import RPE_SCALE, answer, detect_topic
+from .llm import is_enabled as llm_enabled, llm_answer
 
-__all__ = ["answer", "detect_topic", "RPE_SCALE"]
+__all__ = ["answer", "detect_topic", "RPE_SCALE", "llm_answer", "llm_enabled"]

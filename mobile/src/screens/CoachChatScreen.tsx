@@ -25,11 +25,12 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
 
 const WELCOME: Msg = {
   role: 'coach',
-  text: 'Salut ! Je suis ton coach RAID. Pose-moi une question sur ta séance du '
-    + 'jour, ton **planning 3/2/2/3**, la **force**, la **course**, les **WOD**, '
-    + 'la **nutrition**, le **RPE** ou la **sélection 2029**.',
-  suggestions: ["Qu'est-ce que je fais aujourd'hui ?", 'Explique-moi le RPE',
-    'Combien de protéines par jour ?'],
+  text: 'Salut ! Je suis ton coach personnel. Pose-moi **n\'importe quelle '
+    + 'question** : entraînement, course, force, WOD, vélo, boxe, JJB, nutrition, '
+    + 'compléments, sommeil, récupération, blessure, ou ta séance du jour. '
+    + 'Je m\'adapte à ton profil.',
+  suggestions: ["Qu'est-ce que je fais aujourd'hui ?", 'Comment progresser en tractions ?',
+    'Que manger avant une grosse séance ?'],
 };
 
 /** Rendu markdown minimal : **gras** et lignes. */
@@ -63,11 +64,16 @@ export function CoachChatScreen({ profile }: { profile?: AthleteProfile | null }
     const q = text.trim();
     if (!q || busy) return;
     setInput('');
+    // historique récent (hors message de bienvenue) pour une conversation suivie
+    const history = messages
+      .filter(m => m.text !== WELCOME.text)
+      .slice(-10)
+      .map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text }));
     setMessages(m => [...m, { role: 'user', text: q }]);
     setBusy(true);
     try {
-      // 1) On tente l'API (réponse enrichie : planning du jour, métriques réelles).
-      const res = await withTimeout(api.chat(q, new Date().toISOString().slice(0, 10)), 8000);
+      // 1) API : coach LLM (si clé serveur) sinon coach déterministe enrichi.
+      const res = await withTimeout(api.chat(q, new Date().toISOString().slice(0, 10), history), 30000);
       setMessages(m => [...m, { role: 'coach', text: res.reply, suggestions: res.suggestions }]);
     } catch {
       // 2) API injoignable/lente → cerveau local : analyse la question et répond

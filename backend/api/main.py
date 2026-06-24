@@ -23,6 +23,7 @@ from api.persistence import Store
 from api.services.coach_api import CoachAPI
 from api import auth as _auth
 from engines.coach_chat import answer as _coach_chat_answer
+from engines.coach_chat import llm_answer as _coach_llm, llm_enabled as _coach_llm_enabled
 from engines import standby as _standby
 from engines.schedule import user_schedule as _us
 # CoachAPI met engines/legacy sur sys.path à l'import → AnalyticsInput accessible
@@ -315,6 +316,23 @@ class SessionSaveIn(BaseModel):
     detail: dict = {}
 
 
+class ManualSessionIn(BaseModel):
+    """Séance LIBRE (hors plan) saisie à la main : vélo, boxe, JJB, natation…
+    → enregistrée comme faite et prise en compte dans le suivi (charge/ACWR)."""
+    activity: str = Field(min_length=1, max_length=80)   # libellé affiché
+    discipline: str = Field(default="other",
+                            pattern="^(run|strength|crossfit|swim|recovery|cycling|combat|hiking|mobility|other)$")
+    session_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    duration_min: int = Field(ge=1, le=600)
+    intensity_rpe: float = Field(default=6.0, ge=1, le=10)
+    distance_km: float | None = Field(default=None, ge=0, le=1000)
+    hr_avg: int | None = Field(default=None, ge=30, le=230)
+    hr_max: int | None = Field(default=None, ge=30, le=230)
+    elevation_m: int | None = Field(default=None, ge=0, le=12000)
+    calories: int | None = Field(default=None, ge=0, le=20000)
+    notes: str | None = Field(default=None, max_length=500)
+
+
 
 class ProfileUpdateIn(BaseModel):
     weight_kg: float | None = Field(default=None, ge=40, le=180)
@@ -370,6 +388,7 @@ class GenerateIn(BaseModel):
 class ChatIn(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
     date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    history: list[dict] = Field(default_factory=list)  # tours précédents (role/content)
 
 
 def _chat_context(for_date: str | None) -> dict:
@@ -973,6 +992,22 @@ def save_session(body: SessionSaveIn) -> dict:
     return {"status": "saved", "session_id": session_id, "persisted_status": body.status}
 
 
+@app.post("/sessions/manual")
+def manual_session(body: ManualSessionIn) -> dict:
+    """Séance LIBRE hors plan (vélo, boxe, JJB, natation…) → enregistrée comme
+    FAITE et comptée dans le suivi (charge/ACWR, agenda, historique)."""
+    su = coach.compute_su(body.duration_min, body.intensity_rpe)
+    detail = {"activity": body.activity, "manual": True,
+              "distance_km": body.distance_km, "hr_avg": body.hr_avg,
+              "hr_max": body.hr_max, "elevation_m": body.elevation_m,
+              "calories": body.calories, "notes": body.notes}
+    session_id = store.sessions.record(
+        _aid(), body.discipline, body.session_date,
+        body.duration_min, body.intensity_rpe, su,
+        detail, status="done", family_id=body.activity)
+    return {"status": "recorded", "session_id": session_id}
+
+
 @app.post("/benchmarks/record")
 def record_benchmark(body: BenchmarkRecordIn) -> dict:
     bench_id = store.benchmarks.record(
@@ -1122,10 +1157,19 @@ def agenda_week(body: ScheduleIn) -> dict:
     return week
 
 
-# ---------- Coach Chat (assistant déterministe, sans LLM externe) ----------
+# ---------- Coach Chat (LLM Claude si clé dispo, sinon déterministe) ----------
 @app.post("/coach/chat")
 def coach_chat(body: ChatIn) -> dict:
-    return _coach_chat_answer(body.message, _chat_context(body.date))
+    ctx = _chat_context(body.date)
+    if _coach_llm_enabled():
+        reply = _coach_llm(body.message, ctx, body.history)
+        if reply:
+            return {"reply": reply, "topic": "coach",
+                    "suggestions": [], "source": "llm"}
+    # repli : moteur déterministe (hors-ligne / pas de clé / erreur API)
+    res = _coach_chat_answer(body.message, ctx)
+    res["source"] = "rules"
+    return res
 
 
 # ---------- Tableau de bord analytics (dérivé des données enregistrées) ----------

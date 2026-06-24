@@ -370,6 +370,7 @@ export interface ChatReply {
   reply: string;
   topic: string;
   suggestions: string[];
+  source?: 'llm' | 'rules';
 }
 
 export interface AuthUser { id: number; email: string; is_owner: boolean }
@@ -565,9 +566,17 @@ export const api = {
     await invalidateAgendaCaches();
   },
 
-  // Coach Chat — assistant déterministe (pas de cache : réponses contextuelles).
-  chat: (message: string, date?: string) =>
-    post<ChatReply>('/coach/chat', date ? { message, date } : { message }),
+  // Coach Chat — LLM si clé serveur dispo, sinon coach déterministe. On envoie
+  // l'historique récent pour une conversation suivie.
+  chat: (message: string, date?: string, history: { role: string; content: string }[] = []) =>
+    post<ChatReply>('/coach/chat', { message, ...(date ? { date } : {}), history }),
+
+  // Séance LIBRE (hors plan) saisie à la main → comptée dans le suivi.
+  logManualSession: async (body: Json): Promise<{ session_id?: number }> => {
+    const res = await post<{ session_id?: number }>('/sessions/manual', body);
+    await invalidateAgendaCaches();
+    return res;
+  },
 
   // Mode standby / vacances (par athlète)
   getStandby: () => get<StandbyState>('/standby'),

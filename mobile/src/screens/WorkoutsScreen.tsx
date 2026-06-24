@@ -14,16 +14,18 @@ import { RunZonesView } from './RunZonesScreen';
 import { RunGenerator } from '../components/RunGenerator';
 import { WodGenerator } from '../components/WodGenerator';
 import { StrengthProgram } from '../components/StrengthProgram';
+import { ManualSessionForm } from '../components/ManualSessionForm';
 import { Card, PrimaryButton, Tag } from '../components/ui';
 import { daySchedule } from '../schedule';
 import { colors, disciplineLabel, spacing, typography } from '../theme/tokens';
 
-type Discipline = 'run' | 'strength' | 'crossfit';
+type Discipline = 'run' | 'strength' | 'crossfit' | 'manual';
 
 const SEGMENTS: { key: Discipline; label: string }[] = [
   { key: 'run', label: 'COURSE' },
   { key: 'strength', label: 'FORCE' },
   { key: 'crossfit', label: 'WOD' },
+  { key: 'manual', label: 'AUTRE' },
 ];
 
 function weeksToGoal(goalDate?: string): number {
@@ -74,8 +76,11 @@ export function WorkoutsScreen({ profile }: { profile: AthleteProfile | null }) 
         </View>
       )}
 
+      {/* Séance LIBRE (hors plan) — saisie manuelle comptée dans le suivi */}
+      {disc === 'manual' && <ManualSessionForm />}
+
       {/* Séance du jour selon le plan — identique à l'écran Jour et à l'Agenda */}
-      {(todaySessions.length > 0 || planToday?.standby) && (
+      {disc !== 'manual' && (todaySessions.length > 0 || planToday?.standby) && (
         <Card style={{ padding: spacing.m, marginBottom: spacing.m }}>
           <Text style={styles.todayLbl}>SÉANCE DU JOUR · SELON TON PLAN</Text>
           <PlannedSessions sessions={todaySessions} dateIso={todayIso} completable
@@ -83,9 +88,8 @@ export function WorkoutsScreen({ profile }: { profile: AthleteProfile | null }) 
         </Card>
       )}
 
-      {/* Générateurs : explorer / créer une variante (indépendant du plan).
-          Course (Mission 2) : 7 types + zones FC ; WOD : 15 formats ; Force 5/3/1. */}
-      <Text style={styles.exploreLbl}>EXPLORER / GÉNÉRER UNE VARIANTE</Text>
+      {/* Générateurs : explorer / créer une variante (indépendant du plan). */}
+      {disc !== 'manual' && <Text style={styles.exploreLbl}>EXPLORER / GÉNÉRER UNE VARIANTE</Text>}
       {disc === 'run' && (
         <>
           <RunGenerator profile={profile} />
