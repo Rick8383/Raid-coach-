@@ -235,3 +235,17 @@ def test_ratio_autofilled_from_1rm(client, monkeypatch):
         "test_date": "2026-06-20"}, headers=H)
     prof = client.get("/profile", headers=H).json()
     assert prof["current"]["bench_ratio"] == 120   # = 1RM ; le rapport /poids derrière
+
+
+def test_program_restart_resets_progression(client, monkeypatch):
+    monkeypatch.setenv("INVITE_CODE", "1995")
+    tok = client.post("/auth/register", json={
+        "email": "restart@b.com", "password": "password1", "invite_code": "1995"}).json()["token"]
+    H = _bearer(tok)
+    # redémarre le programme : J0 = lundi 2027-03-01 (grande semaine)
+    client.patch("/profile", json={"work_schedule": {
+        "type": "police_3223", "anchor_big_week_monday": "2027-03-01"}}, headers=H)
+    j0 = client.get("/plan/day?date=2027-03-01", headers=H).json()      # lundi J0
+    assert j0["week_index"] == 0 and j0["week_type"] == "big_work"       # cycle 0, grande
+    plus2 = client.get("/plan/day?date=2027-03-15", headers=H).json()    # +2 semaines
+    assert plus2["week_index"] == 2

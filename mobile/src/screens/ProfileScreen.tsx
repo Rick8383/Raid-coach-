@@ -145,6 +145,9 @@ export function ProfileScreen({ profile, onProfile, onConnectWatch, user, onLogo
       {/* Style d'entraînement force : split ou full body */}
       <TrainingStyleCard profile={profile} onProfile={onProfile} />
 
+      {/* Redémarrer le programme (J0 = lundi prochain) */}
+      <ProgramRestartCard profile={profile} onProfile={onProfile} />
+
       {/* 1RM éditables → charges personnalisées du plan force */}
       <LiftMaxes />
 
@@ -175,6 +178,64 @@ export function ProfileScreen({ profile, onProfile, onConnectWatch, user, onLogo
       {/* Feuille de route → 2029 */}
       <Roadmap weeksToSelection={weeksToGoal(profile.goal_date)} />
     </ScrollView>
+  );
+}
+
+const DAY_MS = 24 * 3600 * 1000;
+function nextMondayISO(): string {
+  const t = new Date();
+  const utc = Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate());
+  const isoWd = (t.getUTCDay() + 6) % 7;            // 0 = lundi
+  const add = isoWd === 0 ? 0 : 7 - isoWd;          // ce lundi si on est lundi, sinon le prochain
+  return new Date(utc + add * DAY_MS).toISOString().slice(0, 10);
+}
+
+function ProgramRestartCard({ profile, onProfile }:
+  { profile: AthleteProfile; onProfile: (p: AthleteProfile) => void }) {
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const monday = nextMondayISO();
+
+  const restart = async () => {
+    setBusy(true);
+    try {
+      const ws = {
+        ...(profile.work_schedule ?? {}),
+        anchor_big_week_monday: monday,   // J0 police = grande semaine + cycle 0
+        start_monday: monday,             // J0 weekly
+      };
+      onProfile(await api.setWorkSchedule(ws));
+      setDone(true); setConfirm(false);
+    } catch { /* ignore */ } finally { setBusy(false); }
+  };
+
+  return (
+    <>
+      <Text style={styles.section}>REDÉMARRER LE PROGRAMME</Text>
+      <Card style={{ padding: spacing.m }}>
+        <Text style={styles.hint}>
+          Repart à zéro (cycle 5/3/1 cycle 0, grande semaine) à partir du lundi {monday.slice(8)}/{monday.slice(5, 7)}.
+          Ton historique de séances reste intact.
+        </Text>
+        {done ? (
+          <Text style={styles.saved}>✓ Programme redémarré dès lundi {monday.slice(8)}/{monday.slice(5, 7)}</Text>
+        ) : confirm ? (
+          <View style={styles.styleRow}>
+            <Pressable onPress={() => setConfirm(false)} style={[styles.styleBtn]}>
+              <Text style={styles.styleT}>ANNULER</Text>
+            </Pressable>
+            <Pressable onPress={restart} disabled={busy} style={[styles.styleBtn, styles.styleBtnOn]}>
+              <Text style={styles.styleTOn}>{busy ? '…' : 'CONFIRMER'}</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <Pressable onPress={() => setConfirm(true)} style={styles.restartBtn}>
+            <Text style={styles.restartT}>REDÉMARRER DÈS LUNDI</Text>
+          </Pressable>
+        )}
+      </Card>
+    </>
   );
 }
 
@@ -283,4 +344,7 @@ const styles = StyleSheet.create({
   styleBtnOn: { backgroundColor: colors.signalSoft, borderColor: colors.signal },
   styleT: { color: colors.textSecondary, ...typography.label, fontSize: 11 },
   styleTOn: { color: colors.signal },
+  restartBtn: { marginTop: spacing.s, paddingVertical: 12, borderRadius: spacing.cardRadius, borderWidth: 1, borderColor: colors.readyOrange, alignItems: 'center' },
+  restartT: { color: colors.readyOrange, ...typography.label, fontSize: 11 },
+  saved: { color: colors.signal, fontSize: typography.sizes.small, paddingVertical: spacing.s, textAlign: 'center' },
 });

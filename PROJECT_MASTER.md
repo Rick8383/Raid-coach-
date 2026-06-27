@@ -729,3 +729,16 @@ Comptes **email + mot de passe**, **par athlète**, avec **isolation stricte** d
 **État** : 153 tests pytest + auth/schéma/PG vérifiés + 4 audits PASS (60 routes API), TypeScript strict 0 erreur, export web OK.
 
 *Addendum v3.11 · 16/06/2026 · Claude Code.*
+
+-----
+
+### Addendum v3.12 — Redémarrage du programme + progression par J0 utilisateur (16/06/2026)
+
+> Déployé.
+
+- **Progression 5/3/1 relative au J0 de chaque athlète** (et non plus à l'ancre globale 2026-06-15) : `user_schedule.plan_start(config)` = ancre police (lundi de grande semaine = J0) ou `start_monday` (weekly). Chaque utilisateur démarre au **cycle 0** à sa date de début → corrige la progression des nouveaux comptes (ils ne démarrent plus « en plein cycle »). Rétro-compatible (propriétaire : ancre = START → inchangé).
+- **Redémarrer le programme** (Profil) : bouton qui re-fixe l'ancre/`start_monday` au **lundi prochain** → cycle 5/3/1 remis à **zéro**, **grande semaine**, à partir de ce lundi, sans toucher à l'historique. Confirmation en 2 temps ; invalide le cache plan. Test : ré-ancrer → `week_index` 0 (grande) le J0, 2 deux semaines plus tard.
+
+**État** : 154 tests pytest + 4 audits PASS (60 routes API), TypeScript strict 0 erreur, export web OK.
+
+*Addendum v3.12 · 16/06/2026 · Claude Code.*

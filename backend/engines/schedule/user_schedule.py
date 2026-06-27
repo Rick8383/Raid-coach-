@@ -21,16 +21,33 @@ _DEFAULT_WEEKLY = ["mon", "wed", "fri", "sun"]
 
 def normalize(work_schedule: dict | None) -> dict:
     """Config normalisée. Défaut = 3/2/2/3 ancre propriétaire (rétro-compatible).
-    `training_style` : 'split' (push/pull/legs, défaut) ou 'fullbody'."""
+    `training_style` : 'split' (push/pull/legs, défaut) ou 'fullbody'.
+    `start_monday` (weekly) / `anchor_big_week_monday` (police) = J0 du programme
+    → la progression 5/3/1 démarre à cette date (cycle 0)."""
     ws = work_schedule or {}
     style = "fullbody" if ws.get("training_style") == "fullbody" else "split"
     if ws.get("type") == "weekly":
         days = [d for d in (ws.get("training_days") or []) if d in DAY_CODES]
-        return {"type": "weekly", "training_days": days or _DEFAULT_WEEKLY,
-                "training_style": style}
+        out = {"type": "weekly", "training_days": days or _DEFAULT_WEEKLY,
+               "training_style": style}
+        if ws.get("start_monday"):
+            out["start_monday"] = ws["start_monday"]
+        return out
     anchor = ws.get("anchor_big_week_monday") or P.ANCHOR_MONDAY.isoformat()
     return {"type": "police_3223", "anchor_big_week_monday": anchor,
             "training_style": style}
+
+
+def plan_start(config: dict) -> date:
+    """J0 du programme (la progression 5/3/1 démarre ici). Police : l'ancre EST
+    le J0 (lundi de grande semaine). Weekly : start_monday, sinon ancre globale."""
+    if config.get("type") == "weekly":
+        sm = config.get("start_monday")
+        try:
+            return date.fromisoformat(sm) if sm else P.ANCHOR_MONDAY
+        except (ValueError, TypeError):
+            return P.ANCHOR_MONDAY
+    return _anchor(config)
 
 
 def anchor_for_current_week(is_big: bool, today: date | None = None) -> str:

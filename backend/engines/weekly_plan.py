@@ -87,7 +87,10 @@ def _day_payload(d: date, shift_weeks: int, vma: float, fcmax: int,
     real_monday = d - timedelta(days=d.weekday())
     ds = _us.day_schedule(cfg, d)
     wt = ds["week_type"]
-    real_w = max(0, (real_monday - START).days // 7)
+    # Progression 5/3/1 relative au J0 de l'athlète (ancre police / start weekly)
+    # → chacun démarre au cycle 0 à sa date de début (et le propriétaire peut
+    # redémarrer le programme en re-fixant son ancre).
+    real_w = max(0, (real_monday - _us.plan_start(cfg)).days // 7)
     plan_w = max(0, real_w - max(0, int(shift_weeks)))
     template = _us.week_template(cfg, plan_w, wt, _BIG_WORK, _SMALL_WORK)
     specs = template[d.weekday()]
