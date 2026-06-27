@@ -61,8 +61,12 @@ def _build_session(spec, w_index, weekday, vma, fcmax, maxes=None):
         week_in_cycle = (w_index % 4) + 1
         cycle = w_index // 4
         detail = generate_strength_531(sub, week_in_cycle, cycle, maxes)
-        dur = 70 if week_in_cycle != 4 else 55
-        title = f"Force {sub.upper()} — S{week_in_cycle}" + (" deload" if week_in_cycle == 4 else "")
+        if sub == "fullbody":
+            dur = 75 if week_in_cycle != 4 else 60   # full body : 1h-1h15 max
+            title = f"Force FULL BODY — S{week_in_cycle}" + (" deload" if week_in_cycle == 4 else "")
+        else:
+            dur = 70 if week_in_cycle != 4 else 55
+            title = f"Force {sub.upper()} — S{week_in_cycle}" + (" deload" if week_in_cycle == 4 else "")
     elif stype == "crossfit":
         detail = generate_wod("auto", 14, f"plan_{w_index}_{weekday}", exclude_lumbar=True)
         dur = 35
@@ -86,8 +90,12 @@ def _day_payload(d: date, shift_weeks: int, vma: float, fcmax: int,
     real_w = max(0, (real_monday - START).days // 7)
     plan_w = max(0, real_w - max(0, int(shift_weeks)))
     template = _us.week_template(cfg, plan_w, wt, _BIG_WORK, _SMALL_WORK)
+    specs = template[d.weekday()]
+    if cfg.get("training_style") == "fullbody":
+        # En full body, toute séance de force devient une séance corps entier.
+        specs = [(m, t, "fullbody") if t == "strength" else (m, t, s) for (m, t, s) in specs]
     sessions = [_build_session(spec, plan_w, d.weekday(), vma, fcmax, maxes)
-                for spec in template[d.weekday()]]
+                for spec in specs]
     return {
         "date": d.isoformat(),
         "day_of_week": ds["day_of_week"],

@@ -247,10 +247,12 @@ export interface Strength531Accessory {
   name: string; sets: number; reps: string; load_kg: number | null;
   tempo: string; rest_sec: number; notes: string;
 }
+export interface Strength531Main { lift: string; name: string; training_max: number; sets: Strength531Set[]; note: string }
 export interface Strength531 {
   day: string; week: number; cycle: number; is_deload: boolean;
   warmup_mcgill: { name: string; prescription: string; notes?: string }[];
-  main_lift: { lift: string; name: string; training_max: number; sets: Strength531Set[]; note: string };
+  main_lift: Strength531Main;
+  main_lifts?: Strength531Main[];
   accessories: Strength531Accessory[];
   finisher_wod: Wod;
   notes: string[];
@@ -310,7 +312,7 @@ export interface AthleteProfile {
   main_goal?: string;
   goal_date?: string;
   injuries?: { zone: string; type: string; note?: string }[];
-  work_schedule?: { type?: string; anchor_big_week_monday?: string; training_days?: string[] };
+  work_schedule?: { type?: string; anchor_big_week_monday?: string; training_days?: string[]; training_style?: string };
   current: Record<string, number>;
 }
 
@@ -536,6 +538,14 @@ export const api = {
   updateProfile: async (body: Json): Promise<AthleteProfile> => {
     const data = await patch<AthleteProfile>('/profile', body);
     await AsyncStorage.setItem('cache:profile', JSON.stringify({ t: Date.now(), data }));
+    return data;
+  },
+
+  // Change le rythme/style de travail → invalide aussi le plan (qui en dépend).
+  setWorkSchedule: async (workSchedule: Json): Promise<AthleteProfile> => {
+    const data = await patch<AthleteProfile>('/profile', { work_schedule: workSchedule });
+    await AsyncStorage.setItem('cache:profile', JSON.stringify({ t: Date.now(), data }));
+    await invalidatePlanCaches();
     return data;
   },
 

@@ -10,6 +10,7 @@ import { colors, spacing, typography } from '../theme/tokens';
 
 const TRACKED: { id: string; label: string; unit: string; step: number }[] = [
   { id: 'pullups_max', label: 'TRACTIONS', unit: 'reps', step: 1 },
+  { id: 'rope_climb_5m', label: 'MONTÉE CORDE', unit: 'reps', step: 1 },
   { id: 'pushups_max', label: 'POMPES', unit: 'reps', step: 1 },
   { id: 'dips_max', label: 'DIPS', unit: 'reps', step: 1 },
   { id: 'leg_raises_max', label: 'TOES-TO-BAR', unit: 'reps', step: 1 },

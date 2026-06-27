@@ -56,20 +56,15 @@ export function RunDetail({ session }: { session: RunSession }) {
   );
 }
 
-export function StrengthDetail({ session }: { session: Strength531 }) {
-  const tm = session.main_lift.training_max;
-  const maxLoad = Math.max(...session.main_lift.sets.map(s => s.load_kg), tm);
+function MainLift({ lift, label }: { lift: Strength531['main_lift']; label: string }) {
+  const maxLoad = Math.max(...lift.sets.map(s => s.load_kg), lift.training_max);
   return (
     <View>
-      <Text style={styles.phase}>ÉCHAUFFEMENT — BIG 3 McGILL</Text>
-      {session.warmup_mcgill.map((m, i) => (
-        <Text key={i} style={styles.line}>• {m.name} — {m.prescription}</Text>
-      ))}
       <View style={styles.mainHead}>
-        <Text style={styles.phase}>PRINCIPAL · {session.main_lift.name}</Text>
-        <Text style={styles.tm}>TM {tm} kg</Text>
+        <Text style={styles.phase}>{label} · {lift.name}</Text>
+        <Text style={styles.tm}>TM {lift.training_max} kg</Text>
       </View>
-      {session.main_lift.sets.map((s, i) => (
+      {lift.sets.map((s, i) => (
         <View key={i} style={styles.setRow}>
           <Text style={styles.setLoad}>{s.load_kg} kg</Text>
           <Text style={styles.setReps}>×{s.reps}{s.amrap ? ' max' : ''}</Text>
@@ -79,7 +74,24 @@ export function StrengthDetail({ session }: { session: Strength531 }) {
           <Text style={styles.setPct}>{s.pct_tm}%</Text>
         </View>
       ))}
-      {!!session.main_lift.note && <Text style={styles.sciatic}>⚠ {session.main_lift.note}</Text>}
+      {!!lift.note && <Text style={styles.sciatic}>⚠ {lift.note}</Text>}
+    </View>
+  );
+}
+
+export function StrengthDetail({ session }: { session: Strength531 }) {
+  const lifts = session.main_lifts && session.main_lifts.length ? session.main_lifts : [session.main_lift];
+  const fullBody = lifts.length > 1;
+  return (
+    <View>
+      <Text style={styles.phase}>ÉCHAUFFEMENT — BIG 3 McGILL</Text>
+      {session.warmup_mcgill.map((m, i) => (
+        <Text key={i} style={styles.line}>• {m.name} — {m.prescription}</Text>
+      ))}
+      {lifts.map((l, i) => (
+        <MainLift key={i} lift={l}
+          label={fullBody ? `PRINCIPAL ${i + 1}/${lifts.length}` : 'PRINCIPAL'} />
+      ))}
       <Text style={styles.phase}>ACCESSOIRES</Text>
       {session.accessories.map((a, i) => (
         <Text key={i} style={styles.line}>

@@ -245,9 +245,19 @@ _BUILDERS = {
 }
 
 
+_TEAM_FORMATS = [
+    "« I go, you go » : un·e équipier·ère travaille pendant que l'autre récupère, on alterne à chaque round.",
+    "Répartissez les reps comme vous voulez, un·e seul·e travaille à la fois.",
+    "Relais : chacun·e fait un round complet à tour de rôle.",
+    "Synchro : certaines reps doivent être faites en même temps (au choix).",
+]
+
+
 def generate_wod(fmt: str = "auto", duration_min: int = 12, seed: str = "wod",
-                 exclude_lumbar: bool = True, bodyweight: bool = False) -> dict:
-    rng = _rng(f"{fmt}:{duration_min}:{seed}:{exclude_lumbar}:{bodyweight}")
+                 exclude_lumbar: bool = True, bodyweight: bool = False,
+                 team_size: int = 1) -> dict:
+    team_size = max(1, min(int(team_size), 4))
+    rng = _rng(f"{fmt}:{duration_min}:{seed}:{exclude_lumbar}:{bodyweight}:{team_size}")
     if fmt == "auto" or fmt not in _BUILDERS:
         fmt = rng.choice(WOD_FORMATS)
     dur = max(4, min(int(duration_min), 30))
@@ -259,6 +269,11 @@ def generate_wod(fmt: str = "auto", duration_min: int = 12, seed: str = "wod",
         safe = [m for m in moves if not m["lumbar"]]
         if safe:
             lines.append("⚠ placer le mouvement lombaire en début/milieu, jamais en finisseur")
+
+    if team_size > 1:
+        label = f"TEAM ×{team_size} · {label}"
+        lines.insert(0, f"🤝 EN ÉQUIPE DE {team_size} — {rng.choice(_TEAM_FORMATS)}")
+        score = f"{score} · cumul de l'équipe"
 
     has_lumbar = any(m["lumbar"] for m in moves)
     difficulty = 2 + (1 if dur >= 15 else 0) + (1 if any(m.get("load") for m in moves) else 0) \
@@ -277,6 +292,7 @@ def generate_wod(fmt: str = "auto", duration_min: int = 12, seed: str = "wod",
         "seed": seed,
         "exclude_lumbar": exclude_lumbar,
         "bodyweight": bodyweight,
+        "team_size": team_size,
     }
 
 

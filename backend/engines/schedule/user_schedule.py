@@ -20,13 +20,17 @@ _DEFAULT_WEEKLY = ["mon", "wed", "fri", "sun"]
 
 
 def normalize(work_schedule: dict | None) -> dict:
-    """Config normalisée. Défaut = 3/2/2/3 ancre propriétaire (rétro-compatible)."""
+    """Config normalisée. Défaut = 3/2/2/3 ancre propriétaire (rétro-compatible).
+    `training_style` : 'split' (push/pull/legs, défaut) ou 'fullbody'."""
     ws = work_schedule or {}
+    style = "fullbody" if ws.get("training_style") == "fullbody" else "split"
     if ws.get("type") == "weekly":
         days = [d for d in (ws.get("training_days") or []) if d in DAY_CODES]
-        return {"type": "weekly", "training_days": days or _DEFAULT_WEEKLY}
+        return {"type": "weekly", "training_days": days or _DEFAULT_WEEKLY,
+                "training_style": style}
     anchor = ws.get("anchor_big_week_monday") or P.ANCHOR_MONDAY.isoformat()
-    return {"type": "police_3223", "anchor_big_week_monday": anchor}
+    return {"type": "police_3223", "anchor_big_week_monday": anchor,
+            "training_style": style}
 
 
 def anchor_for_current_week(is_big: bool, today: date | None = None) -> str:

@@ -40,6 +40,7 @@ export function WodGenerator() {
   const [duration, setDuration] = useState(12);
   const [excludeLumbar, setExcludeLumbar] = useState(true);
   const [bodyweight, setBodyweight] = useState(false);
+  const [teamSize, setTeamSize] = useState(1);
   const [seed, setSeed] = useState(0);
   const [wod, setWod] = useState<Wod | null>(null);
   const [loading, setLoading] = useState(false);
@@ -53,7 +54,7 @@ export function WodGenerator() {
     try {
       const w = await api.generateWod({
         format, duration_min: duration, seed: `w${next}`,
-        exclude_lumbar: excludeLumbar, bodyweight,
+        exclude_lumbar: excludeLumbar, bodyweight, team_size: teamSize,
       });
       setWod(w);
     } catch {
@@ -118,6 +119,18 @@ export function WodGenerator() {
           trackColor={{ true: colors.signalDim, false: colors.hairline }} />
       </View>
 
+      <Text style={styles.lbl}>ÉQUIPE (WOD TEAM)</Text>
+      <View style={styles.teamRow}>
+        {[1, 2, 3, 4].map(n => (
+          <Pressable key={n} onPress={() => setTeamSize(n)}
+            style={[styles.teamChip, teamSize === n && styles.fmtOn]}>
+            <Text style={[styles.teamT, teamSize === n && styles.fmtTextOn]}>
+              {n === 1 ? 'SOLO' : `×${n}`}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
       <PrimaryButton label={wod ? '↻ GÉNÉRER ENCORE' : 'GÉNÉRER UN WOD'} onPress={generate} />
 
       {loading && <ActivityIndicator color={colors.signal} style={{ marginTop: spacing.l }} />}
@@ -172,6 +185,9 @@ const styles = StyleSheet.create({
   muscles: { color: colors.textSecondary, fontSize: typography.sizes.small, marginTop: spacing.xs },
   lumbarNote: { fontSize: typography.sizes.small, marginTop: spacing.s },
   saved: { color: colors.signal, textAlign: 'center', fontSize: typography.sizes.small, paddingVertical: 14 },
+  teamRow: { flexDirection: 'row', gap: spacing.xs },
+  teamChip: { flex: 1, paddingVertical: spacing.s, borderRadius: 6, alignItems: 'center', backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.hairline },
+  teamT: { color: colors.textSecondary, ...typography.label, fontSize: 10 },
   timerLbl: { color: colors.textSecondary, ...typography.label, marginTop: spacing.l },
   error: { color: colors.readyOrange, fontSize: typography.sizes.small, marginTop: spacing.l },
 });

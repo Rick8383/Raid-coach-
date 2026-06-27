@@ -38,6 +38,7 @@ export function OnboardingScreen({ onDone }: { onDone: (p: AthleteProfile) => vo
   const [rythme, setRythme] = useState<Rythme>('police_3223');
   const [bigThisWeek, setBigThisWeek] = useState(true);
   const [days, setDays] = useState<DayCode[]>(['mon', 'wed', 'fri', 'sun']);
+  const [style, setStyle] = useState<'split' | 'fullbody'>('split');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,8 +48,8 @@ export function OnboardingScreen({ onDone }: { onDone: (p: AthleteProfile) => vo
   const submit = async () => {
     setError(null);
     const work_schedule = rythme === 'police_3223'
-      ? { type: 'police_3223', anchor_big_week_monday: mondayThisWeekISO(bigThisWeek ? 0 : -1) }
-      : { type: 'weekly', training_days: days };
+      ? { type: 'police_3223', anchor_big_week_monday: mondayThisWeekISO(bigThisWeek ? 0 : -1), training_style: style }
+      : { type: 'weekly', training_days: days, training_style: style };
     if (rythme === 'weekly' && days.length === 0) {
       setError('Choisis au moins un jour d\'entraînement.'); return;
     }
@@ -125,6 +126,19 @@ export function OnboardingScreen({ onDone }: { onDone: (p: AthleteProfile) => vo
             <Text style={styles.hint}>{days.length} séance(s)/semaine. Les autres jours = repos.</Text>
           </>
         )}
+
+        <Text style={styles.section}>STYLE D'ENTRAÎNEMENT (FORCE)</Text>
+        <View style={styles.modeRow}>
+          {([['split', 'SPLIT (push/pull/legs)'], ['fullbody', 'FULL BODY (1h-1h15)']] as const).map(([m, l]) => (
+            <Pressable key={m} onPress={() => setStyle(m)} style={[styles.modeBtn, style === m && styles.modeBtnOn]}>
+              <Text style={[styles.modeT, style === m && styles.modeTOn]}>{l}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <Text style={styles.hint}>
+          Full body = chaque séance force travaille tout le corps (squat + DC + rowing),
+          1h-1h15 max. Split = un groupe par séance.
+        </Text>
 
         {error && <Text style={styles.error}>{error}</Text>}
 

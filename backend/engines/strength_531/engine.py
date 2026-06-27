@@ -56,12 +56,20 @@ _ACCESSORIES = {
         ("Curl pupitre haltère", 3, "8", 16, "2-1-1", 60),
     ],
     "legs": [
+        ("Soulevé de terre trap-barre", 4, "6-8", 100, "2-0-1", 120),
         ("Hip thrust (remplace deadlift lourd)", 4, "10", 80, "2-1-1", 90),
         ("Fentes haltères / côté", 4, "10", 18, "2-0-1", 90),
         ("Leg curl", 4, "12", 30, "2-1-1", 60),
-        ("Leg extension", 4, "12", 35, "2-0-1", 60),
     ],
 }
+
+# Full body : 1 séance ~60-75 min couvrant tout le corps (squat + DC + rowing
+# en principaux), accessoires courts dont le soulevé de terre trap-barre.
+_FULLBODY_ACCESSORIES = [
+    ("Soulevé de terre trap-barre", 3, "6-8", 100, "2-0-1", 120),
+    ("Tractions lestées", 3, "6-8", 0, "2-0-1", 90),
+    ("Gainage anti-rotation (Pallof press)", 3, "12", 0, "contrôlé", 60),
+]
 
 
 def _round25(x: float) -> float:
@@ -102,15 +110,19 @@ def _main_lift(lift: str, week: int, cycle: int, base: dict | None = None) -> di
             "sets": sets, "note": note}
 
 
-def _accessories(day: str) -> list[dict]:
+def _accessories_from(rows) -> list[dict]:
     out = []
-    for name, sets, reps, load, tempo, rest in _ACCESSORIES[day]:
+    for name, sets, reps, load, tempo, rest in rows:
         prog = (f"objectif {load + 2.5}kg quand {sets}×{reps.split('-')[-1]} atteint"
                 if load else "progresser en reps puis en difficulté")
         out.append({"name": name, "sets": sets, "reps": reps,
                     "load_kg": load or None, "tempo": tempo, "rest_sec": rest,
                     "notes": f"double progression — {prog}"})
     return out
+
+
+def _accessories(day: str) -> list[dict]:
+    return _accessories_from(_ACCESSORIES[day])
 
 
 def _finisher(day: str, week: int, cycle: int) -> dict:
@@ -124,13 +136,30 @@ def _finisher(day: str, week: int, cycle: int) -> dict:
 
 def generate_strength_531(day: str, week: int = 1, cycle: int = 0,
                           maxes: dict | None = None) -> dict:
-    if day not in DAYS:
-        raise ValueError(f"jour inconnu: {day} (attendus: {', '.join(DAYS)})")
+    if day not in DAYS and day != "fullbody":
+        raise ValueError(f"jour inconnu: {day} (attendus: {', '.join(DAYS)}, fullbody)")
     week = max(1, min(int(week), 4))
     cycle = max(0, int(cycle))
-    lift = _MAIN_BY_DAY[day]
     base = resolve_maxes(maxes)
 
+    if day == "fullbody":
+        # Séance ~60-75 min couvrant tout le corps (squat + DC + rowing).
+        mains = [_main_lift(l, week, cycle, base) for l in ("squat", "bench", "row")]
+        return {
+            "day": "fullbody", "week": week, "cycle": cycle, "is_deload": week == 4,
+            "warmup_mcgill": _MCGILL,
+            "main_lift": mains[0],            # compat affichage
+            "main_lifts": mains,              # full body : 3 principaux
+            "accessories": _accessories_from(_FULLBODY_ACCESSORIES),
+            "finisher_wod": _finisher("legs", week, cycle),
+            "notes": [
+                "Full body : enchaîne les 3 principaux en circuit confortable (récup complète sur les séries lourdes).",
+                "Big 3 McGill à l'échauffement. Séance ~60-75 min, pas plus.",
+                "Dernière série de chaque principal en AMRAP (sauf deload).",
+            ],
+        }
+
+    lift = _MAIN_BY_DAY[day]
     session = {
         "day": day,
         "week": week,
@@ -138,6 +167,7 @@ def generate_strength_531(day: str, week: int = 1, cycle: int = 0,
         "is_deload": week == 4,
         "warmup_mcgill": _MCGILL,
         "main_lift": _main_lift(lift, week, cycle, base),
+        "main_lifts": [_main_lift(lift, week, cycle, base)],
         "accessories": _accessories(day),
         "finisher_wod": _finisher(day, week, cycle),
         "notes": [

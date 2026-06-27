@@ -142,6 +142,9 @@ export function ProfileScreen({ profile, onProfile, onConnectWatch, user, onLogo
         </>
       )}
 
+      {/* Style d'entraînement force : split ou full body */}
+      <TrainingStyleCard profile={profile} onProfile={onProfile} />
+
       {/* 1RM éditables → charges personnalisées du plan force */}
       <LiftMaxes />
 
@@ -172,6 +175,38 @@ export function ProfileScreen({ profile, onProfile, onConnectWatch, user, onLogo
       {/* Feuille de route → 2029 */}
       <Roadmap weeksToSelection={weeksToGoal(profile.goal_date)} />
     </ScrollView>
+  );
+}
+
+function TrainingStyleCard({ profile, onProfile }:
+  { profile: AthleteProfile; onProfile: (p: AthleteProfile) => void }) {
+  const cur = profile.work_schedule?.training_style === 'fullbody' ? 'fullbody' : 'split';
+  const [busy, setBusy] = useState(false);
+  const set = async (style: 'split' | 'fullbody') => {
+    if (style === cur || busy) return;
+    setBusy(true);
+    try {
+      const ws = { ...(profile.work_schedule ?? {}), training_style: style };
+      onProfile(await api.setWorkSchedule(ws));
+    } catch { /* ignore */ } finally { setBusy(false); }
+  };
+  return (
+    <>
+      <Text style={styles.section}>STYLE D'ENTRAÎNEMENT (FORCE)</Text>
+      <Card style={{ padding: spacing.m }}>
+        <View style={styles.styleRow}>
+          {([['split', 'SPLIT'], ['fullbody', 'FULL BODY']] as const).map(([m, l]) => (
+            <Pressable key={m} onPress={() => set(m)} style={[styles.styleBtn, cur === m && styles.styleBtnOn]}>
+              <Text style={[styles.styleT, cur === m && styles.styleTOn]}>{l}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <Text style={styles.hint}>
+          Full body : chaque séance force travaille tout le corps (squat + DC + rowing),
+          1h-1h15 max — selon ton rythme 3/2/2/3 ou hebdo.
+        </Text>
+      </Card>
+    </>
   );
 }
 
@@ -243,4 +278,9 @@ const styles = StyleSheet.create({
   ownerTag: { color: colors.signal, ...typography.label, fontSize: 9 },
   logoutBtn: { marginTop: spacing.m, paddingVertical: 12, borderRadius: spacing.cardRadius, borderWidth: 1, borderColor: colors.hairlineStrong, alignItems: 'center' },
   logoutT: { color: colors.readyOrange, ...typography.label, fontSize: 11 },
+  styleRow: { flexDirection: 'row', gap: spacing.s },
+  styleBtn: { flex: 1, paddingVertical: spacing.m, borderRadius: 6, alignItems: 'center', borderWidth: 1, borderColor: colors.hairlineStrong },
+  styleBtnOn: { backgroundColor: colors.signalSoft, borderColor: colors.signal },
+  styleT: { color: colors.textSecondary, ...typography.label, fontSize: 11 },
+  styleTOn: { color: colors.signal },
 });

@@ -106,13 +106,19 @@ class Store:
         return athlete_id
 
     def current_maxes(self, athlete_id: int | None = None) -> dict:
-        """Dernière valeur connue pour chaque benchmark suivi (max actuels)."""
+        """Dernière valeur connue pour chaque benchmark suivi (max actuels).
+        Les ratios DC/Squat sont auto-remplis depuis le 1RM réel saisi
+        (`{lift}_1rm`) — le rapport force divise ensuite par le poids de corps."""
         aid = athlete_id or self.athlete_id
         out: dict[str, float] = {}
         for key in CURRENT_KEYS:
             prog = self.benchmarks.progression(aid, key)
             if prog:
                 out[key] = prog[-1]["result_value"]
+        for lift, ratio_key in (("bench", "bench_ratio"), ("squat", "squat_ratio")):
+            p = self.benchmarks.progression(aid, f"{lift}_1rm")
+            if p:
+                out[ratio_key] = p[-1]["result_value"]
         return out
 
     def profile_payload(self, athlete_id: int | None = None) -> dict:

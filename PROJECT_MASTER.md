@@ -713,3 +713,19 @@ Comptes **email + mot de passe**, **par athlète**, avec **isolation stricte** d
 **État** : 149 tests pytest (SQLite) + auth/schéma/PG vérifiés + 4 audits PASS (60 routes API), TypeScript strict 0 erreur, export web OK.
 
 *Addendum v3.10 · 16/06/2026 · Claude Code.*
+
+-----
+
+### Addendum v3.11 — Trap-barre, full body, WOD team, ratios auto, montée de corde (16/06/2026)
+
+> Retours utilisateurs. Déployé.
+
+- **Soulevé de terre trap-barre** ajouté pour tout le monde : accessoire jour LEGS (en tête) + présent en full body (plus sûr pour le dos que le DL classique).
+- **Style FULL BODY** (par utilisateur, choix à l'onboarding et dans Profil) : chaque séance force devient corps entier (**squat + DC + rowing** en principaux + accessoires courts dont trap-barre), **1h-1h15 max**, toujours **selon le rythme 3/2/2/3 ou hebdo et le mode standby**. `training_style` ('split'|'fullbody') dans la config rythme ; `generate_strength_531('fullbody')` renvoie `main_lifts` (3 lifts) ; `weekly_plan` remappe les séances force en full body. App : rendu multi-lifts (`StrengthDetail`), bascule Split/Full body dans Profil + onboarding.
+- **WOD TEAM** : `generate_wod(team_size=1..4)` → en-tête équipe (« I go you go », relais, répartition…), score « cumul équipe ». Sélecteur SOLO/×2/×3/×4 dans le générateur WOD.
+- **Ratios DC/Squat auto-remplis** depuis le **1RM réel saisi** et le **poids** de chacun : `current_maxes` injecte `bench_ratio`/`squat_ratio` = `{lift}_1rm` (le rapport force divise par le poids de corps) → plus de valeurs imposées.
+- **Montée de corde max** éditable : ajoutée au suivi chiffré (OBJECTIFS) — `rope_climb_5m`, saisie clavier.
+
+**État** : 153 tests pytest + auth/schéma/PG vérifiés + 4 audits PASS (60 routes API), TypeScript strict 0 erreur, export web OK.
+
+*Addendum v3.11 · 16/06/2026 · Claude Code.*

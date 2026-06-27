@@ -188,3 +188,50 @@ def test_delete_session_isolated(client, monkeypatch):
     assert client.delete(f"/sessions/{sid}", headers=_bearer(b)).status_code == 404
     # le propriétaire de la séance peut
     assert client.delete(f"/sessions/{sid}", headers=_bearer(a)).status_code == 200
+
+
+# ---------- Full body, trap barre, team WOD, ratios auto ----------
+def test_fullbody_style_in_plan(client, monkeypatch):
+    monkeypatch.setenv("INVITE_CODE", "1995")
+    tok = client.post("/auth/register", json={
+        "email": "fb@b.com", "password": "password1", "invite_code": "1995"}).json()["token"]
+    H = _bearer(tok)
+    client.patch("/profile", json={"work_schedule": {
+        "type": "police_3223", "anchor_big_week_monday": "2026-06-15",
+        "training_style": "fullbody"}}, headers=H)
+    # 2026-06-15 lundi grande semaine = jour de force (push en split) → full body
+    s531 = client.get("/generate/strength?day=fullbody", headers=H).json()
+    assert len(s531["main_lifts"]) == 3   # squat + DC + rowing
+    # le plan du jour propose une séance FULL BODY (2026-06-15 = lundi = jour force)
+    day = client.get("/plan/day?date=2026-06-15", headers=H).json()
+    strength = [s for s in day["sessions"] if s["type"] == "strength"]
+    assert strength and "FULL BODY" in strength[0]["title"]
+    assert strength[0]["duration_min"] <= 75
+    assert len(strength[0]["detail"]["main_lifts"]) == 3
+
+
+def test_trap_bar_in_legs(client):
+    s = client.get("/generate/strength?day=legs").json()
+    names = [a["name"] for a in s["accessories"]]
+    assert any("trap-barre" in n.lower() for n in names)
+
+
+def test_team_wod(client):
+    w = client.post("/generate/wod", json={
+        "format": "amrap", "duration_min": 12, "seed": "team1", "team_size": 3}).json()
+    assert w["team_size"] == 3
+    assert "TEAM ×3" in w["format"]
+    assert any("ÉQUIPE DE 3" in line for line in w["description"])
+
+
+def test_ratio_autofilled_from_1rm(client, monkeypatch):
+    monkeypatch.setenv("INVITE_CODE", "1995")
+    tok = client.post("/auth/register", json={
+        "email": "ratio@b.com", "password": "password1", "invite_code": "1995"}).json()["token"]
+    H = _bearer(tok)
+    client.patch("/profile", json={"weight_kg": 80}, headers=H)
+    client.post("/benchmarks/record", json={
+        "benchmark_id": "bench_1rm", "result_value": 120, "result_unit": "kg",
+        "test_date": "2026-06-20"}, headers=H)
+    prof = client.get("/profile", headers=H).json()
+    assert prof["current"]["bench_ratio"] == 120   # = 1RM ; le rapport /poids derrière

@@ -811,6 +811,7 @@ class WodGenIn(BaseModel):
     seed: str = "wod"
     exclude_lumbar: bool = True   # règle sciatique L5-S1, ON par défaut
     bodyweight: bool = False      # PDC : poids du corps uniquement (sans matériel)
+    team_size: int = Field(default=1, ge=1, le=4)   # WOD team / partenaire
 
 
 @app.post("/generate/wod")

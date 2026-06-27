@@ -355,7 +355,8 @@ class CoachAPI:
             duration_min=payload.get("duration_min", 12),
             seed=payload.get("seed", "wod"),
             exclude_lumbar=payload.get("exclude_lumbar", True),
-            bodyweight=payload.get("bodyweight", False))
+            bodyweight=payload.get("bodyweight", False),
+            team_size=payload.get("team_size", 1))
 
     def random_wod(self, exclude_lumbar: bool = True) -> dict:
         return _random_wod(exclude_lumbar)
