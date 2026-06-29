@@ -243,12 +243,15 @@ function TrainingStyleCard({ profile, onProfile }:
   { profile: AthleteProfile; onProfile: (p: AthleteProfile) => void }) {
   const cur = profile.work_schedule?.training_style === 'fullbody' ? 'fullbody' : 'split';
   const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState<string | null>(null);
   const set = async (style: 'split' | 'fullbody') => {
     if (style === cur || busy) return;
-    setBusy(true);
+    setBusy(true); setSaved(null);
     try {
       const ws = { ...(profile.work_schedule ?? {}), training_style: style };
       onProfile(await api.setWorkSchedule(ws));
+      setSaved(style === 'fullbody' ? 'FULL BODY' : 'SPLIT (push/pull/legs)');
+      setTimeout(() => setSaved(null), 3000);
     } catch { /* ignore */ } finally { setBusy(false); }
   };
   return (
@@ -262,10 +265,12 @@ function TrainingStyleCard({ profile, onProfile }:
             </Pressable>
           ))}
         </View>
-        <Text style={styles.hint}>
-          Full body : chaque séance force travaille tout le corps (squat + DC + rowing),
-          1h-1h15 max — selon ton rythme 3/2/2/3 ou hebdo.
-        </Text>
+        {saved
+          ? <Text style={styles.saved}>✓ Plan mis à jour : {saved} — ton programme est recalculé</Text>
+          : <Text style={styles.hint}>
+              Full body : chaque séance force travaille tout le corps (squat + DC + rowing),
+              1h-1h15 max — selon ton rythme 3/2/2/3 ou hebdo. Modifiable à tout moment.
+            </Text>}
       </Card>
     </>
   );
