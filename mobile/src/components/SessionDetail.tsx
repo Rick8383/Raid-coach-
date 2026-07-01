@@ -76,24 +76,31 @@ function ExerciseRow({ index, name, sets, reps, load, rest }: {
 }
 
 function MainLift({ lift, label }: { lift: NonNullable<Strength531['main_lift']>; label: string }) {
-  const maxLoad = Math.max(...lift.sets.map(s => s.load_kg), lift.training_max);
   return (
     <View>
       <View style={styles.mainHead}>
         <Text style={styles.phase}>{label} · {lift.name}</Text>
         <Text style={styles.tm}>TM {lift.training_max} kg</Text>
       </View>
+      <Text style={styles.mainExplain}>
+        {lift.sets.length} séries : la charge monte, les reps baissent, et la
+        dernière se fait au MAXIMUM de reps possible.
+      </Text>
       {lift.sets.map((s, i) => (
-        <View key={i} style={styles.setRow}>
-          <Text style={styles.setLoad}>{s.load_kg} kg</Text>
-          <Text style={styles.setReps}>× {s.reps}{s.amrap ? ' (max)' : ''}</Text>
-          <View style={styles.setTrack}>
-            <View style={[styles.setFill, { width: `${(s.load_kg / maxLoad) * 100}%` }]} />
+        <View key={i} style={styles.exRow}>
+          <Text style={styles.exNum}>{i + 1}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.exName}>{s.load_kg} kg</Text>
+            <Text style={styles.exMeta}>
+              {s.pct_tm}% du max{s.amrap ? ' · le plus de reps possible' : ''}
+            </Text>
           </View>
-          <Text style={styles.setPct}>{s.pct_tm}%</Text>
+          <Text style={styles.exSets}>
+            <Text style={styles.exX}>× </Text>{s.amrap ? 'max' : s.reps}
+          </Text>
         </View>
       ))}
-      <Text style={styles.restLine}>Repos {lift.sets[0]?.rest_sec ?? 180}s entre séries · dernière série « max » (AMRAP)</Text>
+      <Text style={styles.restLine}>Repos {lift.sets[0]?.rest_sec ?? 180}s entre chaque série.</Text>
       {!!lift.note && <Text style={styles.sciatic}>⚠ {lift.note}</Text>}
     </View>
   );
@@ -176,6 +183,7 @@ const styles = StyleSheet.create({
   setFill: { height: 6, backgroundColor: colors.signalDim, borderRadius: 3 },
   setPct: { color: colors.textDisabled, fontSize: typography.sizes.small, width: 36, textAlign: 'right' },
   restLine: { color: colors.textDisabled, fontSize: typography.sizes.micro, marginTop: 2, marginBottom: spacing.s },
+  mainExplain: { color: colors.textSecondary, fontSize: typography.sizes.small, lineHeight: 18, marginBottom: spacing.xs },
   exRow: {
     flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.s, gap: spacing.s,
     borderTopWidth: 1, borderTopColor: colors.hairline,

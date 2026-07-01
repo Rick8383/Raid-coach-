@@ -755,3 +755,11 @@ Comptes **email + mot de passe**, **par athlète**, avec **isolation stricte** d
 **État** : 155 tests pytest + 4 audits PASS (60 routes API), TypeScript strict 0 erreur, export web OK.
 
 *Addendum v3.13 · 16/06/2026 · Claude Code.*
+
+-----
+
+### Addendum v3.14 — Mouvement principal (5/3/1) aussi lisible que les accessoires (16/06/2026)
+
+> Déployé. Le principal 5/3/1 (3 séries montantes, dernière AMRAP) était affiché différemment (barres de %, `×1+`) → peu intuitif. Refonte au **même format que les accessoires** : phrase d'explication (« la charge monte, les reps baissent, dernière au max »), puis chaque **série numérotée** avec la **charge en gros**, `% du max` en sous-ligne, et **« × reps » (ou « × max »)** bien visible à droite ; rappel du **repos** entre séries. Frontend uniquement.
+
+*Addendum v3.14 · 16/06/2026 · Claude Code.*
