@@ -213,6 +213,26 @@ def test_save_done_computes_load(client):
     assert saved["stress_units"] == pytest.approx(29.4, abs=0.5)
 
 
+def test_save_done_with_watch_metrics(client):
+    # Données réelles de la montre (Garmin) saisies à la main → rangées dans
+    # detail["metrics"] et ressorties dans l'agenda (suivi). 2028-02-14 = lundi.
+    r = client.post("/sessions/save", json={
+        "discipline": "run", "session_date": "2028-02-14",
+        "duration_min": 45, "intensity_rpe": 7, "status": "done",
+        "distance_km": 7.79, "hr_avg": 142, "hr_max": 170,
+        "elevation_m": 37, "calories": 520, "cadence_spm": 172,
+        "te_aerobic": 3.5, "te_anaerobic": 1.8})
+    assert r.status_code == 200
+    week = client.post("/agenda/week", json={"date": "2028-02-14"}).json()
+    day = next(d for d in week["days"] if d["date"] == "2028-02-14")
+    m = day["done"]["metrics"]
+    assert m["distance_km"] == 7.79
+    assert m["hr_avg"] == 142 and m["hr_max"] == 170
+    assert m["elevation_m"] == 37 and m["calories"] == 520
+    assert m["cadence_spm"] == 172
+    assert m["te_aerobic"] == 3.5 and m["te_anaerobic"] == 1.8
+
+
 # ---------- Générateur Run (Mission 2) ----------
 def test_run_generate_detail(client):
     r = client.get("/generate/run?type=vma_courte&seed=1")

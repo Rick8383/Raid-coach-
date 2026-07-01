@@ -791,3 +791,18 @@ Comptes **email + mot de passe**, **par athlète**, avec **isolation stricte** d
 **État** : 160 tests pytest + 4 audits PASS (60 routes API), TypeScript strict 0 erreur, export web OK.
 
 *Addendum v3.16 · 01/07/2026 · Claude Code.*
+
+-----
+
+### Addendum v3.17 — Saisie manuelle des données montre (Garmin) (01/07/2026)
+
+> Retour utilisateur (captures Garmin d'une VMA courte). La montre n'étant pas connectée à l'app, il veut recopier à la main les vraies données de séance pour le suivi ; ces données restent sur son profil (isolation). Déployé.
+
+- **Flux « marquer fait » enrichi** : au moment de valider une séance faite, un dépliant **« ＋ Données réelles de la montre (Garmin) »** permet de saisir distance, durée réelle, FC moyenne/max, dénivelé, calories, cadence, Training Effect aérobie/anaérobie (champs optionnels, saisie clavier via `NumberField`). La durée réelle remplace la durée planifiée pour le calcul de charge (SU).
+- **Backend** : `SessionSaveIn` accepte ces métriques optionnelles (validées : bornes FC/dénivelé/calories/TE) → rangées dans `detail["metrics"]` ; `agenda_week` ressort `done.metrics`. Isolation par `athlete_id` (rien n'est partagé entre utilisateurs). Aucune route ajoutée (toujours 60).
+- **Affichage** : `WatchMetricsView` — encadré « ⌚ DONNÉES MONTRE » avec puces (distance, allure dérivée, FC, D+, kcal, cadence, TE) rendu après enregistrement et dans l'Agenda (ligne « fait »).
+- **Tests** : `test_save_done_with_watch_metrics` (persistance + ressortie agenda).
+
+**État** : 161 tests pytest + 4 audits PASS (60 routes API), TypeScript strict 0 erreur, export web OK.
+
+*Addendum v3.17 · 01/07/2026 · Claude Code.*

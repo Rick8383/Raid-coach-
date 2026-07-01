@@ -8,6 +8,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AgendaWeek, AnalyticsSnapshot, AthleteProfile, api } from '../api/client';
 import { ReadinessBar } from '../components/ReadinessBar';
 import { PlanView } from '../components/PlanView';
+import { WatchMetricsView } from '../components/WatchMetricsForm';
 import { Card, Tag } from '../components/ui';
 import { DAY_LABELS, DayCode, WEEK_LABEL } from '../schedule';
 import {
@@ -111,19 +112,22 @@ export function AgendaScreen({ profile }: { profile?: AthleteProfile | null }) {
               </View>
               <Text style={styles.intent}>{day.intent.label}</Text>
               {day.done ? (
-                <View style={styles.doneRow}>
-                  <Text style={[day.done.status === 'done' ? styles.done : styles.planned, { flex: 1 }]}>
-                    {day.done.status === 'done' ? '✓' : '○'} {disciplineLabel(day.done.discipline)}
-                    {' · '}{day.done.duration_min} min
-                    {day.done.status === 'done' ? ' · fait' : ' · prévu'}
-                    {day.done.score_label ? ` · 🏁 ${day.done.score_label}` : ''}
-                  </Text>
-                  {day.done.id ? (
-                    <Pressable onPress={() => removeDone(day.done!.id)} hitSlop={8} style={styles.delBtn}>
-                      <Text style={styles.delT}>✕</Text>
-                    </Pressable>
-                  ) : null}
-                </View>
+                <>
+                  <View style={styles.doneRow}>
+                    <Text style={[day.done.status === 'done' ? styles.done : styles.planned, { flex: 1 }]}>
+                      {day.done.status === 'done' ? '✓' : '○'} {disciplineLabel(day.done.discipline)}
+                      {' · '}{day.done.duration_min} min
+                      {day.done.status === 'done' ? ' · fait' : ' · prévu'}
+                      {day.done.score_label ? ` · 🏁 ${day.done.score_label}` : ''}
+                    </Text>
+                    {day.done.id ? (
+                      <Pressable onPress={() => removeDone(day.done!.id)} hitSlop={8} style={styles.delBtn}>
+                        <Text style={styles.delT}>✕</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                  {day.done.metrics ? <WatchMetricsView m={day.done.metrics} /> : null}
+                </>
               ) : (
                 <Text style={styles.pending}>—</Text>
               )}

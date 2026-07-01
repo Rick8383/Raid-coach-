@@ -314,6 +314,17 @@ class SessionSaveIn(BaseModel):
     title: str | None = None
     status: str = Field(default="planned", pattern="^(planned|done)$")
     detail: dict = {}
+    # Données réelles de la montre (Garmin) saisies à la main — toutes optionnelles,
+    # rangées dans detail["metrics"], isolées au profil courant (athlete_id).
+    distance_km: float | None = Field(default=None, ge=0, le=1000)
+    hr_avg: int | None = Field(default=None, ge=30, le=230)
+    hr_max: int | None = Field(default=None, ge=30, le=230)
+    elevation_m: int | None = Field(default=None, ge=0, le=12000)
+    calories: int | None = Field(default=None, ge=0, le=20000)
+    avg_pace: str | None = Field(default=None, max_length=12)
+    te_aerobic: float | None = Field(default=None, ge=0, le=5)
+    te_anaerobic: float | None = Field(default=None, ge=0, le=5)
+    cadence_spm: int | None = Field(default=None, ge=0, le=260)
 
 
 class ManualSessionIn(BaseModel):
@@ -986,10 +997,19 @@ def save_session(body: SessionSaveIn) -> dict:
     """Persiste une séance générée (planifiée pour une date, ou marquée faite)
     → visible dans l'historique et l'agenda. SU calculées si 'done'."""
     su = coach.compute_su(body.duration_min, body.intensity_rpe) if body.status == "done" else 0.0
+    metrics = {k: v for k, v in {
+        "distance_km": body.distance_km, "hr_avg": body.hr_avg, "hr_max": body.hr_max,
+        "elevation_m": body.elevation_m, "calories": body.calories, "avg_pace": body.avg_pace,
+        "te_aerobic": body.te_aerobic, "te_anaerobic": body.te_anaerobic,
+        "cadence_spm": body.cadence_spm,
+    }.items() if v is not None}
+    detail = dict(body.detail or {})
+    if metrics:
+        detail["metrics"] = {**detail.get("metrics", {}), **metrics}
     session_id = store.sessions.record(
         _aid(), body.discipline, body.session_date,
         body.duration_min, body.intensity_rpe, su,
-        body.detail, status=body.status, family_id=body.title)
+        detail, status=body.status, family_id=body.title)
     return {"status": "saved", "session_id": session_id, "persisted_status": body.status}
 
 
@@ -1148,11 +1168,13 @@ def agenda_week(body: ScheduleIn) -> dict:
     for day in week["days"]:
         rec = best.get(day["date"])
         if rec:
-            score = _wod_score(_detail_of(rec))
+            det = _detail_of(rec)
+            score = _wod_score(det)
             day["done"] = {"id": rec["id"], "discipline": rec["discipline"],
                            "duration_min": rec["duration_min"],
                            "status": rec["status"], "title": rec.get("family_id"),
-                           "score_label": score["label"] if score else None}
+                           "score_label": score["label"] if score else None,
+                           "metrics": det.get("metrics")}
         else:
             day["done"] = None
     return week

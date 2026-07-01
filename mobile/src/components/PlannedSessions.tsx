@@ -13,6 +13,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { PlanSession, StandbyInfo, api } from '../api/client';
 import { RunDetail, StrengthDetail, WodDetail } from './SessionDetail';
 import { RpeScale } from './RpeScale';
+import { WatchMetricsForm, WatchMetricsView, WatchMetrics } from './WatchMetricsForm';
 import { colors, spacing, typography } from '../theme/tokens';
 
 const TYPE_COLOR: Record<string, string> = {
@@ -37,20 +38,40 @@ function SessionExpanded({ s }: { s: PlanSession }) {
   return null;
 }
 
+const METRIC_KEYS: (keyof WatchMetrics)[] = [
+  'distance_km', 'hr_avg', 'hr_max', 'elevation_m', 'calories', 'cadence_spm',
+  'te_aerobic', 'te_anaerobic',
+];
+
 function CompleteRow({ s, dateIso }: { s: PlanSession; dateIso: string }) {
   const [open, setOpen] = useState(false);
   const [rpe, setRpe] = useState(7);
+  const [watchOpen, setWatchOpen] = useState(false);
+  const [metrics, setMetrics] = useState<WatchMetrics>({ duration_min: s.duration_min });
   const [done, setDone] = useState(false);
 
   const save = async () => {
-    await api.saveSession({
-      discipline: s.type, session_date: dateIso, duration_min: s.duration_min,
+    const dur = metrics.duration_min && metrics.duration_min > 0 ? metrics.duration_min : s.duration_min;
+    const body: Record<string, unknown> = {
+      discipline: s.type, session_date: dateIso, duration_min: dur,
       intensity_rpe: rpe, title: s.title, status: 'done', detail: s.detail ?? {},
-    });
+    };
+    for (const k of METRIC_KEYS) {
+      const v = metrics[k];
+      if (typeof v === 'number' && v > 0) body[k] = v;
+    }
+    await api.saveSession(body);
     setDone(true);
   };
 
-  if (done) return <Text style={styles.doneMsg}>✓ Séance enregistrée comme faite (RPE {rpe})</Text>;
+  if (done) {
+    return (
+      <View>
+        <Text style={styles.doneMsg}>✓ Séance enregistrée comme faite (RPE {rpe})</Text>
+        <WatchMetricsView m={{ ...metrics, duration_min: metrics.duration_min }} />
+      </View>
+    );
+  }
   if (!COMPLETABLE.has(s.type)) return null;
   return (
     <View style={styles.completeBox}>
@@ -58,6 +79,14 @@ function CompleteRow({ s, dateIso }: { s: PlanSession; dateIso: string }) {
         <>
           <Text style={styles.rpeLbl}>DIFFICULTÉ RESSENTIE (RPE)</Text>
           <RpeScale value={rpe} onChange={setRpe} />
+
+          <Pressable onPress={() => setWatchOpen(o => !o)} style={styles.watchToggle}>
+            <Text style={styles.watchToggleT}>
+              {watchOpen ? '−' : '＋'} Données réelles de la montre (Garmin)
+            </Text>
+          </Pressable>
+          {watchOpen && <WatchMetricsForm defaultDuration={s.duration_min} onChange={setMetrics} />}
+
           <Pressable onPress={save} style={styles.doneBtn}>
             <Text style={styles.doneBtnT}>✓ ENREGISTRER COMME FAIT</Text>
           </Pressable>
@@ -146,6 +175,8 @@ const styles = StyleSheet.create({
   markBtn: { paddingVertical: 12, borderRadius: spacing.cardRadius, borderWidth: 1, borderColor: colors.signal, alignItems: 'center' },
   markBtnT: { color: colors.signal, ...typography.label, fontSize: 11 },
   rpeLbl: { color: colors.textSecondary, ...typography.label, marginBottom: spacing.s, textAlign: 'center' },
+  watchToggle: { marginTop: spacing.m, paddingVertical: spacing.s, alignItems: 'center' },
+  watchToggleT: { color: colors.signal, fontSize: typography.sizes.small, ...typography.bodyBold },
   doneBtn: { backgroundColor: colors.signal, paddingVertical: 14, borderRadius: spacing.cardRadius, alignItems: 'center', marginTop: spacing.s },
   doneBtnT: { color: colors.bg, fontFamily: typography.display.fontFamily, fontSize: typography.sizes.h2, letterSpacing: 1 },
   doneMsg: { color: colors.signal, fontSize: typography.sizes.small, paddingVertical: spacing.m, textAlign: 'center' },

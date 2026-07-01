@@ -345,7 +345,8 @@ export interface AgendaDay {
   is_work_day: boolean;
   intent: { focus: string; label: string; load: string };
   done: { id?: number; discipline: string; duration_min: number; status: string;
-          title?: string | null; score_label?: string | null } | null;
+          title?: string | null; score_label?: string | null;
+          metrics?: Record<string, number> | null } | null;
 }
 
 export interface AgendaWeek {
