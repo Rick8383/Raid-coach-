@@ -806,3 +806,18 @@ Comptes **email + mot de passe**, **par athlète**, avec **isolation stricte** d
 **État** : 161 tests pytest + 4 audits PASS (60 routes API), TypeScript strict 0 erreur, export web OK.
 
 *Addendum v3.17 · 01/07/2026 · Claude Code.*
+
+-----
+
+### Addendum v3.18 — Séries de force réalisées + 1RM estimé (01/07/2026)
+
+> Retour utilisateur (rowing 5/3/1 : 5×80, 5×85, 6×90 au max). Il veut enregistrer les séries réellement faites (reps × charge). Déployé.
+
+- **Flux « marquer fait » (séances force)** : dépliant **« ＋ Séries réalisées (reps × charge) »** pré-rempli depuis le mouvement principal 5/3/1, puis modifiable série par série (reps + charge via `NumberField`, toggle « max » pour la série AMRAP, ajout/suppression de série). **1RM estimé (Epley)** calculé en direct depuis la meilleure série (ex. 6×90 → ≈ 108 kg).
+- **Backend** : `SessionSaveIn.performed` (dict `{lift, sets:[{reps, load_kg, top}], est_1rm}`) → rangé dans `detail["performed"]` ; `agenda_week` ressort `done.performed`. Isolation par utilisateur. Aucune route ajoutée.
+- **Affichage** : `PerformedView` — encadré « 🏋 SÉRIES RÉALISÉES · <lift> » avec puces `reps×charge` (série max surlignée) + 1RM estimé, rendu après enregistrement et dans l'Agenda.
+- **Tests** : `test_save_done_with_performed_sets`.
+
+**État** : 162 tests pytest + 4 audits PASS (60 routes API), TypeScript strict 0 erreur, export web OK.
+
+*Addendum v3.18 · 01/07/2026 · Claude Code.*

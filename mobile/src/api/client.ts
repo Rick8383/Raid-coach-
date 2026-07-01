@@ -346,7 +346,9 @@ export interface AgendaDay {
   intent: { focus: string; label: string; load: string };
   done: { id?: number; discipline: string; duration_min: number; status: string;
           title?: string | null; score_label?: string | null;
-          metrics?: Record<string, number> | null } | null;
+          metrics?: Record<string, number> | null;
+          performed?: { lift: string; sets: { reps: number; load_kg: number; top: boolean }[];
+                        est_1rm: number } | null } | null;
 }
 
 export interface AgendaWeek {

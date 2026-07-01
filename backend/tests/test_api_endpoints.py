@@ -233,6 +233,25 @@ def test_save_done_with_watch_metrics(client):
     assert m["te_aerobic"] == 3.5 and m["te_anaerobic"] == 1.8
 
 
+def test_save_done_with_performed_sets(client):
+    # Force : séries réellement réalisées (reps × charge) + 1RM estimé. Lundi.
+    perf = {"lift": "Rowing", "est_1rm": 108.0, "sets": [
+        {"reps": 5, "load_kg": 80, "top": False},
+        {"reps": 5, "load_kg": 85, "top": False},
+        {"reps": 6, "load_kg": 90, "top": True}]}
+    r = client.post("/sessions/save", json={
+        "discipline": "strength", "session_date": "2028-02-21",
+        "duration_min": 70, "intensity_rpe": 8, "status": "done",
+        "performed": perf})
+    assert r.status_code == 200
+    week = client.post("/agenda/week", json={"date": "2028-02-21"}).json()
+    day = next(d for d in week["days"] if d["date"] == "2028-02-21")
+    p = day["done"]["performed"]
+    assert p["lift"] == "Rowing" and p["est_1rm"] == 108.0
+    assert len(p["sets"]) == 3
+    assert p["sets"][2] == {"reps": 6, "load_kg": 90, "top": True}
+
+
 # ---------- Générateur Run (Mission 2) ----------
 def test_run_generate_detail(client):
     r = client.get("/generate/run?type=vma_courte&seed=1")

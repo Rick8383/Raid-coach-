@@ -14,6 +14,7 @@ import { PlanSession, StandbyInfo, api } from '../api/client';
 import { RunDetail, StrengthDetail, WodDetail } from './SessionDetail';
 import { RpeScale } from './RpeScale';
 import { WatchMetricsForm, WatchMetricsView, WatchMetrics } from './WatchMetricsForm';
+import { StrengthActualsForm, PerformedView, Performed } from './StrengthActualsForm';
 import { colors, spacing, typography } from '../theme/tokens';
 
 const TYPE_COLOR: Record<string, string> = {
@@ -48,7 +49,10 @@ function CompleteRow({ s, dateIso }: { s: PlanSession; dateIso: string }) {
   const [rpe, setRpe] = useState(7);
   const [watchOpen, setWatchOpen] = useState(false);
   const [metrics, setMetrics] = useState<WatchMetrics>({ duration_min: s.duration_min });
+  const [liftsOpen, setLiftsOpen] = useState(false);
+  const [performed, setPerformed] = useState<Performed | null>(null);
   const [done, setDone] = useState(false);
+  const isStrength = s.type === 'strength';
 
   const save = async () => {
     const dur = metrics.duration_min && metrics.duration_min > 0 ? metrics.duration_min : s.duration_min;
@@ -60,6 +64,7 @@ function CompleteRow({ s, dateIso }: { s: PlanSession; dateIso: string }) {
       const v = metrics[k];
       if (typeof v === 'number' && v > 0) body[k] = v;
     }
+    if (performed && performed.sets.some(x => x.load_kg > 0 || x.reps > 0)) body.performed = performed;
     await api.saveSession(body);
     setDone(true);
   };
@@ -68,7 +73,8 @@ function CompleteRow({ s, dateIso }: { s: PlanSession; dateIso: string }) {
     return (
       <View>
         <Text style={styles.doneMsg}>✓ Séance enregistrée comme faite (RPE {rpe})</Text>
-        <WatchMetricsView m={{ ...metrics, duration_min: metrics.duration_min }} />
+        {performed ? <PerformedView p={performed} /> : null}
+        <WatchMetricsView m={metrics} />
       </View>
     );
   }
@@ -79,6 +85,17 @@ function CompleteRow({ s, dateIso }: { s: PlanSession; dateIso: string }) {
         <>
           <Text style={styles.rpeLbl}>DIFFICULTÉ RESSENTIE (RPE)</Text>
           <RpeScale value={rpe} onChange={setRpe} />
+
+          {isStrength && (
+            <>
+              <Pressable onPress={() => setLiftsOpen(o => !o)} style={styles.watchToggle}>
+                <Text style={styles.watchToggleT}>
+                  {liftsOpen ? '−' : '＋'} Séries réalisées (reps × charge)
+                </Text>
+              </Pressable>
+              {liftsOpen && <StrengthActualsForm detail={s.detail} onChange={setPerformed} />}
+            </>
+          )}
 
           <Pressable onPress={() => setWatchOpen(o => !o)} style={styles.watchToggle}>
             <Text style={styles.watchToggleT}>

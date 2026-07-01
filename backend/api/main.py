@@ -325,6 +325,9 @@ class SessionSaveIn(BaseModel):
     te_aerobic: float | None = Field(default=None, ge=0, le=5)
     te_anaerobic: float | None = Field(default=None, ge=0, le=5)
     cadence_spm: int | None = Field(default=None, ge=0, le=260)
+    # Séries de force réellement réalisées (reps × charge par série) + 1RM estimé.
+    # {"lift": str, "sets": [{"reps": int, "load_kg": float, "top": bool}], "est_1rm": float}
+    performed: dict | None = None
 
 
 class ManualSessionIn(BaseModel):
@@ -1006,6 +1009,8 @@ def save_session(body: SessionSaveIn) -> dict:
     detail = dict(body.detail or {})
     if metrics:
         detail["metrics"] = {**detail.get("metrics", {}), **metrics}
+    if body.performed:
+        detail["performed"] = body.performed
     session_id = store.sessions.record(
         _aid(), body.discipline, body.session_date,
         body.duration_min, body.intensity_rpe, su,
@@ -1174,7 +1179,8 @@ def agenda_week(body: ScheduleIn) -> dict:
                            "duration_min": rec["duration_min"],
                            "status": rec["status"], "title": rec.get("family_id"),
                            "score_label": score["label"] if score else None,
-                           "metrics": det.get("metrics")}
+                           "metrics": det.get("metrics"),
+                           "performed": det.get("performed")}
         else:
             day["done"] = None
     return week

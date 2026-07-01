@@ -9,6 +9,7 @@ import { AgendaWeek, AnalyticsSnapshot, AthleteProfile, api } from '../api/clien
 import { ReadinessBar } from '../components/ReadinessBar';
 import { PlanView } from '../components/PlanView';
 import { WatchMetricsView } from '../components/WatchMetricsForm';
+import { PerformedView } from '../components/StrengthActualsForm';
 import { Card, Tag } from '../components/ui';
 import { DAY_LABELS, DayCode, WEEK_LABEL } from '../schedule';
 import {
@@ -126,6 +127,7 @@ export function AgendaScreen({ profile }: { profile?: AthleteProfile | null }) {
                       </Pressable>
                     ) : null}
                   </View>
+                  {day.done.performed ? <PerformedView p={day.done.performed} /> : null}
                   {day.done.metrics ? <WatchMetricsView m={day.done.metrics} /> : null}
                 </>
               ) : (
