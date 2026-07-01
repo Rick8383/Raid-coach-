@@ -59,6 +59,22 @@ def _build_session(spec, w_index, weekday, vma, fcmax, maxes=None):
         detail = generate_run(sub, seed, vma, fcmax, progress=w_index)
         dur = detail["duration_min"]
         title = detail["title"]
+        # Pliométrie légère + sprints en côte 1×/semaine (jour VMA courte) :
+        # améliore l'économie de course sans volume ajouté (Balsalobre 2016 ;
+        # Rønnestad & Mujika 2014). Volume bas, progressif, sciatique-safe
+        # (réception amortie, pas de contact lombaire).
+        if sub == "vma_courte":
+            level = min(3, w_index // 4)   # progression par cycle de 4 semaines
+            detail["plyo_finisher"] = {
+                "title": "Pliométrie + côtes (8-10', après la séance)",
+                "blocks": [
+                    f"{3 + level}×20 m sprint en côte (4-6 %), marche de retour",
+                    f"{2 + level}×8 foulées bondissantes, récup 60 s",
+                    f"2×{8 + 2 * level} sauts corde pieds joints (souples, silencieux)",
+                    "Réceptions AMORTIES genoux souples — stop si gêne sciatique.",
+                ],
+            }
+            dur += 10
     elif stype == "strength":
         week_in_cycle = (w_index % 4) + 1
         cycle = w_index // 4
@@ -103,6 +119,32 @@ def _day_payload(d: date, shift_weeks: int, vma: float, fcmax: int,
         specs = [(m, t, "fullbody") if t == "strength" else (m, t, s) for (m, t, s) in specs]
     sessions = [_build_session(spec, plan_w, d.weekday(), vma, fcmax, maxes)
                 for spec in specs]
+    # SEMAINE DE TESTS toutes les 6 semaines (S6, S12, S18…) : le dimanche, la
+    # séance du jour est remplacée par la batterie de tests RAID → progression
+    # objective vers les barèmes (Cooper, Luc Léger, tractions, pompes, corde).
+    if plan_w % 6 == 5 and d.weekday() == 6:
+        n_test = plan_w // 6 + 1
+        sessions = [{
+            "moment": "matin", "type": "crossfit",
+            "title": f"TESTS RAID — batterie n°{n_test}",
+            "duration_min": 60,
+            "detail": {
+                "name": f"TESTS RAID — batterie n°{n_test}",
+                "format": "TEST", "duration_or_cap": "60' avec récup complètes",
+                "description": [
+                    "Cooper 12 min — distance max (objectif : ≥ 3000 m)",
+                    "Récup 10-15 min marche/trot très facile",
+                    "Tractions strictes — max sans lâcher la barre (objectif : ≥ 15)",
+                    "Pompes — max en 2 min (objectif : ≥ 50)",
+                    "Montée de corde 5 m si dispo (objectif : sans les jambes)",
+                    "→ Note chaque résultat dans l'onglet TESTS pour suivre la courbe.",
+                ],
+                "target_score": "Bat tes chiffres de la batterie précédente",
+                "muscles": "test global (aérobie + tirage + poussée)",
+                "lumbar_safe": True,
+                "lumbar_note": "Échauffement complet avant chaque test ; gainage neutre sur les tractions.",
+            },
+        }]
     # Mobilité quotidienne (style GOWOD) : 10-12' le soir, focus dérivé de la
     # séance principale du jour (jour off → routine complète). Le travail
     # QUOTIDIEN court est le plus efficace pour gagner de l'amplitude

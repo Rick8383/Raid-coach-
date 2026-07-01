@@ -14,7 +14,7 @@ import {
 } from '../api/client';
 import { StackBar } from '../components/Chart';
 import { Card, Tag } from '../components/ui';
-import { daySchedule } from '../schedule';
+import { daySchedule, localISODate } from '../schedule';
 import { colors, spacing, typography } from '../theme/tokens';
 
 function ageFrom(birth?: string): number {
@@ -48,6 +48,9 @@ export function NutritionScreen({ profile }: { profile: AthleteProfile | null })
       weight_kg: profile.weight_kg ?? 75, height_cm: profile.height_cm ?? 172,
       age: ageFrom(profile.birth_date), body_fat_pct: profile.body_fat_pct,
       target_weight_kg: profile.target_weight_kg, activity,
+      // La date déclenche l'auto-détection serveur depuis le PLAN du jour
+      // (périodisation glucidique automatique) ; `activity` reste le repli.
+      date: localISODate(),
     }).then(setMacros).catch(() => {});
   }, [profile, activity]);
 
@@ -93,6 +96,9 @@ function MacrosTab({ macros, profile, sched, activity }:
       </View>
       <Card style={{ padding: spacing.l, marginTop: spacing.m, alignItems: 'center' }}>
         <Text style={styles.dayType}>{DAY_TYPE_LABEL[macros.day_type] ?? macros.day_type}</Text>
+        {!!macros.auto_activity && (
+          <Text style={styles.autoDay}>🎯 Auto : {macros.auto_activity.reason}</Text>
+        )}
         <Text style={styles.calories}>{macros.calories}</Text>
         <Text style={styles.cLabel}>kcal cible</Text>
       </Card>
@@ -268,6 +274,7 @@ const styles = StyleSheet.create({
   empty: { color: colors.textDisabled, textAlign: 'center', marginTop: spacing.xl },
   contextRow: { flexDirection: 'row', gap: spacing.s },
   dayType: { color: colors.textSecondary, ...typography.label },
+  autoDay: { color: colors.fitness, fontSize: typography.sizes.small, marginTop: 2 },
   calories: { color: colors.textPrimary, fontFamily: typography.display.fontFamily, fontSize: 52 },
   cLabel: { color: colors.textSecondary, ...typography.label },
   legend: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.s },

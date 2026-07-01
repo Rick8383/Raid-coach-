@@ -5,6 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { api } from '../api/client';
 import { GaugeInput } from '../components/GaugeInput';
+import { NumberField } from '../components/NumberField';
 import { HealthSnapshot, readHealthSnapshot } from '../wearable/health';
 import { colors, spacing, typography } from '../theme/tokens';
 import { localISODate } from '../schedule';
@@ -13,24 +14,28 @@ export function CheckinScreen({ onDone }: { onDone: (c: any) => void }) {
   const [readiness, setReadiness] = useState(70);
   const [fatigue, setFatigue] = useState(40);
   const [sleep, setSleep] = useState(70);
+  const [sleepHours, setSleepHours] = useState(0);   // 0 = non renseigné
   const [sciatic, setSciatic] = useState(false);
   const [health, setHealth] = useState<HealthSnapshot | null>(null);
 
-  // Lecture wearable au montage : pré-remplit la qualité de sommeil.
+  // Lecture wearable au montage : pré-remplit qualité ET heures de sommeil
+  // (modifiables à la main — la montre n'est pas toujours connectée).
   useEffect(() => {
     readHealthSnapshot().then(h => {
       setHealth(h);
       if (h.sleep_quality != null) setSleep(h.sleep_quality);
+      if (h.sleep_hours != null) setSleepHours(h.sleep_hours);
     }).catch(() => {});
   }, []);
 
   const submit = async () => {
-    const checkin = { readiness, fatigue, sleep, sciatic };
+    const checkin = { readiness, fatigue, sleep, sciatic,
+      sleep_hours: sleepHours > 0 ? sleepHours : undefined };
     await api.recordMetrics({
       date: localISODate(),
       readiness, fatigue,
       sleep_quality: sleep,
-      sleep_hours: health?.sleep_hours ?? undefined,
+      sleep_hours: sleepHours > 0 ? sleepHours : undefined,
       hrv: health?.hrv_ms ?? undefined,
       resting_hr: health?.resting_hr ?? undefined,
       sciatic_flare: sciatic,
@@ -60,6 +65,17 @@ export function CheckinScreen({ onDone }: { onDone: (c: any) => void }) {
       <GaugeInput label="Forme ressentie" value={readiness} onChange={setReadiness} />
       <GaugeInput label="Fatigue" value={fatigue} onChange={setFatigue} color={colors.readyOrange} />
       <GaugeInput label="Sommeil" value={sleep} onChange={setSleep} color={colors.fitness} />
+      <View style={[styles.row, styles.switchRow]}>
+        <Text style={styles.label}>Heures de sommeil (0 = non renseigné)</Text>
+        <NumberField value={sleepHours} step={0.5} min={0} max={14} decimals={1} unit="h"
+          onChange={setSleepHours} />
+      </View>
+      {sleepHours > 0 && sleepHours < 6 && (
+        <Text style={styles.sleepWarn}>
+          ⚠ Moins de 6 h : la séance du jour sera plafonnée en intensité —
+          le manque de sommeil dégrade performance et récupération.
+        </Text>
+      )}
       <View style={[styles.row, styles.switchRow]}>
         <Text style={styles.label}>Gêne sciatique aujourd'hui</Text>
         <Switch value={sciatic} onValueChange={setSciatic}
@@ -102,6 +118,7 @@ const styles = StyleSheet.create({
   rowHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.xs },
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   label: { color: colors.textSecondary, ...typography.label },
+  sleepWarn: { color: colors.readyOrange, fontSize: typography.sizes.small, lineHeight: 18, marginTop: spacing.xs },
   value: { color: colors.textPrimary, fontFamily: typography.display.fontFamily,
     fontSize: typography.sizes.h2 },
   go: { backgroundColor: colors.signal, borderRadius: spacing.cardRadius,

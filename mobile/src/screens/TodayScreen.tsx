@@ -24,7 +24,7 @@ function weeksToSelection(): number {
     (SELECTION_DATE.getTime() - Date.now()) / (7 * 24 * 3600 * 1000)));
 }
 
-type Checkin = { readiness: number; fatigue: number; sleep: number; sciatic: boolean };
+type Checkin = { readiness: number; fatigue: number; sleep: number; sciatic: boolean; sleep_hours?: number };
 
 export function TodayScreen({ checkin, profile }: {
   checkin: Checkin;
@@ -45,6 +45,7 @@ export function TodayScreen({ checkin, profile }: {
       readiness: checkin.readiness,
       fatigue: checkin.fatigue,
       sleep_quality: checkin.sleep,
+      sleep_hours: checkin.sleep_hours,   // < 6 h → intensité plafonnée (Fullagar 2015)
       sciatic_flare: checkin.sciatic,
       weeks_to_main_goal: weeksToSelection(),
     }).then(setData).catch(e => setError(String(e)));

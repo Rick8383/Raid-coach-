@@ -61,7 +61,18 @@ function CompleteRow({ s, dateIso, alreadyDone, onSaved }: {
   const [performed, setPerformed] = useState<Performed | null>(null);
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [rmSug, setRmSug] = useState<{ lift_key: string; lift_name: string;
+    current_1rm: number | null; estimated_1rm: number } | null>(null);
+  const [rmUpdated, setRmUpdated] = useState(false);
   const isStrength = s.type === 'strength';
+
+  const applyRm = async () => {
+    if (!rmSug) return;
+    try {
+      await api.setLift1RM(rmSug.lift_key, rmSug.estimated_1rm);
+      setRmUpdated(true);
+    } catch { /* réessayable */ }
+  };
 
   const save = async () => {
     if (busy) return;                 // anti double-clic pendant l'envoi
@@ -77,7 +88,8 @@ function CompleteRow({ s, dateIso, alreadyDone, onSaved }: {
     }
     if (performed && performed.sets.some(x => x.load_kg > 0 || x.reps > 0)) body.performed = performed;
     try {
-      await api.saveSession(body);
+      const res = await api.saveSession(body);
+      if (res.rm_suggestion) setRmSug(res.rm_suggestion);
       setDone(true);
       onSaved();   // le parent marque la séance faite → l'état survit au repli/dépli
     } finally { setBusy(false); }
@@ -89,6 +101,21 @@ function CompleteRow({ s, dateIso, alreadyDone, onSaved }: {
         <Text style={styles.doneMsg}>✓ Séance enregistrée comme faite (RPE {rpe})</Text>
         {performed ? <PerformedView p={performed} /> : null}
         <WatchMetricsView m={metrics} />
+        {rmSug && (rmUpdated ? (
+          <Text style={styles.doneMsg}>
+            ✓ 1RM {rmSug.lift_name} mis à jour à {rmSug.estimated_1rm} kg — plan recalculé
+          </Text>
+        ) : (
+          // Autorégulation : la série max dépasse le 1RM enregistré → 1 clic
+          // pour recaler les charges 5/3/1 sur le vrai niveau.
+          <Pressable onPress={applyRm} style={styles.rmBtn}>
+            <Text style={styles.rmBtnT}>
+              ⬆ Ta série max vaut ≈ {rmSug.estimated_1rm} kg au {rmSug.lift_name}
+              {rmSug.current_1rm ? ` (1RM actuel : ${rmSug.current_1rm} kg)` : ''}
+              {'\n'}METTRE À JOUR MON 1RM
+            </Text>
+          </Pressable>
+        ))}
       </View>
     );
   }
@@ -257,6 +284,11 @@ const styles = StyleSheet.create({
   watchToggleT: { color: colors.signal, fontSize: typography.sizes.small, ...typography.bodyBold },
   editBtn: { alignItems: 'center', paddingVertical: spacing.s },
   editBtnT: { color: colors.textSecondary, fontSize: typography.sizes.small, textDecorationLine: 'underline' },
+  rmBtn: {
+    marginTop: spacing.s, backgroundColor: colors.signalSoft, borderWidth: 1,
+    borderColor: colors.signal, borderRadius: spacing.cardRadius, padding: spacing.m,
+  },
+  rmBtnT: { color: colors.signal, fontSize: typography.sizes.small, lineHeight: 19, textAlign: 'center', ...typography.bodyBold },
   doneBtn: { backgroundColor: colors.signal, paddingVertical: 14, borderRadius: spacing.cardRadius, alignItems: 'center', marginTop: spacing.s },
   doneBtnT: { color: colors.bg, fontFamily: typography.display.fontFamily, fontSize: typography.sizes.h2, letterSpacing: 1 },
   doneMsg: { color: colors.signal, fontSize: typography.sizes.small, paddingVertical: spacing.m, textAlign: 'center' },

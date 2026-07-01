@@ -268,6 +268,7 @@ export interface RunSession {
   duration_min: number; distance_km: number; calories: number;
   warmup: RunInterval; body: RunInterval[]; cooldown: RunInterval;
   sciatic_note: string;
+  plyo_finisher?: { title: string; blocks: string[] };
 }
 
 export interface Wod {
@@ -412,6 +413,10 @@ export interface AnalyticsSnapshot {
   risk?: string;
   risk_reasons?: string[];
   sessions_logged?: number;
+  intensity_distribution?: {
+    low_pct: number; target_low_pct: number;
+    low_min: number; high_min: number; message: string;
+  } | null;
 }
 
 export interface ChatReply {
@@ -478,6 +483,7 @@ export interface MacroTarget {
   notes: string[];
   meal_distribution?: { meals: number; protein_per_meal_g: number; note: string };
   peri_workout?: { avant: string; apres: string; double_seance: string };
+  auto_activity?: { activity: string; reason: string } | null;
 }
 
 export interface SupplementItem { name: string; dose: string; with: string; evidence: string; why: string; }
@@ -655,7 +661,11 @@ export const api = {
   // Sauvegarde d'une séance générée (planifiée/faite) → tentée en direct,
   // mise en file si hors connexion. Invalide le cache agenda/historique pour
   // que la séance (ex. force « marquée comme faite ») s'y reflète tout de suite.
-  saveSession: async (body: Json): Promise<{ session_id?: number; queued?: boolean }> => {
+  saveSession: async (body: Json): Promise<{
+    session_id?: number; queued?: boolean;
+    rm_suggestion?: { lift_key: string; lift_name: string;
+                      current_1rm: number | null; estimated_1rm: number } | null;
+  }> => {
     try {
       const res = await post<{ session_id?: number }>('/sessions/save', body);
       await invalidateAgendaCaches();

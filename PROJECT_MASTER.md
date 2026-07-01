@@ -862,3 +862,20 @@ Comptes **email + mot de passe**, **par athlète**, avec **isolation stricte** d
 **État** : 164 tests pytest + 4 audits PASS (61 routes API), TypeScript strict 0 erreur, export web OK.
 
 *Addendum v3.20 · 01/07/2026 · Claude Fable 5.*
+
+-----
+
+### Addendum v3.21 — Améliorations 1→6 (performance & suivi, evidence-based) (01/07/2026)
+
+> Le propriétaire a validé les 6 propositions de l'audit v3.20. Déployé.
+
+1. **1RM auto-ajusté (autorégulation — Helms 2016)** : `/sessions/save` compare le 1RM estimé (Epley) des séries loggées au 1RM enregistré (`_lift_key_of` : nom affiché → clé bench/squat/ohp/row). S'il est supérieur (>1 kg) → `rm_suggestion` dans la réponse ; l'app affiche « ⬆ METTRE À JOUR MON 1RM » (1 clic → `setLift1RM` → plan recalculé). Jamais automatique.
+2. **Jauge 80/20 (Seiler 2006 ; Stöggl & Sperlich 2014)** : `/analytics/snapshot` renvoie `intensity_distribution` — % du volume course (pondéré durée, 28 dernières séances) en basse intensité (RPE ≤ 4,5), cible 80 %. Jauge avec repère 80 % dans la carte État de forme (Agenda).
+3. **Pliométrie + sprints en côte 1×/sem (Balsalobre 2016 ; Rønnestad & Mujika 2014)** : le jour VMA courte reçoit un `plyo_finisher` 8-10' progressif par cycle de 4 semaines (sprints en côte, foulées bondissantes, corde) — réceptions amorties, sciatique-safe. Rendu dans le détail course (section ⚡).
+4. **Batterie de tests RAID toutes les 6 semaines** : le dimanche des semaines 6, 12, 18… (plan_w % 6 == 5), la séance est remplacée par « TESTS RAID — batterie n°N » : Cooper (≥ 3000 m), tractions max (≥ 15), pompes 2 min (≥ 50), corde 5 m — résultats à noter dans l'onglet Tests (courbes de progression existantes).
+5. **Sommeil au check-in (Fullagar 2015)** : champ « heures de sommeil » (pré-rempli wearable, modifiable) ; < 6 h → `/coach/session` plafonne `intensity_cap` (RPE 6, ou 5 si < 5 h) + note de sécurité. Avertissement visible dès la saisie.
+6. **Glucides auto-périodisés (« fuel for the work required » — Impey 2018)** : `/nutrition/daily-macros` accepte `date` → l'activité est dérivée des séances RÉELLEMENT planifiées (repos→low, Z2/natation→light, qualité→moderate, double→high) via `_activity_from_plan` (standby inclus). L'écran Nutrition envoie la date du jour et affiche « 🎯 Auto : … ». Sans date : comportement historique.
+
+**Tests** : `tests/test_improvements.py` (6 tests, un par amélioration). **État** : 170 tests pytest + 4 audits PASS (61 routes), TypeScript strict 0 erreur, export web OK.
+
+*Addendum v3.21 · 01/07/2026 · Claude Fable 5.*

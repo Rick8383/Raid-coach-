@@ -168,6 +168,22 @@ function FormCard({ stats }: { stats: AnalyticsSnapshot }) {
         <Metric value={(stats.risk ?? '—').toUpperCase()} label="risque"
           color={stats.risk === 'low' ? colors.signal : colors.readyOrange} />
       </View>
+      {!!stats.intensity_distribution && (
+        // Jauge 80/20 (Seiler) : part du volume course en basse intensité.
+        <View style={styles.z2Box}>
+          <View style={styles.z2Head}>
+            <Text style={styles.z2Label}>COURSE FACILE / INTENSE (objectif 80/20)</Text>
+            <Text style={[styles.z2Pct, {
+              color: stats.intensity_distribution.low_pct >= 75 ? colors.signal : colors.readyOrange,
+            }]}>{stats.intensity_distribution.low_pct}%</Text>
+          </View>
+          <View style={styles.z2Track}>
+            <View style={[styles.z2Fill, { width: `${Math.min(100, stats.intensity_distribution.low_pct)}%` }]} />
+            <View style={styles.z2Target} />
+          </View>
+          <Text style={styles.z2Msg}>{stats.intensity_distribution.message}</Text>
+        </View>
+      )}
     </Card>
   );
 }
@@ -191,6 +207,14 @@ const styles = StyleSheet.create({
   viewTextOn: { color: colors.bg },
   formHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   formLabel: { color: colors.textSecondary, ...typography.label },
+  z2Box: { marginTop: spacing.m },
+  z2Head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  z2Label: { color: colors.textSecondary, ...typography.label, fontSize: 9 },
+  z2Pct: { fontFamily: typography.display.fontFamily, fontSize: typography.sizes.h2 },
+  z2Track: { height: 6, backgroundColor: colors.hairline, borderRadius: 3, marginTop: 4, overflow: 'hidden' },
+  z2Fill: { height: 6, backgroundColor: colors.signalDim, borderRadius: 3 },
+  z2Target: { position: 'absolute', left: '80%', top: 0, width: 2, height: 6, backgroundColor: colors.textPrimary },
+  z2Msg: { color: colors.textSecondary, fontSize: typography.sizes.micro, marginTop: 4, lineHeight: 14 },
   warming: { color: colors.textSecondary, fontSize: typography.sizes.small, marginTop: spacing.s, lineHeight: 19 },
   metricsRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.m },
   metric: { alignItems: 'center', flex: 1 },

@@ -22,7 +22,7 @@ import { initReminders } from './src/notifications';
 import { colors, typography } from './src/theme/tokens';
 
 type Tab = 'today' | 'workouts' | 'agenda' | 'nutrition' | 'benchmarks' | 'coach' | 'profile';
-type Checkin = { readiness: number; fatigue: number; sleep: number; sciatic: boolean };
+type Checkin = { readiness: number; fatigue: number; sleep: number; sciatic: boolean; sleep_hours?: number };
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'today', label: 'JOUR' },

@@ -83,6 +83,14 @@ export function RunDetail({ session }: { session: RunSession }) {
       {session.body.map((it, i) => <RunRow key={i} it={it} />)}
       <Text style={styles.phase}>RETOUR AU CALME</Text>
       <RunRow it={session.cooldown} />
+      {!!session.plyo_finisher && (
+        <>
+          <Text style={styles.phase}>⚡ {session.plyo_finisher.title.toUpperCase()}</Text>
+          {session.plyo_finisher.blocks.map((b, i) => (
+            <Text key={i} style={styles.line}>• {b}</Text>
+          ))}
+        </>
+      )}
       {!!session.sciatic_note && <Text style={styles.sciatic}>⚠ {session.sciatic_note}</Text>}
     </View>
   );

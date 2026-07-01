@@ -125,6 +125,23 @@ def _schedule_config() -> dict:
 # 1RM par mouvement (benchmark `{lift}_1rm`) → charges 5/3/1 personnalisées.
 _STRENGTH_LIFTS = ("bench", "squat", "ohp", "row")
 
+# Nom affiché du mouvement principal → clé de benchmark 1RM (autorégulation :
+# la série AMRAP loggée sert à proposer une mise à jour du 1RM — Helms 2016).
+_LIFT_NAME_TO_KEY = {
+    "développé couché": "bench", "bench": "bench",
+    "squat": "squat",
+    "presse militaire": "ohp", "développé militaire": "ohp", "ohp": "ohp",
+    "rowing": "row", "row": "row",
+}
+
+
+def _lift_key_of(name: str) -> str | None:
+    low = (name or "").strip().lower()
+    for frag, key in _LIFT_NAME_TO_KEY.items():
+        if frag in low:
+            return key
+    return None
+
 
 def _strength_maxes() -> dict:
     """1RM (kg) de l'athlète courant par mouvement, depuis ses benchmarks
@@ -168,6 +185,7 @@ class SessionTodayIn(BaseModel):
     readiness: float = Field(ge=0, le=100)
     fatigue: float = Field(ge=0, le=100)
     sleep_quality: float = Field(ge=0, le=100)
+    sleep_hours: float | None = Field(default=None, ge=0, le=24)
     sciatic_flare: bool = False
     pain_flag: bool = False
     # contexte planning : si `date` est fourni, jour/semaine sont calés sur le 3/2/2/3
@@ -266,6 +284,9 @@ class MacrosIn(BaseModel):
     target_weight_kg: float | None = None
     phase: str = "recomp"
     activity: str = "moderate"
+    # Si fournie, l'activité est AUTO-DÉRIVÉE des séances planifiées ce jour-là
+    # (périodisation glucidique « fuel for the work required » — Impey 2018).
+    date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
 
 
 class WeightIn(BaseModel):
@@ -513,6 +534,29 @@ def _analytics_from_store() -> dict:
                 best_amrap = max(best_amrap, float(res.get("reps") or 0))
     performance_scores = wod_perf if len(wod_perf) >= 3 else readiness
 
+    # Distribution d'intensité course 80/20 (Seiler 2006 ; Stöggl & Sperlich
+    # 2014) : ~80 % du volume course en basse intensité (RPE ≤ 4). Pondéré par
+    # la durée, sur les 28 dernières séances enregistrées.
+    run_low = run_high = 0
+    for s in sessions:
+        if s["status"] == "done" and s["discipline"] == "run":
+            dur = int(s["duration_min"] or 0)
+            if float(s["intensity_rpe"] or 7) <= 4.5:
+                run_low += dur
+            else:
+                run_high += dur
+    run_total = run_low + run_high
+    intensity = None
+    if run_total >= 60:   # au moins ~1h de course loggée pour être parlant
+        low_pct = round(100 * run_low / run_total)
+        intensity = {
+            "low_pct": low_pct, "target_low_pct": 80,
+            "low_min": run_low, "high_min": run_high,
+            "message": ("Bonne base : garde tes footings VRAIMENT faciles."
+                        if low_pct >= 75 else
+                        "Trop d'intensité : tes séances faciles doivent rester faciles (RPE ≤ 4)."),
+        }
+
     chronic = sum(loads) / len(loads)
     data = AnalyticsInput(
         recent_loads=loads[:7], chronic_load=chronic,
@@ -521,6 +565,7 @@ def _analytics_from_store() -> dict:
         weakness_scores={})
     r = coach.analytics.analyze(data)
     return {
+        "intensity_distribution": intensity,
         "status": r.global_status,
         "fitness": round(r.fitness.score, 1),
         "fatigue": round(r.fatigue.score, 1),
@@ -690,7 +735,18 @@ def coach_session(body: SessionTodayIn) -> dict:
     for k, v in adaptive.items():
         payload.setdefault(k, v)  # l'override explicite du client est prioritaire
     cfg = _schedule_config()
+    # Sommeil court (< 6 h) → intensité du jour plafonnée : la privation de
+    # sommeil dégrade performance, coordination et récupération (Fullagar
+    # 2015) — on garde le volume facile, on coupe le très intense.
+    sleep_h = payload.pop("sleep_hours", None)
     result = _safe(lambda p: coach.session_today(p, cfg), payload)
+    if sleep_h is not None and float(sleep_h) < 6:
+        cap = 6.0 if float(sleep_h) >= 5 else 5.0
+        if float(result.get("intensity_cap") or 10) > cap:
+            result["intensity_cap"] = cap
+        notes = result.setdefault("safety_notes", [])
+        notes.insert(0, f"Sommeil {sleep_h:g} h : intensité plafonnée à RPE {cap:g} "
+                        "aujourd'hui — garde le volume facile, coupe le très intense.")
     result["context"] = {
         "budget_consumed_pct": payload.get("budget_consumed_pct", 0),
         "days_since_rest": payload.get("days_since_rest", 0),
@@ -923,12 +979,41 @@ def auto_plan(body: AutoPlanIn) -> dict:
     return _safe(coach.auto_plan, body.model_dump())
 
 
+def _activity_from_plan(date: str) -> tuple[str, str]:
+    """Niveau d'activité dérivé des séances RÉELLEMENT planifiées ce jour
+    (plan de l'athlète, standby inclus) → périodisation glucidique automatique
+    « fuel for the work required » (Impey et al. 2018)."""
+    day = _resolve_day(date, None, None)
+    mains = [s for s in day.get("sessions", []) if s.get("type") != "recovery"]
+    hard = {"strength", "crossfit"}
+    hard_run = ("vma", "seuil", "cotes", "fartlek", "tempo")
+    n_hard = sum(1 for s in mains
+                 if s.get("type") in hard
+                 or (s.get("type") == "run" and any(k in str(s.get("title", "")).lower() for k in hard_run)))
+    if not mains:
+        return "rest", "jour de repos → low carb"
+    if len(mains) >= 2:
+        return "high", "double séance → high carb"
+    if n_hard:
+        return "moderate", "séance qualité → medium carb"
+    return "light", "séance facile (Z2/natation) → medium carb léger"
+
+
 @app.post("/nutrition/daily-macros")
 def daily_macros(body: MacrosIn) -> dict:
     payload = body.model_dump()
     if payload["target_weight_kg"] is None:
         payload["target_weight_kg"] = payload["weight_kg"]
+    auto_reason = None
+    date = payload.pop("date", None)
+    if date:
+        try:
+            payload["activity"], auto_reason = _activity_from_plan(date)
+        except Exception:   # noqa: BLE001 — plan indisponible → activité fournie
+            pass
     res = _safe(coach.daily_macros, payload)
+    if auto_reason:
+        res["auto_activity"] = {"activity": payload["activity"], "reason": auto_reason}
     # Répartition protéique par repas (Schoenfeld & Aragon 2018 : ~0,4 g/kg
     # par repas × 4 prises maximise la synthèse protéique) + timing
     # péri-entraînement (ISSN 2017, Kerksick et al.).
@@ -1039,6 +1124,22 @@ def save_session(body: SessionSaveIn) -> dict:
         detail["metrics"] = {**detail.get("metrics", {}), **metrics}
     if body.performed:
         detail["performed"] = body.performed
+    # Autorégulation 1RM (Helms 2016) : si la série max loggée donne un 1RM
+    # estimé au-dessus du 1RM enregistré, on PROPOSE la mise à jour (1 clic
+    # côté app) — jamais automatique (une très bonne journée n'est pas un max).
+    rm_suggestion = None
+    if body.performed and isinstance(body.performed, dict):
+        est = float(body.performed.get("est_1rm") or 0)
+        key = _lift_key_of(str(body.performed.get("lift") or ""))
+        if key and est > 0:
+            current = _strength_maxes().get(key)
+            if current is None or est > float(current) + 1.0:
+                from engines.strength_531.engine import TRAINING_MAX as _TM
+                rm_suggestion = {
+                    "lift_key": key, "lift_name": _TM[key]["name"],
+                    "current_1rm": float(current) if current is not None else None,
+                    "estimated_1rm": round(est * 2) / 2,
+                }
     # Idempotent : re-marquer faite la MÊME séance (même date + discipline +
     # titre) met à jour la ligne existante au lieu de créer un doublon. Une
     # autre séance du même jour (CAP matin puis force soir) → ligne séparée.
@@ -1049,12 +1150,13 @@ def save_session(body: SessionSaveIn) -> dict:
             store.sessions.update_done(
                 existing, body.duration_min, body.intensity_rpe, su, detail)
             return {"status": "updated", "session_id": existing,
-                    "persisted_status": "done"}
+                    "persisted_status": "done", "rm_suggestion": rm_suggestion}
     session_id = store.sessions.record(
         _aid(), body.discipline, body.session_date,
         body.duration_min, body.intensity_rpe, su,
         detail, status=body.status, family_id=body.title)
-    return {"status": "saved", "session_id": session_id, "persisted_status": body.status}
+    return {"status": "saved", "session_id": session_id,
+            "persisted_status": body.status, "rm_suggestion": rm_suggestion}
 
 
 @app.post("/sessions/manual")
