@@ -879,3 +879,11 @@ Comptes **email + mot de passe**, **par athlète**, avec **isolation stricte** d
 **Tests** : `tests/test_improvements.py` (6 tests, un par amélioration). **État** : 170 tests pytest + 4 audits PASS (61 routes), TypeScript strict 0 erreur, export web OK.
 
 *Addendum v3.21 · 01/07/2026 · Claude Fable 5.*
+
+-----
+
+### Addendum v3.22 — Check-in persistant pour la journée (01/07/2026)
+
+> « À chaque actualisation je dois repasser par le check-in. » L'état vivait en mémoire React → perdu au refresh. Fix : check-in stocké localement (`cache:checkin` = {date locale, données}) → restauré tant que la date = aujourd'hui, ignoré le lendemain (nouveau jour = nouveau check-in). Purgé au logout (préfixe `cache:`). Lien « ↻ refaire » dans l'écran Jour pour re-saisir volontairement (sieste, coup de fatigue). TypeScript 0 erreur, export web OK.
+
+*Addendum v3.22 · 01/07/2026 · Claude Fable 5.*

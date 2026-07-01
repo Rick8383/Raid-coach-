@@ -5,7 +5,7 @@
  * sur le calendrier réel + résumé de la séance, qui s'ouvre en détail.
  */
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { api, AthleteProfile, PlanDay, SessionToday } from '../api/client';
 import { ReadinessBar } from '../components/ReadinessBar';
 import { WeekStrip } from '../components/WeekStrip';
@@ -26,9 +26,10 @@ function weeksToSelection(): number {
 
 type Checkin = { readiness: number; fatigue: number; sleep: number; sciatic: boolean; sleep_hours?: number };
 
-export function TodayScreen({ checkin, profile }: {
+export function TodayScreen({ checkin, profile, onRedoCheckin }: {
   checkin: Checkin;
   profile?: AthleteProfile | null;
+  onRedoCheckin?: () => void;
 }) {
   const [data, setData] = useState<SessionToday | null>(null);
   const [plan, setPlan] = useState<PlanDay | null>(null);
@@ -86,6 +87,15 @@ export function TodayScreen({ checkin, profile }: {
         )}
         <Tag label={WEEK_LABEL[sched.weekType]} color={colors.textDisabled} />
       </View>
+
+      {/* Check-in du jour déjà rempli (persistant) — refaisable si besoin */}
+      {!!onRedoCheckin && (
+        <Pressable onPress={onRedoCheckin} style={styles.redoRow} hitSlop={6}>
+          <Text style={styles.redoText}>
+            ✓ Check-in du jour enregistré (forme {checkin.readiness}) · ↻ refaire
+          </Text>
+        </Pressable>
+      )}
 
       {/* Charge de la semaine (boucle adaptative) — jauges visuelles */}
       {ctx && (
@@ -192,6 +202,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', marginTop: spacing.m,
   },
+  redoRow: { marginTop: spacing.s, alignItems: 'center' },
+  redoText: { color: colors.textSecondary, fontSize: typography.sizes.small },
   cardBody: { flex: 1, padding: spacing.m },
   label: { color: colors.textSecondary, ...typography.label, marginBottom: spacing.s },
   sectionLabel: { color: colors.textSecondary, ...typography.label, marginTop: spacing.l, marginBottom: spacing.s },

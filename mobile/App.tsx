@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-google-fonts/inter';
 import { BarlowCondensed_700Bold } from '@expo-google-fonts/barlow-condensed';
 import {
   AthleteProfile, AuthUser, api, flushSyncQueue,
   loadToken, clearToken, setUnauthorizedHandler,
 } from './src/api/client';
+import { localISODate } from './src/schedule';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { CheckinScreen } from './src/screens/CheckinScreen';
@@ -23,6 +25,10 @@ import { colors, typography } from './src/theme/tokens';
 
 type Tab = 'today' | 'workouts' | 'agenda' | 'nutrition' | 'benchmarks' | 'coach' | 'profile';
 type Checkin = { readiness: number; fatigue: number; sleep: number; sciatic: boolean; sleep_hours?: number };
+
+// Check-in du jour persisté localement : rempli UNE fois par journée (survit
+// aux actualisations/redémarrages). Préfixe `cache:` → purgé au logout.
+const CHECKIN_KEY = 'cache:checkin';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'today', label: 'JOUR' },
@@ -66,6 +72,30 @@ export default function App() {
     api.profile().then(setProfile).catch(() => {}).finally(() => setProfileLoaded(true));
     initReminders().catch(() => {});
   }, [user]);
+
+  // Restaure le check-in du jour (déjà rempli aujourd'hui → pas de re-saisie
+  // à chaque actualisation). Un check-in d'hier est ignoré : nouveau jour,
+  // nouveau check-in.
+  useEffect(() => {
+    if (!user) return;
+    AsyncStorage.getItem(CHECKIN_KEY).then(raw => {
+      if (!raw) return;
+      const { date, data } = JSON.parse(raw);
+      if (date === localISODate() && data) setCheckin(data);
+    }).catch(() => {});
+  }, [user]);
+
+  const handleCheckin = (c: Checkin) => {
+    setCheckin(c);
+    AsyncStorage.setItem(CHECKIN_KEY,
+      JSON.stringify({ date: localISODate(), data: c })).catch(() => {});
+  };
+
+  // Refaire volontairement le check-in (sieste, coup de fatigue…).
+  const redoCheckin = () => {
+    setCheckin(null);
+    AsyncStorage.removeItem(CHECKIN_KEY).catch(() => {});
+  };
 
   // Vide la file d'écritures offline une fois la session restaurée (token
   // chargé → user défini) et après chaque check-in. flushSyncQueue refuse de
@@ -116,7 +146,7 @@ export default function App() {
     return (
       <SafeAreaProvider>
         <SafeAreaView style={styles.root}>
-          <CheckinScreen onDone={setCheckin} />
+          <CheckinScreen onDone={handleCheckin} />
         </SafeAreaView>
       </SafeAreaProvider>
     );
@@ -140,7 +170,8 @@ export default function App() {
           <Text style={styles.brandSub}>SÉLECTION 2029</Text>
         </View>
         <View style={{ flex: 1 }}>
-          {tab === 'today' && <TodayScreen checkin={checkin} profile={profile} />}
+          {tab === 'today' && <TodayScreen checkin={checkin} profile={profile}
+            onRedoCheckin={redoCheckin} />}
           {tab === 'workouts' && <WorkoutsScreen profile={profile} />}
           {tab === 'agenda' && <AgendaScreen profile={profile} />}
           {tab === 'nutrition' && <NutritionScreen profile={profile} />}
