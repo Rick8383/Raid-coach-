@@ -56,7 +56,26 @@ export function RunDetail({ session }: { session: RunSession }) {
   );
 }
 
-function MainLift({ lift, label }: { lift: Strength531['main_lift']; label: string }) {
+// Ligne d'exercice ultra-lisible : n° · nom · (repos/charge) · grand « séries × reps ».
+function ExerciseRow({ index, name, sets, reps, load, rest }: {
+  index: number; name: string; sets: number | string; reps: string;
+  load?: number | null; rest?: number;
+}) {
+  return (
+    <View style={styles.exRow}>
+      <Text style={styles.exNum}>{index}</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.exName}>{name}</Text>
+        <Text style={styles.exMeta}>
+          {load ? `charge ${load} kg · ` : ''}repos {rest ?? 60}s
+        </Text>
+      </View>
+      <Text style={styles.exSets}>{sets} <Text style={styles.exX}>×</Text> {reps}</Text>
+    </View>
+  );
+}
+
+function MainLift({ lift, label }: { lift: NonNullable<Strength531['main_lift']>; label: string }) {
   const maxLoad = Math.max(...lift.sets.map(s => s.load_kg), lift.training_max);
   return (
     <View>
@@ -67,37 +86,49 @@ function MainLift({ lift, label }: { lift: Strength531['main_lift']; label: stri
       {lift.sets.map((s, i) => (
         <View key={i} style={styles.setRow}>
           <Text style={styles.setLoad}>{s.load_kg} kg</Text>
-          <Text style={styles.setReps}>×{s.reps}{s.amrap ? ' max' : ''}</Text>
+          <Text style={styles.setReps}>× {s.reps}{s.amrap ? ' (max)' : ''}</Text>
           <View style={styles.setTrack}>
             <View style={[styles.setFill, { width: `${(s.load_kg / maxLoad) * 100}%` }]} />
           </View>
           <Text style={styles.setPct}>{s.pct_tm}%</Text>
         </View>
       ))}
+      <Text style={styles.restLine}>Repos {lift.sets[0]?.rest_sec ?? 180}s entre séries · dernière série « max » (AMRAP)</Text>
       {!!lift.note && <Text style={styles.sciatic}>⚠ {lift.note}</Text>}
     </View>
   );
 }
 
 export function StrengthDetail({ session }: { session: Strength531 }) {
-  const lifts = session.main_lifts && session.main_lifts.length ? session.main_lifts : [session.main_lift];
-  const fullBody = lifts.length > 1;
   return (
     <View>
       <Text style={styles.phase}>ÉCHAUFFEMENT — BIG 3 McGILL</Text>
       {session.warmup_mcgill.map((m, i) => (
         <Text key={i} style={styles.line}>• {m.name} — {m.prescription}</Text>
       ))}
-      {lifts.map((l, i) => (
-        <MainLift key={i} lift={l}
-          label={fullBody ? `PRINCIPAL ${i + 1}/${lifts.length}` : 'PRINCIPAL'} />
-      ))}
-      <Text style={styles.phase}>ACCESSOIRES</Text>
-      {session.accessories.map((a, i) => (
-        <Text key={i} style={styles.line}>
-          • {a.name} — {a.sets}×{a.reps}{a.load_kg ? ` @${a.load_kg}kg` : ''} · repos {a.rest_sec}s
-        </Text>
-      ))}
+
+      {session.movements ? (
+        // FULL BODY : liste d'exercices variés, ultra détaillée.
+        <>
+          <Text style={styles.phase}>EXERCICES · {session.movements.length}</Text>
+          {session.movements.map((m, i) => (
+            <ExerciseRow key={i} index={i + 1} name={m.name} sets={m.sets}
+              reps={m.reps} load={m.load_kg} rest={m.rest_sec} />
+          ))}
+        </>
+      ) : (
+        <>
+          {(session.main_lifts?.length ? session.main_lifts : [session.main_lift!]).map((l, i, arr) => (
+            <MainLift key={i} lift={l} label={arr.length > 1 ? `PRINCIPAL ${i + 1}/${arr.length}` : 'PRINCIPAL'} />
+          ))}
+          <Text style={styles.phase}>ACCESSOIRES</Text>
+          {session.accessories.map((a, i) => (
+            <ExerciseRow key={i} index={i + 1} name={a.name} sets={a.sets}
+              reps={a.reps} load={a.load_kg} rest={a.rest_sec} />
+          ))}
+        </>
+      )}
+
       {!!session.grease_the_groove && <Text style={styles.gtg}>💪 {session.grease_the_groove}</Text>}
       {!!session.finisher_wod && (
         <>
@@ -144,6 +175,20 @@ const styles = StyleSheet.create({
   setTrack: { flex: 1, height: 6, backgroundColor: colors.hairline, borderRadius: 3, overflow: 'hidden' },
   setFill: { height: 6, backgroundColor: colors.signalDim, borderRadius: 3 },
   setPct: { color: colors.textDisabled, fontSize: typography.sizes.small, width: 36, textAlign: 'right' },
+  restLine: { color: colors.textDisabled, fontSize: typography.sizes.micro, marginTop: 2, marginBottom: spacing.s },
+  exRow: {
+    flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.s, gap: spacing.s,
+    borderTopWidth: 1, borderTopColor: colors.hairline,
+  },
+  exNum: {
+    width: 22, height: 22, borderRadius: 11, textAlign: 'center', lineHeight: 22,
+    backgroundColor: colors.signalSoft, color: colors.signal,
+    fontFamily: typography.display.fontFamily, fontSize: 12, overflow: 'hidden',
+  },
+  exName: { color: colors.textPrimary, fontSize: typography.sizes.body, ...typography.bodyBold },
+  exMeta: { color: colors.textSecondary, fontSize: typography.sizes.small, marginTop: 1 },
+  exSets: { color: colors.signal, fontFamily: typography.display.fontFamily, fontSize: typography.sizes.h1 },
+  exX: { color: colors.textDisabled, fontSize: typography.sizes.body },
   gtg: { color: colors.fitness, fontSize: typography.sizes.small, marginTop: spacing.s, lineHeight: 19 },
   wodName: { color: colors.signal, fontFamily: typography.display.fontFamily, fontSize: typography.sizes.h1, letterSpacing: 1 },
   wodCap: { color: colors.signal, ...typography.label, marginTop: 2, marginBottom: spacing.xs },

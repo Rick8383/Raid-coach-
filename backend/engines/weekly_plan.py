@@ -60,7 +60,9 @@ def _build_session(spec, w_index, weekday, vma, fcmax, maxes=None):
     elif stype == "strength":
         week_in_cycle = (w_index % 4) + 1
         cycle = w_index // 4
-        detail = generate_strength_531(sub, week_in_cycle, cycle, maxes)
+        # variant = jour de la semaine → deux séances full body de la même semaine
+        # ne proposent pas les mêmes mouvements.
+        detail = generate_strength_531(sub, week_in_cycle, cycle, maxes, variant=weekday)
         if sub == "fullbody":
             dur = 75 if week_in_cycle != 4 else 60   # full body : 1h-1h15 max
             title = f"Force FULL BODY — S{week_in_cycle}" + (" deload" if week_in_cycle == 4 else "")

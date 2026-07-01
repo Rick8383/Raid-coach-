@@ -28,7 +28,7 @@ const COMPLETABLE = new Set(['run', 'strength', 'crossfit', 'swim']);
 function SessionExpanded({ s }: { s: PlanSession }) {
   const d = s.detail || {};
   if (s.type === 'run' && Array.isArray(d.body)) return <RunDetail session={d} />;
-  if (s.type === 'strength' && d.main_lift) return <StrengthDetail session={d} />;
+  if (s.type === 'strength' && (d.main_lift || d.movements)) return <StrengthDetail session={d} />;
   if (s.type === 'crossfit' && Array.isArray(d.description)) return <WodDetail wod={d} />;
   if (s.type === 'swim' && Array.isArray(d.blocks)) {
     return <View>{d.blocks.map((b: string, i: number) => (

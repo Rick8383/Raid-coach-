@@ -248,11 +248,13 @@ export interface Strength531Accessory {
   tempo: string; rest_sec: number; notes: string;
 }
 export interface Strength531Main { lift: string; name: string; training_max: number; sets: Strength531Set[]; note: string }
+export interface FullbodyMovement { name: string; sets: number; reps: string; load_kg: number | null; rest_sec: number }
 export interface Strength531 {
   day: string; week: number; cycle: number; is_deload: boolean;
   warmup_mcgill: { name: string; prescription: string; notes?: string }[];
-  main_lift: Strength531Main;
+  main_lift?: Strength531Main;
   main_lifts?: Strength531Main[];
+  movements?: FullbodyMovement[];   // full body : liste variée détaillée
   accessories: Strength531Accessory[];
   finisher_wod: Wod;
   notes: string[];

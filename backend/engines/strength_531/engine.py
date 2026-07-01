@@ -63,13 +63,67 @@ _ACCESSORIES = {
     ],
 }
 
-# Full body : 1 séance ~60-75 min couvrant tout le corps (squat + DC + rowing
-# en principaux), accessoires courts dont le soulevé de terre trap-barre.
-_FULLBODY_ACCESSORIES = [
-    ("Soulevé de terre trap-barre", 3, "6-8", 100, "2-0-1", 120),
-    ("Tractions lestées", 3, "6-8", 0, "2-0-1", 90),
-    ("Gainage anti-rotation (Pallof press)", 3, "12", 0, "contrôlé", 60),
+# ---- Bibliothèque FULL BODY (mouvements variés, tournants par séance) ----
+# (nom, lift de référence pour la charge | None, facteur du TM, séries, reps, repos s)
+_FB_LOWER = [
+    ("Back squat", "squat", 1.00, 5, "6", 180),
+    ("Front squat (barre)", "squat", 0.82, 4, "6-8", 150),
+    ("Soulevé de terre trap-barre", "squat", 1.10, 5, "5", 180),
+    ("Box squat", "squat", 0.90, 5, "5", 150),
+    ("Goblet squat (haltère)", "squat", 0.55, 4, "10-12", 90),
 ]
+_FB_PUSH = [
+    ("Développé couché (barre)", "bench", 1.00, 5, "6", 180),
+    ("Développé incliné haltères", "bench", 0.68, 4, "8-10", 120),
+    ("Presse militaire debout (barre)", "ohp", 1.00, 4, "6-8", 150),
+    ("Développé militaire haltères", "ohp", 0.72, 4, "8-10", 120),
+    ("Dips lestés", None, 0.0, 4, "8-12", 120),
+]
+_FB_PULL = [
+    ("Rowing barre buste penché", "row", 1.00, 4, "8-10", 120),
+    ("Tractions pronation", None, 0.0, 4, "8-12", 120),
+    ("Tractions supination", None, 0.0, 4, "8-12", 120),
+    ("Tirage horizontal poulie", "row", 0.85, 4, "10-12", 90),
+    ("Tirage vertical poulie", None, 0.0, 4, "10", 90),
+]
+_FB_ACC = [
+    ("Fentes avant haltères", None, 0.0, 3, "12 / jambe", 75),
+    ("Hip thrust", None, 0.0, 3, "12", 75),
+    ("Leg curl", None, 0.0, 3, "15", 60),
+    ("Split squat bulgare", None, 0.0, 3, "10 / jambe", 75),
+    ("Élévations latérales", None, 0.0, 3, "15", 45),
+    ("Curl haltères", None, 0.0, 3, "12", 60),
+    ("Curl marteau", None, 0.0, 3, "12", 60),
+    ("Gainage Pallof press", None, 0.0, 3, "12 / côté", 45),
+    ("Dips", None, 0.0, 3, "max", 60),
+]
+
+
+def _fb_move(entry, cycle: int, base: dict, is_deload: bool) -> dict:
+    name, blift, factor, sets, reps, rest = entry
+    load = None
+    if blift and blift in base:
+        tm = _tm_for(blift, cycle, base)
+        load = _round25(factor * tm * (0.85 if is_deload else 1.0))
+    if is_deload:
+        sets = max(2, sets - 1)
+    return {"name": name, "sets": sets, "reps": reps,
+            "load_kg": load, "rest_sec": rest}
+
+
+def _fullbody_movements(week: int, cycle: int, base: dict, variant: int) -> list[dict]:
+    """Sélection tournante : lower + push + pull + 2 accessoires variés, décalés
+    par (cycle, semaine, variant) → deux séances full body ne sont pas pareilles."""
+    is_deload = week == 4
+    k = cycle * 4 + (week - 1) + int(variant)
+    lower = _FB_LOWER[k % len(_FB_LOWER)]
+    push = _FB_PUSH[(k + 1) % len(_FB_PUSH)]
+    pull = _FB_PULL[(k + 2) % len(_FB_PULL)]
+    a = _FB_ACC[(k + 3) % len(_FB_ACC)]
+    b = _FB_ACC[(k + 3 + 4) % len(_FB_ACC)]
+    if b is a:
+        b = _FB_ACC[(k + 3 + 5) % len(_FB_ACC)]
+    return [_fb_move(m, cycle, base, is_deload) for m in (lower, push, pull, a, b)]
 
 
 def _round25(x: float) -> float:
@@ -135,7 +189,7 @@ def _finisher(day: str, week: int, cycle: int) -> dict:
 
 
 def generate_strength_531(day: str, week: int = 1, cycle: int = 0,
-                          maxes: dict | None = None) -> dict:
+                          maxes: dict | None = None, variant: int = 0) -> dict:
     if day not in DAYS and day != "fullbody":
         raise ValueError(f"jour inconnu: {day} (attendus: {', '.join(DAYS)}, fullbody)")
     week = max(1, min(int(week), 4))
@@ -143,19 +197,16 @@ def generate_strength_531(day: str, week: int = 1, cycle: int = 0,
     base = resolve_maxes(maxes)
 
     if day == "fullbody":
-        # Séance ~60-75 min couvrant tout le corps (squat + DC + rowing).
-        mains = [_main_lift(l, week, cycle, base) for l in ("squat", "bench", "row")]
+        # Séance ~60-75 min, tout le corps, MOUVEMENTS VARIÉS d'une séance à l'autre.
+        movements = _fullbody_movements(week, cycle, base, variant)
         return {
             "day": "fullbody", "week": week, "cycle": cycle, "is_deload": week == 4,
             "warmup_mcgill": _MCGILL,
-            "main_lift": mains[0],            # compat affichage
-            "main_lifts": mains,              # full body : 3 principaux
-            "accessories": _accessories_from(_FULLBODY_ACCESSORIES),
-            "finisher_wod": _finisher("legs", week, cycle),
+            "movements": movements,           # liste détaillée (séries × reps · repos · charge)
             "notes": [
-                "Full body : enchaîne les 3 principaux en circuit confortable (récup complète sur les séries lourdes).",
-                "Big 3 McGill à l'échauffement. Séance ~60-75 min, pas plus.",
-                "Dernière série de chaque principal en AMRAP (sauf deload).",
+                "Full body : ~60-75 min, récup complète sur les gros mouvements.",
+                "Big 3 McGill à l'échauffement. Charges auto d'après tes 1RM.",
+                "Progresse en charge (gros mouvements) puis en reps (accessoires).",
             ],
         }
 

@@ -201,13 +201,25 @@ def test_fullbody_style_in_plan(client, monkeypatch):
         "training_style": "fullbody"}}, headers=H)
     # 2026-06-15 lundi grande semaine = jour de force (push en split) → full body
     s531 = client.get("/generate/strength?day=fullbody", headers=H).json()
-    assert len(s531["main_lifts"]) == 3   # squat + DC + rowing
+    assert len(s531["movements"]) == 5           # lower + push + pull + 2 accessoires
+    assert all(m.get("sets") and m.get("reps") for m in s531["movements"])
     # le plan du jour propose une séance FULL BODY (2026-06-15 = lundi = jour force)
     day = client.get("/plan/day?date=2026-06-15", headers=H).json()
     strength = [s for s in day["sessions"] if s["type"] == "strength"]
     assert strength and "FULL BODY" in strength[0]["title"]
     assert strength[0]["duration_min"] <= 75
-    assert len(strength[0]["detail"]["main_lifts"]) == 3
+    assert len(strength[0]["detail"]["movements"]) == 5
+
+
+def test_fullbody_varies_between_days(client):
+    # deux séances full body de mouvements différents selon le variant (jour)
+    a = client.get("/generate/strength?day=fullbody", headers=_bearer(
+        client.post("/auth/login", json={"email": "fb@b.com", "password": "password1"}).json()["token"]))
+    # via le générateur direct : variants différents → mouvements différents
+    from engines.strength_531 import generate_strength_531 as g
+    m0 = [x["name"] for x in g("fullbody", 1, 0, variant=0)["movements"]]
+    m1 = [x["name"] for x in g("fullbody", 1, 0, variant=1)["movements"]]
+    assert m0 != m1
 
 
 def test_trap_bar_in_legs(client):

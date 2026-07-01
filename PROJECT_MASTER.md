@@ -742,3 +742,16 @@ Comptes **email + mot de passe**, **par athlète**, avec **isolation stricte** d
 **État** : 154 tests pytest + 4 audits PASS (60 routes API), TypeScript strict 0 erreur, export web OK.
 
 *Addendum v3.12 · 16/06/2026 · Claude Code.*
+
+-----
+
+### Addendum v3.13 — Full body varié + affichage séries/reps/repos ultra-lisible (16/06/2026)
+
+> Retours utilisateurs (photos d'une app de réf.). Déployé.
+
+- **Full body à mouvements variés** (fini l'identique chaque jour) : bibliothèque enrichie (back/front squat, trap-barre, box/goblet squat ; DC barre, incliné haltères, militaire barre/haltères, dips ; rowing, tractions pronation/supination, tirages ; fentes, hip thrust, leg curl, split bulgare, élévations, curls, Pallof…). `generate_strength_531('fullbody', …, variant)` compose lower + push + pull + 2 accessoires **tournants** par (cycle, semaine, jour) → deux séances full body de la même semaine diffèrent. Charges auto d'après les 1RM (facteur par variante). Nouvelle structure `movements` (liste détaillée). Test : 5 mouvements, séries/reps présents, variation entre jours.
+- **Affichage ultra-détaillé** : composant `ExerciseRow` — pour chaque exercice, gros **« séries × reps »** + **repos** + **charge**, numéroté. Séance force (split) : rappel du repos entre séries + « dernière série max (AMRAP) ». Full body : liste d'exercices claire. Objectif « aucune question à la lecture ».
+
+**État** : 155 tests pytest + 4 audits PASS (60 routes API), TypeScript strict 0 erreur, export web OK.
+
+*Addendum v3.13 · 16/06/2026 · Claude Code.*
