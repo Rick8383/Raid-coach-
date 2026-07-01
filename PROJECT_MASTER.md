@@ -821,3 +821,18 @@ Comptes **email + mot de passe**, **par athlète**, avec **isolation stricte** d
 **État** : 162 tests pytest + 4 audits PASS (60 routes API), TypeScript strict 0 erreur, export web OK.
 
 *Addendum v3.18 · 01/07/2026 · Claude Code.*
+
+-----
+
+### Addendum v3.19 — Suivi « marqué fait » fiable : persistant, idempotent, multi-séances (01/07/2026)
+
+> 3 bugs remontés : (1) le ✓ « fait » disparaissait en changeant d'onglet (état local perdu au remontage → on pouvait re-cliquer) ; (2) re-clic = doublons en base ; (3) jour à 2 séances (CAP matin + force soir) : l'agenda n'affichait qu'UNE séance par date → la 2ᵉ « écrasait » la 1ʳᵉ dans le Suivi (en base les 2 existaient, la charge était bonne, mais invisibles). Déployé.
+
+- **Idempotent** : `/sessions/save` (status done) fait un upsert — `SessionRepository.find_done` (même athlète + date + discipline + titre) → `update_done` (RPE/durée/detail rafraîchis) au lieu d'INSERT. Réponse `{"status": "updated"}`. Deux séances différentes du même jour = lignes séparées.
+- **Agenda multi-séances** : `agenda_week` renvoie `done_all` = TOUTES les séances du jour (faites d'abord), `done` = la plus pertinente (compat). Frontend Agenda affiche chaque séance (titre, ✓/○, données montre, séries réalisées, ✕ suppression individuelle).
+- **État persistant côté app** : `PlannedSessions` relit l'historique du jour au montage (cache invalidé à chaque save) → une séance déjà faite affiche « ✓ Déjà enregistrée — comptée dans le suivi » + lien « Modifier » au lieu du bouton MARQUER FAIT. Anti double-clic (busy) pendant l'envoi.
+- **Tests** : `test_mark_done_is_idempotent` (2 clics → 1 ligne, RPE rafraîchi), `test_two_sessions_same_day_both_kept` (2 séances → `done_all`=2, 2 lignes en base, SU > 0 chacune).
+
+**État** : 164 tests pytest + 4 audits PASS (60 routes API), TypeScript strict 0 erreur, export web OK.
+
+*Addendum v3.19 · 01/07/2026 · Claude Code.*

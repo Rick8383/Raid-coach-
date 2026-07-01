@@ -252,6 +252,46 @@ def test_save_done_with_performed_sets(client):
     assert p["sets"][2] == {"reps": 6, "load_kg": 90, "top": True}
 
 
+def test_mark_done_is_idempotent(client):
+    # Re-cliquer « marquer fait » sur la MÊME séance ne crée pas de doublon :
+    # la ligne existante est mise à jour. 2028-03-06 = lundi.
+    body = {"discipline": "run", "session_date": "2028-03-06",
+            "duration_min": 45, "intensity_rpe": 7, "status": "done",
+            "title": "VMA courte — test"}
+    r1 = client.post("/sessions/save", json=body).json()
+    r2 = client.post("/sessions/save", json={**body, "intensity_rpe": 8}).json()
+    assert r1["status"] == "saved" and r2["status"] == "updated"
+    assert r1["session_id"] == r2["session_id"]
+    rows = [s for s in client.get("/sessions/recent?n=80").json()["sessions"]
+            if s["session_date"] == "2028-03-06"]
+    assert len(rows) == 1
+    assert rows[0]["intensity_rpe"] == 8  # le re-clic a rafraîchi le RPE
+
+
+def test_two_sessions_same_day_both_kept(client):
+    # CAP le matin + force le soir : les DEUX restent au suivi (rien d'écrasé).
+    # 2028-03-13 = lundi.
+    client.post("/sessions/save", json={
+        "discipline": "run", "session_date": "2028-03-13",
+        "duration_min": 45, "intensity_rpe": 7, "status": "done",
+        "title": "VMA courte — matin"})
+    client.post("/sessions/save", json={
+        "discipline": "strength", "session_date": "2028-03-13",
+        "duration_min": 70, "intensity_rpe": 8, "status": "done",
+        "title": "Force PULL — soir"})
+    week = client.post("/agenda/week", json={"date": "2028-03-13"}).json()
+    day = next(d for d in week["days"] if d["date"] == "2028-03-13")
+    alls = day["done_all"]
+    assert len(alls) == 2
+    assert {e["discipline"] for e in alls} == {"run", "strength"}
+    assert all(e["status"] == "done" for e in alls)
+    # les deux lignes existent en base (charge long terme intacte)
+    rows = [s for s in client.get("/sessions/recent?n=80").json()["sessions"]
+            if s["session_date"] == "2028-03-13"]
+    assert len(rows) == 2
+    assert all(float(s["stress_units"]) > 0 for s in rows)
+
+
 # ---------- Générateur Run (Mission 2) ----------
 def test_run_generate_detail(client):
     r = client.get("/generate/run?type=vma_courte&seed=1")

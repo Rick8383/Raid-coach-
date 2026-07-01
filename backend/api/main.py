@@ -1011,6 +1011,17 @@ def save_session(body: SessionSaveIn) -> dict:
         detail["metrics"] = {**detail.get("metrics", {}), **metrics}
     if body.performed:
         detail["performed"] = body.performed
+    # Idempotent : re-marquer faite la MÊME séance (même date + discipline +
+    # titre) met à jour la ligne existante au lieu de créer un doublon. Une
+    # autre séance du même jour (CAP matin puis force soir) → ligne séparée.
+    if body.status == "done":
+        existing = store.sessions.find_done(
+            _aid(), body.session_date, body.discipline, body.title)
+        if existing is not None:
+            store.sessions.update_done(
+                existing, body.duration_min, body.intensity_rpe, su, detail)
+            return {"status": "updated", "session_id": existing,
+                    "persisted_status": "done"}
     session_id = store.sessions.record(
         _aid(), body.discipline, body.session_date,
         body.duration_min, body.intensity_rpe, su,
@@ -1157,32 +1168,32 @@ def delete_session(session_id: int) -> dict:
 @app.post("/agenda/week")
 def agenda_week(body: ScheduleIn) -> dict:
     week = coach.schedule_week(body.model_dump(), _schedule_config())
-    # Plusieurs séances peuvent partager une date (ex. course le matin + force
-    # marquée faite ensuite). On garde la plus pertinente : une séance 'done'
-    # l'emporte sur une 'planned', et à statut égal la plus récente (id le plus
-    # élevé). last_n est trié par date DESC, id DESC → le premier vu pour une
-    # date est déjà le plus récent ; on ne remplace que si on trouve un 'done'.
-    best: dict[str, dict] = {}
-    for s in store.sessions.last_n(_aid(), 60):
-        d = s["session_date"]
-        cur = best.get(d)
-        if cur is None:
-            best[d] = s
-        elif cur["status"] != "done" and s["status"] == "done":
-            best[d] = s
+    # Plusieurs séances peuvent partager une date (ex. CAP le matin + force le
+    # soir) : on renvoie TOUTES les séances du jour dans done_all (faites en
+    # premier, puis planifiées, ordre chrono d'enregistrement), et on garde
+    # done = la plus pertinente (une 'done' l'emporte sur une 'planned') pour
+    # compatibilité. Rien n'est écrasé : chaque séance faite reste au suivi.
+    by_date: dict[str, list[dict]] = {}
+    for s in store.sessions.last_n(_aid(), 120):
+        by_date.setdefault(s["session_date"], []).append(s)
+
+    def _entry(rec: dict) -> dict:
+        det = _detail_of(rec)
+        score = _wod_score(det)
+        return {"id": rec["id"], "discipline": rec["discipline"],
+                "duration_min": rec["duration_min"],
+                "status": rec["status"], "title": rec.get("family_id"),
+                "score_label": score["label"] if score else None,
+                "metrics": det.get("metrics"),
+                "performed": det.get("performed")}
+
     for day in week["days"]:
-        rec = best.get(day["date"])
-        if rec:
-            det = _detail_of(rec)
-            score = _wod_score(det)
-            day["done"] = {"id": rec["id"], "discipline": rec["discipline"],
-                           "duration_min": rec["duration_min"],
-                           "status": rec["status"], "title": rec.get("family_id"),
-                           "score_label": score["label"] if score else None,
-                           "metrics": det.get("metrics"),
-                           "performed": det.get("performed")}
-        else:
-            day["done"] = None
+        recs = by_date.get(day["date"], [])
+        # faites d'abord, puis planifiées ; à statut égal ordre d'enregistrement
+        recs = sorted(recs, key=lambda r: (r["status"] != "done", r["id"]))
+        entries = [_entry(r) for r in recs]
+        day["done_all"] = entries
+        day["done"] = entries[0] if entries else None
     return week
 
 

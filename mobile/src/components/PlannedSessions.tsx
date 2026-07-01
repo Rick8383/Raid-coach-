@@ -8,7 +8,7 @@
  * (`completable`), on peut la marquer « faite » avec son RPE → enregistrée
  * comme séance done (charge + suivi), avec invalidation du cache agenda.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { PlanSession, StandbyInfo, api } from '../api/client';
 import { RunDetail, StrengthDetail, WodDetail } from './SessionDetail';
@@ -44,7 +44,9 @@ const METRIC_KEYS: (keyof WatchMetrics)[] = [
   'te_aerobic', 'te_anaerobic',
 ];
 
-function CompleteRow({ s, dateIso }: { s: PlanSession; dateIso: string }) {
+function CompleteRow({ s, dateIso, alreadyDone }: {
+  s: PlanSession; dateIso: string; alreadyDone: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [rpe, setRpe] = useState(7);
   const [watchOpen, setWatchOpen] = useState(false);
@@ -52,9 +54,12 @@ function CompleteRow({ s, dateIso }: { s: PlanSession; dateIso: string }) {
   const [liftsOpen, setLiftsOpen] = useState(false);
   const [performed, setPerformed] = useState<Performed | null>(null);
   const [done, setDone] = useState(false);
+  const [busy, setBusy] = useState(false);
   const isStrength = s.type === 'strength';
 
   const save = async () => {
+    if (busy) return;                 // anti double-clic pendant l'envoi
+    setBusy(true);
     const dur = metrics.duration_min && metrics.duration_min > 0 ? metrics.duration_min : s.duration_min;
     const body: Record<string, unknown> = {
       discipline: s.type, session_date: dateIso, duration_min: dur,
@@ -65,8 +70,10 @@ function CompleteRow({ s, dateIso }: { s: PlanSession; dateIso: string }) {
       if (typeof v === 'number' && v > 0) body[k] = v;
     }
     if (performed && performed.sets.some(x => x.load_kg > 0 || x.reps > 0)) body.performed = performed;
-    await api.saveSession(body);
-    setDone(true);
+    try {
+      await api.saveSession(body);
+      setDone(true);
+    } finally { setBusy(false); }
   };
 
   if (done) {
@@ -79,6 +86,18 @@ function CompleteRow({ s, dateIso }: { s: PlanSession; dateIso: string }) {
     );
   }
   if (!COMPLETABLE.has(s.type)) return null;
+  // Déjà enregistrée (retour sur l'onglet, autre appareil…) : état persistant,
+  // pas de re-clic nécessaire. Le détail est visible dans l'Agenda (Suivi).
+  if (alreadyDone && !open) {
+    return (
+      <View>
+        <Text style={styles.doneMsg}>✓ Déjà enregistrée comme faite — comptée dans le suivi</Text>
+        <Pressable onPress={() => setOpen(true)} style={styles.editBtn}>
+          <Text style={styles.editBtnT}>Modifier (RPE / données)</Text>
+        </Pressable>
+      </View>
+    );
+  }
   return (
     <View style={styles.completeBox}>
       {open ? (
@@ -104,8 +123,8 @@ function CompleteRow({ s, dateIso }: { s: PlanSession; dateIso: string }) {
           </Pressable>
           {watchOpen && <WatchMetricsForm defaultDuration={s.duration_min} onChange={setMetrics} />}
 
-          <Pressable onPress={save} style={styles.doneBtn}>
-            <Text style={styles.doneBtnT}>✓ ENREGISTRER COMME FAIT</Text>
+          <Pressable onPress={save} style={[styles.doneBtn, busy && { opacity: 0.5 }]} disabled={busy}>
+            <Text style={styles.doneBtnT}>{busy ? '…' : '✓ ENREGISTRER COMME FAIT'}</Text>
           </Pressable>
         </>
       ) : (
@@ -128,6 +147,25 @@ export function PlannedSessions({ sessions, dateIso, completable = false, standb
   standby?: StandbyInfo | null;
 }) {
   const [open, setOpen] = useState<number | null>(completable && sessions.length === 1 ? 0 : null);
+  // État « fait » PERSISTANT : on relit l'historique du jour au montage
+  // (le cache est invalidé à chaque enregistrement) → revenir sur l'onglet
+  // montre ✓ au lieu de redemander « marquer fait ».
+  const [doneKeys, setDoneKeys] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!completable || !dateIso) return;
+    let alive = true;
+    api.recentSessions(80).then(res => {
+      if (!alive) return;
+      const keys = new Set<string>();
+      for (const r of res.sessions ?? []) {
+        if (r.session_date === dateIso && r.status === 'done') {
+          keys.add(`${r.discipline}|${r.family_id ?? ''}`);
+        }
+      }
+      setDoneKeys(keys);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [completable, dateIso]);
 
   const banner = standby ? (
     <View style={[styles.standby, { borderLeftColor: STANDBY_COLOR[standby.mode] ?? colors.signal }]}>
@@ -166,7 +204,10 @@ export function PlannedSessions({ sessions, dateIso, completable = false, standb
             {opened && (
               <View style={styles.detail}>
                 <SessionExpanded s={s} />
-                {completable && dateIso && <CompleteRow s={s} dateIso={dateIso} />}
+                {completable && dateIso && (
+                  <CompleteRow s={s} dateIso={dateIso}
+                    alreadyDone={doneKeys.has(`${s.type}|${s.title ?? ''}`)} />
+                )}
               </View>
             )}
           </View>
@@ -194,6 +235,8 @@ const styles = StyleSheet.create({
   rpeLbl: { color: colors.textSecondary, ...typography.label, marginBottom: spacing.s, textAlign: 'center' },
   watchToggle: { marginTop: spacing.m, paddingVertical: spacing.s, alignItems: 'center' },
   watchToggleT: { color: colors.signal, fontSize: typography.sizes.small, ...typography.bodyBold },
+  editBtn: { alignItems: 'center', paddingVertical: spacing.s },
+  editBtnT: { color: colors.textSecondary, fontSize: typography.sizes.small, textDecorationLine: 'underline' },
   doneBtn: { backgroundColor: colors.signal, paddingVertical: 14, borderRadius: spacing.cardRadius, alignItems: 'center', marginTop: spacing.s },
   doneBtnT: { color: colors.bg, fontFamily: typography.display.fontFamily, fontSize: typography.sizes.h2, letterSpacing: 1 },
   doneMsg: { color: colors.signal, fontSize: typography.sizes.small, paddingVertical: spacing.m, textAlign: 'center' },

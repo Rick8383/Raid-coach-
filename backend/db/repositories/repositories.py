@@ -111,6 +111,26 @@ class SessionRepository:
              stress_units, family_id, template_id, json.dumps(detail), status)
         ).lastrowid
 
+    def find_done(self, athlete_id: int, session_date: str, discipline: str,
+                  family_id: str | None) -> int | None:
+        """Id d'une séance déjà marquée faite pour la même (date, discipline,
+        titre) → permet un enregistrement idempotent (re-clic = mise à jour,
+        pas de doublon). Deux séances différentes du même jour (ex. CAP matin
+        + force soir) ont des disciplines/titres différents → lignes séparées."""
+        rows = self.db.query(
+            """SELECT id FROM sessions WHERE athlete_id = ? AND session_date = ?
+               AND discipline = ? AND COALESCE(family_id, '') = ?
+               AND status = 'done' ORDER BY id DESC LIMIT 1""",
+            (athlete_id, session_date, discipline, family_id or ""))
+        return rows[0]["id"] if rows else None
+
+    def update_done(self, session_id: int, duration_min: int,
+                    intensity_rpe: float, stress_units: float, detail: dict) -> None:
+        self.db.execute(
+            """UPDATE sessions SET duration_min = ?, intensity_rpe = ?,
+               stress_units = ?, detail_json = ? WHERE id = ?""",
+            (duration_min, intensity_rpe, stress_units, json.dumps(detail), session_id))
+
     def complete(self, session_id: int, feedback: dict | None = None) -> None:
         self.db.execute(
             "UPDATE sessions SET status = 'done', feedback_json = ? WHERE id = ?",

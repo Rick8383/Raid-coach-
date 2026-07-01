@@ -112,27 +112,29 @@ export function AgendaScreen({ profile }: { profile?: AthleteProfile | null }) {
                   color={off ? colors.signal : colors.textSecondary} filled={off} />
               </View>
               <Text style={styles.intent}>{day.intent.label}</Text>
-              {day.done ? (
-                <>
+              {(day.done_all?.length ? day.done_all : day.done ? [day.done] : []).map((e, i) => (
+                // TOUTES les séances du jour (ex. CAP matin + force soir) —
+                // chacune comptée au suivi, supprimable individuellement (✕).
+                <View key={e.id ?? i}>
                   <View style={styles.doneRow}>
-                    <Text style={[day.done.status === 'done' ? styles.done : styles.planned, { flex: 1 }]}>
-                      {day.done.status === 'done' ? '✓' : '○'} {disciplineLabel(day.done.discipline)}
-                      {' · '}{day.done.duration_min} min
-                      {day.done.status === 'done' ? ' · fait' : ' · prévu'}
-                      {day.done.score_label ? ` · 🏁 ${day.done.score_label}` : ''}
+                    <Text style={[e.status === 'done' ? styles.done : styles.planned, { flex: 1 }]}>
+                      {e.status === 'done' ? '✓' : '○'} {disciplineLabel(e.discipline)}
+                      {e.title ? ` · ${e.title}` : ''}
+                      {' · '}{e.duration_min} min
+                      {e.status === 'done' ? ' · fait' : ' · prévu'}
+                      {e.score_label ? ` · 🏁 ${e.score_label}` : ''}
                     </Text>
-                    {day.done.id ? (
-                      <Pressable onPress={() => removeDone(day.done!.id)} hitSlop={8} style={styles.delBtn}>
+                    {e.id ? (
+                      <Pressable onPress={() => removeDone(e.id!)} hitSlop={8} style={styles.delBtn}>
                         <Text style={styles.delT}>✕</Text>
                       </Pressable>
                     ) : null}
                   </View>
-                  {day.done.performed ? <PerformedView p={day.done.performed} /> : null}
-                  {day.done.metrics ? <WatchMetricsView m={day.done.metrics} /> : null}
-                </>
-              ) : (
-                <Text style={styles.pending}>—</Text>
-              )}
+                  {e.performed ? <PerformedView p={e.performed} /> : null}
+                  {e.metrics ? <WatchMetricsView m={e.metrics} /> : null}
+                </View>
+              ))}
+              {!day.done && !day.done_all?.length && <Text style={styles.pending}>—</Text>}
             </View>
           </Card>
         );

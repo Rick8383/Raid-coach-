@@ -339,16 +339,21 @@ export interface SessionRow {
   score?: SessionScore;
 }
 
+export interface DoneEntry {
+  id?: number; discipline: string; duration_min: number; status: string;
+  title?: string | null; score_label?: string | null;
+  metrics?: Record<string, number> | null;
+  performed?: { lift: string; sets: { reps: number; load_kg: number; top: boolean }[];
+                est_1rm: number } | null;
+}
+
 export interface AgendaDay {
   date: string;
   day_of_week: string;
   is_work_day: boolean;
   intent: { focus: string; label: string; load: string };
-  done: { id?: number; discipline: string; duration_min: number; status: string;
-          title?: string | null; score_label?: string | null;
-          metrics?: Record<string, number> | null;
-          performed?: { lift: string; sets: { reps: number; load_kg: number; top: boolean }[];
-                        est_1rm: number } | null } | null;
+  done: DoneEntry | null;          // la plus pertinente (compat)
+  done_all?: DoneEntry[];          // TOUTES les séances du jour (rien d'écrasé)
 }
 
 export interface AgendaWeek {
