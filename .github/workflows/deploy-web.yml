@@ -48,7 +48,13 @@ jobs:
         run: npx expo export --platform web
       - name: Empêcher Jekyll d'ignorer les dossiers _expo
         run: touch dist/.nojekyll
+      # enablement: true → bascule la Source Pages sur "GitHub Actions" via
+      # l'API (permission pages: write). Effet : le déploiement Jekyll legacy
+      # (pages-build-deployment) cesse d'être déclenché → fini la course qui
+      # servait aléatoirement la README par-dessus l'app.
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: mobile/dist
