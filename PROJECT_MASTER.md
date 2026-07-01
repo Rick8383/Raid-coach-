@@ -778,3 +778,16 @@ Comptes **email + mot de passe**, **par athlète**, avec **isolation stricte** d
 **État** : 160 tests pytest + 4 audits PASS (60 routes API), TypeScript strict 0 erreur, export web OK.
 
 *Addendum v3.15 · 01/07/2026 · Claude Code.*
+
+-----
+
+### Addendum v3.16 — Pages source = Actions + affichage course enrichi (01/07/2026)
+
+> Deux retours. Déployé.
+
+- **README qui s'affichait aléatoirement à la place de l'app** : cause racine = Source Pages « Deploy from a branch » → chaque push lançait **deux** déploiements Pages (workflow Expo + Jekyll `pages-build-deployment`) qui se battaient pour l'environnement `github-pages` ; le dernier fini gagnait (Jekyll servait alors `README.md`). Fix : `actions/configure-pages@v5` avec `enablement: true` → bascule la Source sur « GitHub Actions » via l'API (`pages: write`), ce qui **stoppe le déclenchement du build Jekyll**. Plus de course.
+- **Détail des séances de course** (échauffement / corps / retour au calme) : ajout de la **durée + distance à faire** (échauffement/retour au calme avaient l'allure mais pas le temps ni la distance → `distance_m` ajouté côté générateur), et **récupération isolée dans un encadré « RÉCUP » coloré** montrant clairement la récup **entre répétitions** ET **entre séries** (`series_recovery_sec` n'était pas affiché). Helpers `fmtDist`/`fmtRec`. Frontend `RunRow` refondu (ligne stat en gras, allure, FC, encadré récup).
+
+**État** : 160 tests pytest + 4 audits PASS (60 routes API), TypeScript strict 0 erreur, export web OK.
+
+*Addendum v3.16 · 01/07/2026 · Claude Code.*

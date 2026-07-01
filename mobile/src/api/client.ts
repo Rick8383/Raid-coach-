@@ -222,7 +222,9 @@ export interface RunInterval {
   pace_kmh?: number; pace_min_km?: string; pct_vma?: number;
   fc_bpm?: number; pct_fcmax?: number; zone?: string;
   reps?: number; series?: number; distance_m?: number; duration_min?: number;
+  fraction?: string; duration_min_each?: number;
   recovery_type?: string; recovery_sec?: number; recovery_min?: number;
+  series_recovery_sec?: number;
   structure?: string; note?: string; effort?: string; pente?: string;
   fc_attendue_fin?: string; detail?: string;
 }

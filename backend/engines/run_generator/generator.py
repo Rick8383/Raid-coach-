@@ -70,13 +70,15 @@ def _interval(pct_vma: float, fc_pct: float, vma: float, fcmax: int) -> dict:
 
 
 def _warmup(minutes: int, vma: float, fcmax: int, pct_vma: float = 70.0) -> dict:
+    inter = _interval(pct_vma, 70, vma, fcmax)
     return {"label": "Échauffement progressif + gammes", "duration_min": minutes,
-            **_interval(pct_vma, 70, vma, fcmax)}
+            "distance_m": round(inter["pace_kmh"] * minutes / 60 * 1000), **inter}
 
 
 def _cooldown(minutes: int, vma: float, fcmax: int) -> dict:
+    inter = _interval(65, 65, vma, fcmax)
     return {"label": "Retour au calme", "duration_min": minutes,
-            **_interval(65, 65, vma, fcmax)}
+            "distance_m": round(inter["pace_kmh"] * minutes / 60 * 1000), **inter}
 
 
 def _envelope(run_type: str, seed: int, *, title: str, difficulty: int,

@@ -13,19 +13,43 @@ const ZONE_COLOR: Record<string, string> = {
   Z4: colors.readyOrange, Z5: colors.readyRed,
 };
 
+function fmtDist(m?: number): string | null {
+  if (!m) return null;
+  return m >= 1000 ? `${(m / 1000).toFixed(1).replace('.', ',')} km` : `${m} m`;
+}
+
+function fmtRec(sec?: number): string | null {
+  if (!sec) return null;
+  if (sec >= 120 && sec % 60 === 0) return `${sec / 60} min`;
+  if (sec >= 90) return `${(sec / 60).toFixed(1).replace('.', ',')} min`;
+  return `${sec}s`;
+}
+
 function RunRow({ it }: { it: RunInterval }) {
   const zc = it.zone ? ZONE_COLOR[it.zone] ?? colors.hairlineStrong : colors.hairlineStrong;
+  // Ligne « à faire » : durée + distance bien visibles (échauffement / retour au calme / corps).
+  const stat = [
+    it.duration_min ? `${it.duration_min} min` : null,
+    fmtDist(it.distance_m),
+    it.duration_min_each ? `${it.duration_min_each}′ par bloc` : null,
+  ].filter(Boolean).join(' · ');
   const pace = [
     it.pace_kmh ? `${it.pace_kmh} km/h` : null,
     it.pace_min_km ? `${it.pace_min_km}/km` : null,
     it.pct_vma ? `${it.pct_vma}% VMA` : null,
   ].filter(Boolean).join(' · ');
-  const extra = [
+  const fc = [
     it.fc_bpm ? `FC ${it.fc_bpm}${it.pct_fcmax ? ` (${it.pct_fcmax}%)` : ''}` : null,
-    it.recovery_sec ? `récup ${it.recovery_sec}s ${it.recovery_type ?? ''}` : null,
-    it.recovery_min ? `récup ${it.recovery_min}min ${it.recovery_type ?? ''}` : null,
-    it.structure, it.note, it.fc_attendue_fin, it.detail,
+    it.fc_attendue_fin,
   ].filter(Boolean).join(' · ');
+  // Récupération isolée sur sa propre ligne colorée → « plus visible » (répétitions + séries).
+  const rt = it.recovery_type ?? 'trot';
+  const rec = [
+    it.recovery_sec ? `${fmtRec(it.recovery_sec)} ${rt} entre répétitions` : null,
+    it.recovery_min ? `${it.recovery_min} min ${rt} entre répétitions` : null,
+    it.series_recovery_sec ? `${fmtRec(it.series_recovery_sec)} entre séries` : null,
+  ].filter(Boolean).join(' · ');
+  const extra = [it.structure, it.note, it.detail].filter(Boolean).join(' · ');
   return (
     <View style={styles.runRow}>
       <View style={[styles.zoneBar, { backgroundColor: zc }]} />
@@ -34,7 +58,15 @@ function RunRow({ it }: { it: RunInterval }) {
           <Text style={styles.runLabel}>{it.label}</Text>
           {!!it.zone && <Text style={[styles.zoneTag, { color: zc }]}>{it.zone}</Text>}
         </View>
+        {!!stat && <Text style={styles.runStat}>{stat}</Text>}
         {!!pace && <Text style={styles.runPace}>{pace}</Text>}
+        {!!fc && <Text style={styles.runMeta}>{fc}</Text>}
+        {!!rec && (
+          <View style={styles.recBox}>
+            <Text style={styles.recTag}>RÉCUP</Text>
+            <Text style={styles.recText}>{rec}</Text>
+          </View>
+        )}
         {!!extra && <Text style={styles.runMeta}>{extra}</Text>}
       </View>
     </View>
@@ -170,8 +202,18 @@ const styles = StyleSheet.create({
   runHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   runLabel: { color: colors.textPrimary, fontSize: typography.sizes.body, ...typography.bodyBold, flex: 1 },
   zoneTag: { fontFamily: typography.display.fontFamily, fontSize: 13 },
+  runStat: { color: colors.textPrimary, fontSize: typography.sizes.body, ...typography.bodyBold, marginTop: 3 },
   runPace: { color: colors.signal, fontSize: typography.sizes.small, marginTop: 2 },
   runMeta: { color: colors.textSecondary, fontSize: typography.sizes.small, marginTop: 2 },
+  recBox: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.s, marginTop: spacing.xs,
+    backgroundColor: colors.signalSoft, borderRadius: 8, paddingVertical: 6, paddingHorizontal: spacing.s,
+  },
+  recTag: {
+    color: colors.signal, fontFamily: typography.display.fontFamily, fontSize: 10,
+    letterSpacing: 1, backgroundColor: colors.signalSoft,
+  },
+  recText: { color: colors.textPrimary, fontSize: typography.sizes.small, flex: 1, lineHeight: 17 },
   sciatic: { color: colors.readyOrange, fontSize: typography.sizes.small, marginTop: spacing.s },
   line: { color: colors.textSecondary, fontSize: typography.sizes.small, lineHeight: 20 },
   mainHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
