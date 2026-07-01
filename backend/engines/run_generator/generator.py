@@ -97,26 +97,44 @@ def _envelope(run_type: str, seed: int, *, title: str, difficulty: int,
     }
 
 
+# Combos VMA courte COHÉRENTS (distance_m, séries, reps) — volume total borné
+# ~1,6-4,8 km. Triés par volume croissant (progression).
+_VMA_COURTE_COMBOS = sorted(
+    [(d, s, r, d * s * r) for (d, s, r) in [
+        (200, 1, 8), (300, 1, 6), (200, 1, 10), (400, 1, 5), (300, 1, 8),
+        (200, 2, 6), (400, 1, 6), (200, 2, 7), (300, 1, 10), (300, 2, 5),
+        (400, 2, 4), (200, 2, 8), (300, 2, 6), (400, 2, 5), (300, 2, 7),
+        (300, 3, 5), (400, 2, 6),
+    ]], key=lambda c: c[3])
+
+
+def _progress_of(idx: int, progress) -> int:
+    # Plan → progress = index de semaine (volume croît). Générateur libre
+    # (progress None) → dérivé du seed pour de la variété de volumes.
+    return idx % 16 if progress is None else max(0, int(progress))
+
+
+def _pick_by_volume(combos, center_m: float, span_m: float, idx: int):
+    band = [c for c in combos if center_m - span_m <= c[-1] <= center_m + span_m]
+    if not band:
+        band = [min(combos, key=lambda c: abs(c[-1] - center_m))]
+    return band[idx % len(band)]
+
+
 # ---------------------------------------------------------------- VMA COURTE
-def _vma_courte(idx, vma, fcmax, weight, sciatic):
-    fracs = [("30s", "time", 30), ("45s", "time", 45), ("1min", "time", 60),
-             ("200m", "dist", 200), ("300m", "dist", 300)]
-    pcts = [100, 105, 110]
-    reps_opts = [6, 8, 10, 12, 14, 16, 18, 20]
-    series_opts = [1, 2, 3]
-    rec_opts = ["egale", "moitie"]
-    (flabel, fkind, fval), pct, reps, series, rec = _select(
-        idx, [fracs, pcts, reps_opts, series_opts, rec_opts])
+def _vma_courte(idx, vma, fcmax, weight, sciatic, progress=None):
+    p = _progress_of(idx, progress)
+    center = min(4200, 1600 + p * 110)               # volume cible progressif
+    dist, series, reps, _tot = _pick_by_volume(_VMA_COURTE_COMBOS, center, 450, idx)
+    pct = [100, 105, 110][idx % 3]
+    rec = "egale" if idx % 2 == 0 else "moitie"
+    flabel = f"{dist}m"
 
     s = speed_kmh(pct, vma)
     rec_s = speed_kmh(50, vma)  # trot ~50% VMA
-    if fkind == "time":
-        eff_sec = fval
-        eff_km = s * eff_sec / 3600
-    else:
-        eff_km = fval / 1000
-        eff_sec = round(eff_km / s * 3600)
-    recovery_sec = eff_sec if rec == "egale" else max(15, eff_sec // 2)
+    eff_km = dist / 1000
+    eff_sec = round(eff_km / s * 3600)
+    recovery_sec = eff_sec if rec == "egale" else max(20, eff_sec // 2)
     rec_km = rec_s * recovery_sec / 3600
     series_rec_sec = 180
 
@@ -134,7 +152,7 @@ def _vma_courte(idx, vma, fcmax, weight, sciatic):
     total_km = round(20 / 60 * speed_kmh(70, vma) + work_km + 10 / 60 * speed_kmh(65, vma), 1)
     eff_min = total_reps * (eff_sec + recovery_sec) / 60 + (series - 1) * series_rec_sec / 60
     total_min = 20 + eff_min + 10
-    difficulty = 3 + (1 if pct >= 110 else 0) + (1 if total_reps >= 28 else 0)
+    difficulty = 3 + (1 if pct >= 110 else 0) + (1 if reps * series * dist >= 3600 else 0)
     note = "Fractions courtes : OK sciatique, éviter relances explosives à froid." if sciatic else ""
     return _envelope("vma_courte", idx + 1, title=f"VMA courte — {series}×{reps}×{flabel} @ {pct}%",
                      difficulty=difficulty, warmup=_warmup(20, vma, fcmax), body=body,
@@ -157,12 +175,22 @@ def _ladder(base: int, reps: int, fmt: str) -> list[int]:
     return [min(1200, max(400, d)) for d in seq]
 
 
-def _vma_longue(idx, vma, fcmax, weight, sciatic):
-    dists = [400, 500, 600, 800, 1000, 1200]
-    reps_opts = [3, 4, 5, 6, 7, 8]
-    pcts = [90, 95]
-    fmts = ["classique", "pyramide", "degressif"]
-    base, reps, pct, fmt = _select(idx, [dists, reps_opts, pcts, fmts])
+# Combos VMA longue COHÉRENTS (distance_m, reps) — volume total borné
+# ~2,4-5 km. Triés par volume croissant (progression).
+_VMA_LONGUE_COMBOS = sorted(
+    [(d, r, d * r) for (d, r) in [
+        (400, 6), (600, 4), (500, 5), (600, 5), (1000, 3), (500, 6),
+        (800, 4), (600, 6), (1200, 3), (800, 5), (1000, 4), (1200, 4),
+        (800, 6), (1000, 5),
+    ]], key=lambda c: c[2])
+
+
+def _vma_longue(idx, vma, fcmax, weight, sciatic, progress=None):
+    p = _progress_of(idx, progress)
+    center = min(4800, 2400 + p * 160)               # volume cible progressif
+    base, reps, _tot = _pick_by_volume(_VMA_LONGUE_COMBOS, center, 700, idx)
+    pct = [90, 95][idx % 2]
+    fmt = ["classique", "pyramide", "degressif"][idx % 3]
     s = speed_kmh(pct, vma)
     ladder = _ladder(base, reps, fmt)
 
@@ -192,7 +220,7 @@ def _vma_longue(idx, vma, fcmax, weight, sciatic):
 
 
 # ---------------------------------------------------------------- SEUIL
-def _seuil(idx, vma, fcmax, weight, sciatic):
+def _seuil(idx, vma, fcmax, weight, sciatic, progress=None):
     pcts = [85, 88]
     structs = [("continu", 20, 0, 0), ("continu", 25, 0, 0), ("continu", 30, 0, 0),
                ("fractions", 12, 3, 3), ("fractions", 6, 5, 1),
@@ -228,7 +256,7 @@ def _seuil(idx, vma, fcmax, weight, sciatic):
 
 
 # ---------------------------------------------------------------- TEMPO
-def _tempo(idx, vma, fcmax, weight, sciatic):
+def _tempo(idx, vma, fcmax, weight, sciatic, progress=None):
     durations = [20, 25, 30, 35, 40]
     fmts = ["continu", "2×15'", "progressif", "3×10'"]
     pcts = [80, 82, 85]
@@ -250,7 +278,7 @@ def _tempo(idx, vma, fcmax, weight, sciatic):
 
 
 # ---------------------------------------------------------------- Z2
-def _z2(idx, vma, fcmax, weight, sciatic):
+def _z2(idx, vma, fcmax, weight, sciatic, progress=None):
     durations = [35, 45, 50, 60, 70, 80, 90]
     terrains = ["route", "trail", "côtes douces"]
     extras = ["aucun", "strides", "gainage McGill", "sortie nocturne", "café-run"]
@@ -278,7 +306,7 @@ def _z2(idx, vma, fcmax, weight, sciatic):
 
 
 # ---------------------------------------------------------------- FARTLEK
-def _fartlek(idx, vma, fcmax, weight, sciatic):
+def _fartlek(idx, vma, fcmax, weight, sciatic, progress=None):
     structs = ["Mona", "libre (suédois)", "pyramidal", "surges en côte", "fractions libres", "blocs"]
     durations = [25, 30, 35, 40, 45, 50]
     terrains = ["route", "trail", "vallonné"]
@@ -309,7 +337,7 @@ def _fartlek(idx, vma, fcmax, weight, sciatic):
 
 
 # ---------------------------------------------------------------- CÔTES
-def _cotes(idx, vma, fcmax, weight, sciatic):
+def _cotes(idx, vma, fcmax, weight, sciatic, progress=None):
     kinds = ["sprint neuromusculaire", "côtes courtes (puissance)",
              "côtes longues (aérobie)", "pyramide de côtes", "fartlek côte"]
     reps_opts = [4, 5, 6, 7, 8, 10]
@@ -348,11 +376,13 @@ _BUILDERS = {
 
 def generate_run(run_type: str, seed: int, vma: float = VMA_ATHLETE,
                  fcmax: int = FCMAX, weight: float = WEIGHT_KG,
-                 sciatic: bool = True) -> dict:
+                 sciatic: bool = True, progress=None) -> dict:
+    """`progress` (optionnel) : index de semaine du plan → volume cible croissant
+    et cohérent (VMA courte/longue). None = variété libre dérivée du seed."""
     if run_type not in _BUILDERS:
         raise ValueError(f"type inconnu: {run_type} (attendus: {', '.join(RUN_TYPES)})")
     idx = max(0, int(seed) - 1)   # seed 1-based
-    return _BUILDERS[run_type](idx, vma, int(fcmax), weight, sciatic)
+    return _BUILDERS[run_type](idx, vma, int(fcmax), weight, sciatic, progress)
 
 
 def run_library(vma: float = VMA_ATHLETE, fcmax: int = FCMAX) -> dict:

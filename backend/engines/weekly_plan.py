@@ -54,7 +54,8 @@ def _build_session(spec, w_index, weekday, vma, fcmax, maxes=None):
     moment, stype, sub = spec
     if stype == "run":
         seed = ((w_index * 3 + weekday) % 100) + 1
-        detail = generate_run(sub, seed, vma, fcmax)
+        # w_index = index de semaine du plan → volume progressif et cohérent.
+        detail = generate_run(sub, seed, vma, fcmax, progress=w_index)
         dur = detail["duration_min"]
         title = detail["title"]
     elif stype == "strength":

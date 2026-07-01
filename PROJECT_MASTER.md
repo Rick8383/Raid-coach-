@@ -763,3 +763,18 @@ Comptes **email + mot de passe**, **par athlète**, avec **isolation stricte** d
 > Déployé. Le principal 5/3/1 (3 séries montantes, dernière AMRAP) était affiché différemment (barres de %, `×1+`) → peu intuitif. Refonte au **même format que les accessoires** : phrase d'explication (« la charge monte, les reps baissent, dernière au max »), puis chaque **série numérotée** avec la **charge en gros**, `% du max` en sous-ligne, et **« × reps » (ou « × max »)** bien visible à droite ; rappel du **repos** entre séries. Frontend uniquement.
 
 *Addendum v3.14 · 16/06/2026 · Claude Code.*
+
+-----
+
+### Addendum v3.15 — Volumes VMA cohérents & progressifs (01/07/2026)
+
+> Retour utilisateur : « la séance du jour est une VMA courte 3×20×300 m = 18 km juste pour le cœur, incohérent ; 2×10×300 serait plus cohérent surtout en début de programme. Corrige et fais que ce soit progressif et cohérent sur tout le plan. » Déployé.
+
+- **Bug** : `_vma_courte` combinait jusqu'à 20 reps × 3 séries × 300 m (≈ 18 km d'effort) et `_vma_longue` jusqu'à 8×1200 m (≈ 9,6 km) — physiologiquement absurde pour du fractionné VMA.
+- **Fix** : combos **curés et bornés** (`_VMA_COURTE_COMBOS` ≈ 1,6–4,8 km, `_VMA_LONGUE_COMBOS` ≈ 2,4–5 km), triés par volume croissant. Sélection par **bande de volume** autour d'une cible qui **progresse avec l'avancée du plan** : `generate_run(..., progress=w_index)` où `w_index` = index de semaine. Début de plan → volume bas (≈ 2×10×300), milieu → volume plus élevé (≈ 4 km), jamais 18 km. `progress=None` (générateur libre / standby) reste borné via les mêmes combos.
+- **Threading** : `weekly_plan._build_session` passe désormais `progress=w_index` ; signature `generate_run(..., progress=None)` rétro-compatible.
+- **Tests** : `test_run_coherence.py` — volume fractionné borné (≤ ~5 km) pour tous les seeds/progress, début de plan doux, et **croissance** du volume moyen entre début et milieu de plan.
+
+**État** : 160 tests pytest + 4 audits PASS (60 routes API), TypeScript strict 0 erreur, export web OK.
+
+*Addendum v3.15 · 01/07/2026 · Claude Code.*
