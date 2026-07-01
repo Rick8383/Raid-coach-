@@ -9,6 +9,7 @@ import { BarChart } from './Chart';
 import { StrengthDetail } from './SessionDetail';
 import { Card, PrimaryButton, Tag } from './ui';
 import { colors, spacing, typography } from '../theme/tokens';
+import { localISODate } from '../schedule';
 
 const DAYS = [{ k: 'push', l: 'PUSH' }, { k: 'pull', l: 'PULL' }, { k: 'legs', l: 'LEGS' }];
 const WEEKS = [1, 2, 3, 4];
@@ -36,7 +37,7 @@ export function StrengthProgram({ cycle = 0 }: { cycle?: number }) {
   const save = async () => {
     if (!s) return;
     await api.saveSession({
-      discipline: 'strength', session_date: new Date().toISOString().slice(0, 10),
+      discipline: 'strength', session_date: localISODate(),
       duration_min: 70, title: `Force ${day.toUpperCase()} S${week}`, status: 'done', detail: s,
     });
     setSaved(true);

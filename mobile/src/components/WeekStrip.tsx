@@ -5,7 +5,7 @@
  */
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { DAY_LABELS, DaySchedule, ScheduleConfig, WEEK_LABEL, weekSchedule } from '../schedule';
+import { DAY_LABELS, DaySchedule, ScheduleConfig, WEEK_LABEL, weekSchedule, localISODate } from '../schedule';
 import { colors, spacing, typography } from '../theme/tokens';
 import { Tag } from './ui';
 
@@ -13,8 +13,7 @@ export function WeekStrip({ today = new Date(), config }:
   { today?: Date; config?: ScheduleConfig }) {
   const { weekType, days } = weekSchedule(today, config);
   const weekly = weekType === 'weekly';
-  const todayIso = new Date(Date.UTC(
-    today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())).toISOString().slice(0, 10);
+  const todayIso = localISODate(today);   // date CALENDRIER LOCAL
 
   return (
     <View>

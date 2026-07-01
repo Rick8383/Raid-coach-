@@ -10,6 +10,7 @@ import { WodTimer, WodResult } from './WodTimer';
 import { NumberField } from './NumberField';
 import { Card, PrimaryButton, Tag } from './ui';
 import { colors, spacing, typography } from '../theme/tokens';
+import { localISODate } from '../schedule';
 
 function fmtTime(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -67,7 +68,7 @@ export function WodGenerator() {
   const save = async () => {
     if (!wod) return;
     await api.saveSession({
-      discipline: 'crossfit', session_date: new Date().toISOString().slice(0, 10),
+      discipline: 'crossfit', session_date: localISODate(),
       duration_min: duration, title: wod.name, status: 'planned', detail: wod,
     });
     setSaved(true);
@@ -81,7 +82,7 @@ export function WodGenerator() {
       ? `${fmtTime(r.time_sec)}${r.capped ? ' (cap)' : ''}`
       : `${r.reps} reps/rounds`;
     await api.saveSession({
-      discipline: 'crossfit', session_date: new Date().toISOString().slice(0, 10),
+      discipline: 'crossfit', session_date: localISODate(),
       duration_min: Math.max(1, Math.round(r.time_sec / 60)) || duration,
       intensity_rpe: 9, title: `${wod.name} — ${scoreLabel}`, status: 'done',
       detail: { ...wod, result: r, score_label: scoreLabel },

@@ -836,3 +836,29 @@ Comptes **email + mot de passe**, **par athlète**, avec **isolation stricte** d
 **État** : 164 tests pytest + 4 audits PASS (60 routes API), TypeScript strict 0 erreur, export web OK.
 
 *Addendum v3.19 · 01/07/2026 · Claude Code.*
+
+-----
+
+### Addendum v3.20 — Audit complet : 10 bugs corrigés + mobilité GOWOD + nutrition timing (01/07/2026)
+
+> Audit demandé par le propriétaire (« repère les bugs et améliore tout ça »). Audit frontend par agent (rapport détaillé), vérifications backend, corrections, et deux nouveaux modules. Déployé.
+
+**Bugs corrigés (par gravité)** :
+1. **CRITIQUE — fuite de données entre comptes (même appareil)** : le logout ne purgeait ni les caches `cache:*` ni la file offline → l'utilisateur suivant pouvait voir (fallback offline) les données du précédent, et la file rejouait les écritures de l'ancien compte avec le nouveau token. Fix : `clearUserData()` (purge caches + file) au logout ET au changement de token.
+2. **MAJEUR — file offline destructrice** : `flushSyncQueue` jetait les écritures sur 401 (token expiré/pas encore chargé au lancement) → séances/check-ins perdus. Fix : garde `!authToken`, 401 conservé, flush déclenché seulement une fois la session restaurée (`[user, checkin]`).
+3. **MAJEUR — flush sans verrou** : deux flushes concurrents = doubles envois ; un `queueWrite` pendant un flush était écrasé. Fix : mutex `_flushing` + re-lecture de la file avant réécriture (suppression par `ts`).
+4. **MAJEUR — benchmarks/métriques jamais envoyés en ligne** : `recordBenchmark`/`recordMetrics`/`completeSession` passaient TOUJOURS par la file (flushée seulement au lancement) → « enregistré » affiché mais rien au serveur, graphe jamais à jour. Fix : post direct + file en secours + invalidation `cache:bench`.
+5. **MAJEUR — dates UTC** : tous les « aujourd'hui » utilisaient `toISOString().slice(0,10)` (date UTC) → entre minuit et ~2h (France), séances/check-ins enregistrés sur la VEILLE, agenda décalé. Fix : `localISODate()`/`todayLocalAsUTC()` dans `schedule.ts`, remplacé dans 14 fichiers (écrans + composants + client).
+6. **MODÉRÉ — « marqué fait » qui réapparaissait au repli/dépli** : `doneKeys` jamais rafraîchi après un save. Fix : callback `onSaved` → le parent marque la clé.
+7. **MODÉRÉ — séries pré-remplies non sauvegardées** : `StrengthActualsForm` n'émettait son état qu'à la première modification → enregistrer sans rien toucher perdait tout. Fix : émission au montage.
+8. **MODÉRÉ — saisies fantômes** : replier le dépliant montre/séries gardait les valeurs déjà saisies (invisibles) → sauvegardées quand même. Fix : replier = annuler la saisie.
+9. **MINEUR — WodTimer AMRAP** : arrêt manuel (■) enregistrait `time_sec = cap` complet. Fix : temps réel écoulé dans les deux modes.
+10. **MINEUR — caches périmés** : `updateProfile` n'invalidait pas le plan (VMA/FCmax changés → anciennes allures offline) ; `setLift1RM` n'invalidait pas `cache:prog`. Fix : invalidations ajoutées.
+
+**Nouveaux modules** :
+- **Mobilité quotidienne (style GOWOD)** : `engines/mobility` — ~30 exercices (hanches, chevilles/mollets, épaules, thoracique, chaîne postérieure, core McGill), routine minutée déterministe, focus dérivé de la séance principale du jour (course → chevilles/mollets, legs → hanches, push → épaules…), jour off → routine complète 18'. Sciatique-safe (dos neutre, neuroglisses doux, McGill inclus le soir). `moment='avant'` → dynamique seulement (Simic 2013 : statique long pré-effort = perte de force transitoire). Intégrée au plan quotidien (séance `recovery` du soir, marquable « faite ») + endpoint `GET /generate/mobility` (routes 60→61, audit build12 mis à jour). Fondement : Thomas 2018 (fréquence > durée pour le gain d'amplitude), Behm 2016, Wiewelhove 2019 (rouleau).
+- **Nutrition — répartition & timing** : `/nutrition/daily-macros` renvoie `meal_distribution` (~0,4 g/kg de protéines × 4 prises — Schoenfeld & Aragon 2018) et `peri_workout` (avant/après/double-séance — ISSN 2017, Kerksick). Affiché dans l'écran Nutrition (« RÉPARTITION & TIMING »).
+
+**État** : 164 tests pytest + 4 audits PASS (61 routes API), TypeScript strict 0 erreur, export web OK.
+
+*Addendum v3.20 · 01/07/2026 · Claude Fable 5.*

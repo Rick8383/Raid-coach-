@@ -11,6 +11,7 @@ import {
 import { api, AthleteProfile } from '../api/client';
 import { localCoachAnswer } from '../coach/localCoach';
 import { colors, spacing, typography } from '../theme/tokens';
+import { localISODate } from '../schedule';
 
 interface Msg { role: 'user' | 'coach'; text: string; suggestions?: string[]; }
 
@@ -73,7 +74,7 @@ export function CoachChatScreen({ profile }: { profile?: AthleteProfile | null }
     setBusy(true);
     try {
       // 1) API : coach LLM (si clé serveur) sinon coach déterministe enrichi.
-      const res = await withTimeout(api.chat(q, new Date().toISOString().slice(0, 10), history), 30000);
+      const res = await withTimeout(api.chat(q, localISODate(), history), 30000);
       setMessages(m => [...m, { role: 'coach', text: res.reply, suggestions: res.suggestions }]);
     } catch {
       // 2) API injoignable/lente → cerveau local : analyse la question et répond

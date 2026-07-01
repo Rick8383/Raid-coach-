@@ -340,12 +340,14 @@ def test_weekly_plan_structure(client):
     w0 = p["weeks"][0]
     assert w0["week_type"] == "big_work"   # semaine du 15/06 = grande
     assert len(w0["days"]) == 7
-    # jour OFF (mer) = double séance ; détail run présent
+    # jour OFF (mer) = double séance + mobilité quotidienne ; détail run présent
     wed = next(d for d in w0["days"] if d["day_of_week"] == "wed")
     assert wed["is_work_day"] is False
-    assert len(wed["sessions"]) == 2
+    assert len(wed["sessions"]) == 3
     run = next(s for s in wed["sessions"] if s["type"] == "run")
     assert run["detail"]["body"][0]["pace_min_km"]
+    mob = next(s for s in wed["sessions"] if s["type"] == "recovery")
+    assert mob["detail"].get("mobility") is True and mob["detail"]["blocks"]
 
 
 def test_weekly_plan_strength_progresses(client):

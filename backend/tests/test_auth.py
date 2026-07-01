@@ -137,7 +137,8 @@ def test_per_user_weekly_schedule(client, monkeypatch):
     tue = client.get("/plan/day?date=2026-06-23", headers=H).json()
     assert mon["week_type"] == "weekly"
     assert len(mon["sessions"]) >= 1          # lundi : séance
-    assert tue["sessions"] == []              # mardi : repos
+    # mardi : repos → seule la mobilité quotidienne (GOWOD) est prescrite
+    assert all(s["type"] == "recovery" for s in tue["sessions"])
 
 
 def test_per_user_opposite_police_phase(client, monkeypatch):

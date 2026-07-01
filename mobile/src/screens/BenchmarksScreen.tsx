@@ -7,6 +7,7 @@ import { BarChart } from '../components/Chart';
 import { NumberField } from '../components/NumberField';
 import { Card, PrimaryButton } from '../components/ui';
 import { colors, spacing, typography } from '../theme/tokens';
+import { localISODate } from '../schedule';
 
 const TRACKED: { id: string; label: string; unit: string; step: number }[] = [
   { id: 'pullups_max', label: 'TRACTIONS', unit: 'reps', step: 1 },
@@ -33,7 +34,7 @@ function BenchmarkTracker() {
   const logTest = async () => {
     await api.recordBenchmark({
       benchmark_id: sel.id, result_value: val, result_unit: sel.unit,
-      test_date: new Date().toISOString().slice(0, 10),
+      test_date: localISODate(),
     });
     setSaved(true);
     setTimeout(() => load(sel.id), 400); // laisse la file de sync passer

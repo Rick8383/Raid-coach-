@@ -25,6 +25,7 @@ from api import auth as _auth
 from engines.coach_chat import answer as _coach_chat_answer
 from engines.coach_chat import llm_answer as _coach_llm, llm_enabled as _coach_llm_enabled
 from engines import standby as _standby
+from engines.mobility import generate_mobility as _gen_mobility
 from engines.schedule import user_schedule as _us
 # CoachAPI met engines/legacy sur sys.path à l'import → AnalyticsInput accessible
 from build6_analytics_engine.models import AnalyticsInput  # noqa: E402
@@ -819,6 +820,15 @@ def run_library_ep(vma: float | None = None, fcmax: int | None = None) -> dict:
     return coach.run_library(vma, fcmax)
 
 
+@app.get("/generate/mobility")
+def generate_mobility_ep(focus: str = "full", duration_min: int = 12,
+                         seed: int = 1, moment: str = "soir") -> dict:
+    """Routine mobilité (style GOWOD) : focus ciblé, minutée, sciatique-safe.
+    moment='avant' → dynamique uniquement (pré-séance)."""
+    return _gen_mobility(focus, max(6, min(30, duration_min)), max(1, seed),
+                         True, "avant" if moment == "avant" else "soir")
+
+
 class WodGenIn(BaseModel):
     format: str = "auto"   # auto | amrap | for_time | emom | death_by | chipper | ...
     duration_min: int = Field(default=12, ge=4, le=30)
@@ -918,7 +928,25 @@ def daily_macros(body: MacrosIn) -> dict:
     payload = body.model_dump()
     if payload["target_weight_kg"] is None:
         payload["target_weight_kg"] = payload["weight_kg"]
-    return _safe(coach.daily_macros, payload)
+    res = _safe(coach.daily_macros, payload)
+    # Répartition protéique par repas (Schoenfeld & Aragon 2018 : ~0,4 g/kg
+    # par repas × 4 prises maximise la synthèse protéique) + timing
+    # péri-entraînement (ISSN 2017, Kerksick et al.).
+    w = float(payload["weight_kg"])
+    per_meal = round(0.4 * w)
+    res["meal_distribution"] = {
+        "meals": 4,
+        "protein_per_meal_g": per_meal,
+        "note": (f"Vise ~{per_meal} g de protéines × 4 prises (matin, midi, "
+                 "post-séance, soir) plutôt qu'un gros repas — meilleure "
+                 "synthèse musculaire à quota égal."),
+    }
+    res["peri_workout"] = {
+        "avant": "1-2 h avant séance clé : 1-2 g/kg de glucides digestes + protéines légères.",
+        "apres": f"Dans les 2 h : {per_meal}-{per_meal + 10} g protéines + glucides (1 g/kg si 2 séances le même jour).",
+        "double_seance": "Jour à 2 séances : la fenêtre glucidique post-séance 1 conditionne la qualité de la séance 2.",
+    }
+    return res
 
 
 @app.post("/nutrition/selection-day")

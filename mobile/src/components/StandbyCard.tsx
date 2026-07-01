@@ -11,11 +11,12 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { StandbyState, api } from '../api/client';
 import { Card } from './ui';
 import { colors, spacing, typography } from '../theme/tokens';
+import { todayLocalAsUTC } from '../schedule';
 
 const DAY_MS = 24 * 3600 * 1000;
 
 function isoInDays(n: number): string {
-  const t = new Date();
+  const t = todayLocalAsUTC();   // date CALENDRIER LOCAL (pas UTC)
   return new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()) + n * DAY_MS)
     .toISOString().slice(0, 10);
 }

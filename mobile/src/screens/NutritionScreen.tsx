@@ -121,6 +121,20 @@ function MacrosTab({ macros, profile, sched, activity }:
           ))}
         </View>
       )}
+      {/* Répartition protéique + timing péri-entraînement (ISSN / Schoenfeld) */}
+      {!!macros.meal_distribution && (
+        <View style={{ marginTop: spacing.l }}>
+          <Text style={styles.section}>RÉPARTITION & TIMING</Text>
+          <Text style={styles.note}>🍽 {macros.meal_distribution.note}</Text>
+          {!!macros.peri_workout && (
+            <>
+              <Text style={styles.note}>⏱ Avant : {macros.peri_workout.avant}</Text>
+              <Text style={styles.note}>⏱ Après : {macros.peri_workout.apres}</Text>
+              <Text style={styles.note}>⚡ {macros.peri_workout.double_seance}</Text>
+            </>
+          )}
+        </View>
+      )}
       {macros.notes.length > 0 && (
         <View style={styles.notes}>{macros.notes.map(n => <Text key={n} style={styles.note}>• {n}</Text>)}</View>
       )}

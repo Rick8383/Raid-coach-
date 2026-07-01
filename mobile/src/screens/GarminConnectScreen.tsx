@@ -18,6 +18,7 @@ import { api } from '../api/client';
 import { Card, PrimaryButton, Tag } from '../components/ui';
 import { HealthSnapshot, readHealthSnapshot, sleepQualityFromHours } from '../wearable/health';
 import { colors, spacing, typography } from '../theme/tokens';
+import { localISODate } from '../schedule';
 
 export function GarminConnectScreen({ onClose }: { onClose: () => void }) {
   const [snap, setSnap] = useState<HealthSnapshot | null>(null);
@@ -37,7 +38,7 @@ export function GarminConnectScreen({ onClose }: { onClose: () => void }) {
     api.garminStatus().then(setGarmin).catch(() => setGarmin({ configured: false, connected: false }));
   }, []);
 
-  const today = () => new Date().toISOString().slice(0, 10);
+  const today = () => localISODate();
 
   const connectGarmin = async () => {
     try {

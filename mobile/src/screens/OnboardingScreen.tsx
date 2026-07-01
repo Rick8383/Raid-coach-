@@ -10,20 +10,20 @@ import {
 } from 'react-native';
 import { AthleteProfile, api } from '../api/client';
 import { NumberField } from '../components/NumberField';
-import { DayCode, DAY_CODES, DAY_LABELS } from '../schedule';
+import { DayCode, DAY_CODES, DAY_LABELS, todayLocalAsUTC } from '../schedule';
 import { colors, spacing, typography } from '../theme/tokens';
 
 const DAY_MS = 24 * 3600 * 1000;
 
 function mondayThisWeekISO(offsetWeeks = 0): string {
-  const t = new Date();
+  const t = todayLocalAsUTC();   // date CALENDRIER LOCAL (pas UTC)
   const utc = Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate());
   const isoWd = (t.getUTCDay() + 6) % 7;
   return new Date(utc - isoWd * DAY_MS + offsetWeeks * 7 * DAY_MS).toISOString().slice(0, 10);
 }
 
 function goalDateIn(months: number): string {
-  const t = new Date();
+  const t = todayLocalAsUTC();
   return new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + months, t.getUTCDate()))
     .toISOString().slice(0, 10);
 }

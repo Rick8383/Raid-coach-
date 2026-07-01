@@ -4,6 +4,7 @@
  * la file de synchronisation gère les écritures hors connexion.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { localISODate } from '../schedule';
 import Constants from 'expo-constants';
 
 declare const process: { env: Record<string, string | undefined> };
@@ -35,11 +36,27 @@ export async function loadToken(): Promise<string | null> {
   authToken = await AsyncStorage.getItem(TOKEN_KEY);
   return authToken;
 }
+// Purge TOUTES les données locales liées à un compte (caches de lecture +
+// file d'écritures offline). Indispensable au logout ET au login : sinon, sur
+// un appareil partagé, l'utilisateur suivant voit les données du précédent
+// (fallback offline) et la file rejouerait les écritures de l'ancien compte
+// avec le nouveau token.
+export async function clearUserData(): Promise<void> {
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const mine = keys.filter(k => k.startsWith('cache:') || k === SYNC_QUEUE_KEY);
+    if (mine.length) await AsyncStorage.multiRemove(mine);
+  } catch { /* best-effort */ }
+}
+
 export async function setToken(t: string): Promise<void> {
+  const changed = authToken !== null && authToken !== t;
   authToken = t; await AsyncStorage.setItem(TOKEN_KEY, t);
+  if (changed) await clearUserData();   // changement de compte sans logout propre
 }
 export async function clearToken(): Promise<void> {
   authToken = null; await AsyncStorage.removeItem(TOKEN_KEY);
+  await clearUserData();
 }
 function authHeaders(): Record<string, string> {
   return authToken ? { Authorization: `Bearer ${authToken}` } : {};
@@ -149,23 +166,40 @@ export async function invalidatePlanCaches(): Promise<void> {
     'cache:planday:', 'cache:weekly:');
 }
 
+let _flushing = false;   // verrou : deux flushes concurrents = doubles envois
+
 export async function flushSyncQueue(): Promise<number> {
-  const raw = (await AsyncStorage.getItem(SYNC_QUEUE_KEY)) ?? '[]';
-  const queue = JSON.parse(raw) as { path: string; body: Json; ts: number }[];
-  const remaining: typeof queue = [];
-  for (const item of queue) {
-    try {
-      await post(item.path, item.body);
-    } catch (e) {
-      // Erreur client (payload invalide) : inutile de réessayer, on jette l'item.
-      // Erreur réseau ou serveur : on garde pour la prochaine synchro.
-      if (!(e instanceof ApiError && e.status >= 400 && e.status < 500)) {
-        remaining.push(item);
+  // Jamais sans token : les posts partiraient anonymes → 401 (et avant le fix,
+  // perte définitive des écritures + déconnexion forcée au lancement).
+  if (_flushing || !authToken) return 0;
+  _flushing = true;
+  try {
+    const raw = (await AsyncStorage.getItem(SYNC_QUEUE_KEY)) ?? '[]';
+    const queue = JSON.parse(raw) as { path: string; body: Json; ts: number }[];
+    const sent = new Set<number>();
+    for (const item of queue) {
+      try {
+        await post(item.path, item.body);
+        sent.add(item.ts);
+      } catch (e) {
+        // Payload invalide (4xx sauf 401) : inutile de réessayer, on jette.
+        // 401 (session expirée) / réseau / 5xx : on GARDE pour plus tard.
+        if (e instanceof ApiError && e.status >= 400 && e.status < 500 && e.status !== 401) {
+          sent.add(item.ts);
+        }
       }
     }
+    if (sent.size) {
+      // Re-lit la file avant réécriture : un queueWrite arrivé PENDANT le
+      // flush n'est pas écrasé.
+      const now = JSON.parse((await AsyncStorage.getItem(SYNC_QUEUE_KEY)) ?? '[]') as typeof queue;
+      await AsyncStorage.setItem(SYNC_QUEUE_KEY,
+        JSON.stringify(now.filter(i => !sent.has(i.ts))));
+    }
+    return sent.size;
+  } finally {
+    _flushing = false;
   }
-  await AsyncStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(remaining));
-  return queue.length - remaining.length;
 }
 
 // ---- Endpoints typés ----
@@ -442,6 +476,8 @@ export interface MacroTarget {
   fat_g: number;
   water_l: number;
   notes: string[];
+  meal_distribution?: { meals: number; protein_per_meal_g: number; note: string };
+  peri_workout?: { avant: string; apres: string; double_seance: string };
 }
 
 export interface SupplementItem { name: string; dose: string; with: string; evidence: string; why: string; }
@@ -550,6 +586,8 @@ export const api = {
   updateProfile: async (body: Json): Promise<AthleteProfile> => {
     const data = await patch<AthleteProfile>('/profile', body);
     await AsyncStorage.setItem('cache:profile', JSON.stringify({ t: Date.now(), data }));
+    // VMA / FCmax / poids conditionnent les allures du plan → cache plan périmé.
+    await invalidatePlanCaches();
     return data;
   },
 
@@ -578,8 +616,9 @@ export const api = {
   setLift1RM: async (lift: string, oneRm: number): Promise<void> => {
     await post('/benchmarks/record', {
       benchmark_id: `${lift}_1rm`, result_value: oneRm, result_unit: 'kg',
-      test_date: new Date().toISOString().slice(0, 10) });
+      test_date: localISODate() });
     await invalidatePlanCaches();
+    await removeCacheByPrefix('cache:prog:', 'cache:bench');   // progression 5/3/1 + benchs
   },
 
   // Supprimer une séance (annulation mauvaise manip)
@@ -628,11 +667,20 @@ export const api = {
     }
   },
 
-  // Écritures (passent par la file si offline)
-  recordMetrics: (body: Json) => queueWrite('/metrics/record', body),
+  // Écritures : envoi DIRECT quand on est en ligne (résultat visible tout de
+  // suite), mise en file uniquement en secours (offline/erreur réseau).
+  recordMetrics: async (body: Json) => {
+    try { await post('/metrics/record', body); }
+    catch { await queueWrite('/metrics/record', body); }
+  },
   completeSession: async (body: Json) => {
-    await queueWrite('/sessions/complete', body);
+    try { await post('/sessions/complete', body); }
+    catch { await queueWrite('/sessions/complete', body); }
     await invalidateAgendaCaches();
   },
-  recordBenchmark: (body: Json) => queueWrite('/benchmarks/record', body),
+  recordBenchmark: async (body: Json) => {
+    try { await post('/benchmarks/record', body); }
+    catch { await queueWrite('/benchmarks/record', body); }
+    await removeCacheByPrefix('cache:bench');
+  },
 };

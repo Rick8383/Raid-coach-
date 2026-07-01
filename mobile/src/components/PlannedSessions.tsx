@@ -25,16 +25,22 @@ const TYPE_LABEL: Record<string, string> = {
   run: 'COURSE', strength: 'FORCE', crossfit: 'WOD', swim: 'NATATION',
   recovery: 'RÉCUP', rest: 'REPOS',
 };
-const COMPLETABLE = new Set(['run', 'strength', 'crossfit', 'swim']);
+const COMPLETABLE = new Set(['run', 'strength', 'crossfit', 'swim', 'recovery']);
 
 function SessionExpanded({ s }: { s: PlanSession }) {
   const d = s.detail || {};
   if (s.type === 'run' && Array.isArray(d.body)) return <RunDetail session={d} />;
   if (s.type === 'strength' && (d.main_lift || d.movements)) return <StrengthDetail session={d} />;
   if (s.type === 'crossfit' && Array.isArray(d.description)) return <WodDetail wod={d} />;
-  if (s.type === 'swim' && Array.isArray(d.blocks)) {
-    return <View>{d.blocks.map((b: string, i: number) => (
-      <Text key={i} style={styles.detailLine}>• {b}</Text>))}</View>;
+  if ((s.type === 'swim' || s.type === 'recovery') && Array.isArray(d.blocks)) {
+    // Natation ou mobilité (GOWOD) : liste de blocs minutés + consigne.
+    return (
+      <View>
+        {d.blocks.map((b: string, i: number) => (
+          <Text key={i} style={styles.detailLine}>• {b}</Text>))}
+        {!!d.note && <Text style={styles.detailNote}>💡 {d.note}</Text>}
+      </View>
+    );
   }
   return null;
 }
@@ -44,8 +50,8 @@ const METRIC_KEYS: (keyof WatchMetrics)[] = [
   'te_aerobic', 'te_anaerobic',
 ];
 
-function CompleteRow({ s, dateIso, alreadyDone }: {
-  s: PlanSession; dateIso: string; alreadyDone: boolean;
+function CompleteRow({ s, dateIso, alreadyDone, onSaved }: {
+  s: PlanSession; dateIso: string; alreadyDone: boolean; onSaved: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [rpe, setRpe] = useState(7);
@@ -73,6 +79,7 @@ function CompleteRow({ s, dateIso, alreadyDone }: {
     try {
       await api.saveSession(body);
       setDone(true);
+      onSaved();   // le parent marque la séance faite → l'état survit au repli/dépli
     } finally { setBusy(false); }
   };
 
@@ -107,7 +114,12 @@ function CompleteRow({ s, dateIso, alreadyDone }: {
 
           {isStrength && (
             <>
-              <Pressable onPress={() => setLiftsOpen(o => !o)} style={styles.watchToggle}>
+              <Pressable
+                onPress={() => setLiftsOpen(o => {
+                  if (o) setPerformed(null);   // replié = saisie annulée (pas de valeurs cachées)
+                  return !o;
+                })}
+                style={styles.watchToggle}>
                 <Text style={styles.watchToggleT}>
                   {liftsOpen ? '−' : '＋'} Séries réalisées (reps × charge)
                 </Text>
@@ -116,7 +128,12 @@ function CompleteRow({ s, dateIso, alreadyDone }: {
             </>
           )}
 
-          <Pressable onPress={() => setWatchOpen(o => !o)} style={styles.watchToggle}>
+          <Pressable
+            onPress={() => setWatchOpen(o => {
+              if (o) setMetrics({ duration_min: s.duration_min });   // replié = saisie annulée
+              return !o;
+            })}
+            style={styles.watchToggle}>
             <Text style={styles.watchToggleT}>
               {watchOpen ? '−' : '＋'} Données réelles de la montre (Garmin)
             </Text>
@@ -206,7 +223,9 @@ export function PlannedSessions({ sessions, dateIso, completable = false, standb
                 <SessionExpanded s={s} />
                 {completable && dateIso && (
                   <CompleteRow s={s} dateIso={dateIso}
-                    alreadyDone={doneKeys.has(`${s.type}|${s.title ?? ''}`)} />
+                    alreadyDone={doneKeys.has(`${s.type}|${s.title ?? ''}`)}
+                    onSaved={() => setDoneKeys(prev =>
+                      new Set(prev).add(`${s.type}|${s.title ?? ''}`))} />
                 )}
               </View>
             )}
@@ -225,6 +244,7 @@ const styles = StyleSheet.create({
   chevron: { color: colors.signal, fontSize: 20, width: 20, textAlign: 'center' },
   detail: { paddingLeft: spacing.m, paddingBottom: spacing.s, gap: 2 },
   detailLine: { color: colors.textSecondary, fontSize: typography.sizes.small, lineHeight: 19 },
+  detailNote: { color: colors.fitness, fontSize: typography.sizes.small, lineHeight: 18, marginTop: spacing.s },
   rest: { color: colors.textDisabled, fontSize: typography.sizes.small, paddingVertical: spacing.m },
   standby: { borderLeftWidth: 3, paddingLeft: spacing.s, paddingVertical: spacing.xs, marginBottom: spacing.s, backgroundColor: colors.bgElevated, borderRadius: 6 },
   standbyTag: { ...typography.label, fontSize: 10 },

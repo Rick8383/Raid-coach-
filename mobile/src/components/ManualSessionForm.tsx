@@ -10,12 +10,13 @@ import { Card, PrimaryButton } from './ui';
 import { NumberField } from './NumberField';
 import { RpeScale } from './RpeScale';
 import { colors, spacing, typography } from '../theme/tokens';
+import { todayLocalAsUTC } from '../schedule';
 
 const DAY_MS = 24 * 3600 * 1000;
 const DAY_SHORT = ['DIM', 'LUN', 'MAR', 'MER', 'JEU', 'VEN', 'SAM'];
 
 function pastDays(n: number) {
-  const base = new Date();
+  const base = todayLocalAsUTC();   // date CALENDRIER LOCAL (pas UTC)
   return Array.from({ length: n }, (_, i) => {
     const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate()) - i * DAY_MS);
     return { iso: d.toISOString().slice(0, 10), label: i === 0 ? 'AUJ.' : `${DAY_SHORT[d.getUTCDay()]} ${d.getUTCDate()}` };

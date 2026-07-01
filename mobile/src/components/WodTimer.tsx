@@ -97,9 +97,9 @@ export function WodTimer({ wod, durationMin, onFinish }: {
   };
 
   const finish = (capped: boolean) => {
-    const timeSec = mode === 'for_time'
-      ? Math.min(capSec, Math.round((Date.now() - runStartRef.current) / 1000))
-      : capSec;
+    // Temps réel écoulé dans les deux modes : un AMRAP stoppé à la main (■)
+    // enregistre le temps effectif, pas le cap complet.
+    const timeSec = Math.min(capSec, Math.round((Date.now() - runStartRef.current) / 1000));
     const r: WodResult = { mode, time_sec: timeSec, reps, capped, cap_sec: capSec };
     setResult(r);
     setPhase('done');

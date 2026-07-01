@@ -11,7 +11,7 @@ import { PlanView } from '../components/PlanView';
 import { WatchMetricsView } from '../components/WatchMetricsForm';
 import { PerformedView } from '../components/StrengthActualsForm';
 import { Card, Tag } from '../components/ui';
-import { DAY_LABELS, DayCode, WEEK_LABEL } from '../schedule';
+import { DAY_LABELS, DayCode, WEEK_LABEL, todayLocalAsUTC, localISODate } from '../schedule';
 import {
   colors, disciplineLabel, ReadinessLevel, spacing, typography,
 } from '../theme/tokens';
@@ -19,7 +19,7 @@ import {
 const DAY_MS = 24 * 3600 * 1000;
 
 function mondayISO(offsetWeeks: number): string {
-  const now = new Date();
+  const now = todayLocalAsUTC();   // date CALENDRIER LOCAL (pas UTC)
   const utc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   const isoWeekday = (now.getUTCDay() + 6) % 7;
   return new Date(utc - isoWeekday * DAY_MS + offsetWeeks * 7 * DAY_MS)
@@ -53,7 +53,7 @@ export function AgendaScreen({ profile }: { profile?: AthleteProfile | null }) {
     api.analytics().then(setStats).catch(() => {});
   }, []);
 
-  const nowIso = new Date().toISOString().slice(0, 10);
+  const nowIso = localISODate();
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={{ padding: spacing.m }}>

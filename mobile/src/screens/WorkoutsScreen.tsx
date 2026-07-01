@@ -16,7 +16,7 @@ import { WodGenerator } from '../components/WodGenerator';
 import { StrengthProgram } from '../components/StrengthProgram';
 import { ManualSessionForm } from '../components/ManualSessionForm';
 import { Card, PrimaryButton, Tag } from '../components/ui';
-import { daySchedule } from '../schedule';
+import { daySchedule, todayLocalAsUTC } from '../schedule';
 import { colors, disciplineLabel, spacing, typography } from '../theme/tokens';
 
 type Discipline = 'run' | 'strength' | 'crossfit' | 'manual';
@@ -108,7 +108,7 @@ const DAY_MS = 24 * 3600 * 1000;
 const DAY_SHORT = ['DIM', 'LUN', 'MAR', 'MER', 'JEU', 'VEN', 'SAM'];
 
 function nextDays(n: number): { iso: string; label: string }[] {
-  const base = new Date();
+  const base = todayLocalAsUTC();   // date CALENDRIER LOCAL (pas UTC)
   return Array.from({ length: n }, (_, i) => {
     const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate()) + i * DAY_MS);
     return {

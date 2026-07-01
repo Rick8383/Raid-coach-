@@ -157,7 +157,7 @@ def run_audit() -> dict:
         # 43 + /strength/progression + 5 nutrition+ + /coach/chat + /plan/day
         # + standby (3) + auth register/login/me (3) + invite-code (2) + DELETE session (1)
         # + /sessions/manual (1)
-        checks["fastapi_routes_count_60"] = len(routes) == 60
+        checks["fastapi_routes_count_61"] = len(routes) == 61
     except SyntaxError:
         checks["fastapi_layer_syntax_ok"] = False
         exceptions += 1

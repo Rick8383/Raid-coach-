@@ -8,6 +8,7 @@ import { AthleteProfile, RunSession, api } from '../api/client';
 import { RunDetail } from './SessionDetail';
 import { Card, PrimaryButton, Tag } from './ui';
 import { colors, spacing, typography } from '../theme/tokens';
+import { localISODate } from '../schedule';
 
 const TYPES: { key: string; label: string }[] = [
   { key: 'vma_courte', label: 'VMA COURTE' },
@@ -47,7 +48,7 @@ export function RunGenerator({ profile }: { profile: AthleteProfile | null }) {
   const save = async () => {
     if (!session) return;
     await api.saveSession({
-      discipline: 'run', session_date: new Date().toISOString().slice(0, 10),
+      discipline: 'run', session_date: localISODate(),
       duration_min: session.duration_min, title: session.title, status: 'planned', detail: session,
     });
     setSaved(true);

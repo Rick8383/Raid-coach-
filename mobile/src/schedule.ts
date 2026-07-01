@@ -115,6 +115,19 @@ function isoDate(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
+/** Date LOCALE du jour (YYYY-MM-DD). SURTOUT PAS toISOString().slice(0,10) :
+ * celle-ci renvoie la date UTC → entre minuit et ~2h du matin en France, la
+ * séance/le check-in tomberait sur la VEILLE. */
+export function localISODate(d: Date = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** « Aujourd'hui » (calendrier local) normalisé à minuit UTC — à passer aux
+ * helpers de ce module (qui font leur arithmétique en UTC). */
+export function todayLocalAsUTC(): Date {
+  return new Date(`${localISODate()}T00:00:00Z`);
+}
+
 export function daySchedule(d: Date, config?: ScheduleConfig): DaySchedule {
   const weekType = weekTypeFor(d, config);
   const dayCode = dayCodeFor(d);

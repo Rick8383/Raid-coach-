@@ -67,10 +67,13 @@ export default function App() {
     initReminders().catch(() => {});
   }, [user]);
 
-  // Vide la file d'écritures offline au lancement et après chaque check-in.
+  // Vide la file d'écritures offline une fois la session restaurée (token
+  // chargé → user défini) et après chaque check-in. flushSyncQueue refuse de
+  // partir sans token (sinon : posts anonymes → 401).
   useEffect(() => {
+    if (!user) return;
     flushSyncQueue().catch(() => {});
-  }, [checkin]);
+  }, [user, checkin]);
 
   const logout = async () => {
     await clearToken().catch(() => {});

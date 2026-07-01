@@ -14,6 +14,7 @@ from datetime import date, timedelta
 
 from engines import schedule as _sched
 from engines.schedule import user_schedule as _us
+from engines import mobility as _mob
 from engines.run_generator import generate_run
 from engines.strength_531 import generate_strength_531
 from engines.wod_generator import generate_wod
@@ -102,6 +103,20 @@ def _day_payload(d: date, shift_weeks: int, vma: float, fcmax: int,
         specs = [(m, t, "fullbody") if t == "strength" else (m, t, s) for (m, t, s) in specs]
     sessions = [_build_session(spec, plan_w, d.weekday(), vma, fcmax, maxes)
                 for spec in specs]
+    # Mobilité quotidienne (style GOWOD) : 10-12' le soir, focus dérivé de la
+    # séance principale du jour (jour off → routine complète). Le travail
+    # QUOTIDIEN court est le plus efficace pour gagner de l'amplitude
+    # (Thomas 2018) ; sciatique-safe (McGill inclus, dos neutre).
+    if specs:
+        m_focus = _mob.focus_for(specs[0][1], specs[0][2])
+    else:
+        m_focus = "full"
+    mob = _mob.generate_mobility(m_focus, 12 if specs else 18,
+                                 seed=plan_w * 7 + d.weekday() + 1)
+    sessions.append({"moment": "soir", "type": "recovery", "title": mob["title"],
+                     "duration_min": mob["duration_min"],
+                     "detail": {"blocks": mob["blocks"], "note": mob["note"],
+                                "mobility": True, "focus": mob["focus"]}})
     return {
         "date": d.isoformat(),
         "day_of_week": ds["day_of_week"],

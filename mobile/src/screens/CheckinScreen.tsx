@@ -7,6 +7,7 @@ import { api } from '../api/client';
 import { GaugeInput } from '../components/GaugeInput';
 import { HealthSnapshot, readHealthSnapshot } from '../wearable/health';
 import { colors, spacing, typography } from '../theme/tokens';
+import { localISODate } from '../schedule';
 
 export function CheckinScreen({ onDone }: { onDone: (c: any) => void }) {
   const [readiness, setReadiness] = useState(70);
@@ -26,7 +27,7 @@ export function CheckinScreen({ onDone }: { onDone: (c: any) => void }) {
   const submit = async () => {
     const checkin = { readiness, fatigue, sleep, sciatic };
     await api.recordMetrics({
-      date: new Date().toISOString().slice(0, 10),
+      date: localISODate(),
       readiness, fatigue,
       sleep_quality: sleep,
       sleep_hours: health?.sleep_hours ?? undefined,

@@ -13,6 +13,7 @@ import { StandbyCard } from '../components/StandbyCard';
 import { Roadmap } from '../components/Roadmap';
 import { applyReminders, loadPrefs, ReminderPrefs } from '../notifications';
 import { colors, spacing, typography } from '../theme/tokens';
+import { todayLocalAsUTC } from '../schedule';
 
 function weeksToGoal(goalDate?: string): number {
   const target = new Date(goalDate ?? '2029-03-01').getTime();
@@ -183,7 +184,7 @@ export function ProfileScreen({ profile, onProfile, onConnectWatch, user, onLogo
 
 const DAY_MS = 24 * 3600 * 1000;
 function nextMondayISO(): string {
-  const t = new Date();
+  const t = todayLocalAsUTC();   // date CALENDRIER LOCAL (pas UTC)
   const utc = Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate());
   const isoWd = (t.getUTCDay() + 6) % 7;            // 0 = lundi
   const add = isoWd === 0 ? 0 : 7 - isoWd;          // ce lundi si on est lundi, sinon le prochain

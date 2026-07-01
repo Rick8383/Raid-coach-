@@ -4,7 +4,7 @@
  * Calcule un 1RM estimé (Epley) à partir de la meilleure série → utile pour la
  * progression. Rattaché au profil courant (isolation par utilisateur).
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Strength531 } from '../api/client';
 import { NumberField } from './NumberField';
@@ -45,6 +45,12 @@ export function StrengthActualsForm({ detail, onChange }: {
   const init = plannedSets(detail);
   const [lift] = useState(init.name);
   const [sets, setSets] = useState<PerformedSet[]>(init.sets);
+
+  // Émet l'état pré-rempli dès l'ouverture : enregistrer SANS rien modifier
+  // sauvegarde bien les séries affichées (sinon performed restait null).
+  useEffect(() => {
+    onChange({ lift, sets, est_1rm: estimate1RM(sets) });
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const emit = (next: PerformedSet[]) => {
     setSets(next);
