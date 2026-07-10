@@ -198,7 +198,7 @@ export function PlannedSessions({ sessions, dateIso, completable = false, standb
   useEffect(() => {
     if (!completable || !dateIso) return;
     let alive = true;
-    api.recentSessions(80).then(res => {
+    api.recentSessions(150).then(res => {   // large → couvre les semaines passées (rétroactif)
       if (!alive) return;
       const keys = new Set<string>();
       for (const r of res.sessions ?? []) {

@@ -887,3 +887,16 @@ Comptes **email + mot de passe**, **par athlète**, avec **isolation stricte** d
 > « À chaque actualisation je dois repasser par le check-in. » L'état vivait en mémoire React → perdu au refresh. Fix : check-in stocké localement (`cache:checkin` = {date locale, données}) → restauré tant que la date = aujourd'hui, ignoré le lendemain (nouveau jour = nouveau check-in). Purgé au logout (préfixe `cache:`). Lien « ↻ refaire » dans l'écran Jour pour re-saisir volontairement (sieste, coup de fatigue). TypeScript 0 erreur, export web OK.
 
 *Addendum v3.22 · 01/07/2026 · Claude Fable 5.*
+
+-----
+
+### Addendum v3.23 — Agenda : marquage rétroactif + navigation semaines passées (01/07/2026)
+
+> « Je ne peux pas marquer fait depuis l'Agenda, et le bouton semaines précédentes ne marche plus. Je veux marquer une séance des jours après l'avoir faite. » Deux bugs dans la vue Plan détaillé (PlanView). Déployé.
+
+- **Semaines passées** : la navigation était verrouillée à la semaine courante (`Math.max(0, o-1)` sur une fenêtre commençant à aujourd'hui). Désormais : 1 semaine chargée par requête (`/plan/weekly?from_week=base+offset&n=1`, cache par clé), offset négatif jusqu'à la **semaine 0 du plan**, +12 max vers l'avant. Titre « SEMAINE DU JJ/MM », tag PASSÉ, flèches grisées aux bornes, lien « ↩ Revenir à cette semaine ».
+- **Marquage rétroactif** : `PlannedSessions` reçoit `completable={day.date <= today}` + `dateIso` dans la vue Plan → toutes les séances passées et du jour sont « marquables faites » (RPE, séries réalisées, données montre, suggestion 1RM incluses) ; les jours futurs restent en lecture. Fenêtre de détection « déjà enregistrée » élargie (`recentSessions(150)`, plafond backend 200).
+
+TypeScript 0 erreur, export web OK (aucun changement backend).
+
+*Addendum v3.23 · 01/07/2026 · Claude Fable 5.*
