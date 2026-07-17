@@ -1,0 +1,28 @@
+name: diag-api
+
+# Sonde de diagnostic (manuelle) : état du backend Render.
+# Affiche /health (backend DB + persistance) et le code HTTP du login.
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe /health
+        run: |
+          echo "=== GET /health ==="
+          code=$(curl -sS -m 60 -o /tmp/h.json -w '%{http_code}' https://raid-coach-api.onrender.com/health || echo "curl_failed")
+          echo "HTTP $code"
+          cat /tmp/h.json 2>/dev/null || true
+          echo
+          echo "=== POST /auth/login (probe compte inexistant → 401 attendu si API OK) ==="
+          code2=$(curl -sS -m 60 -o /tmp/l.json -w '%{http_code}' -X POST \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"probe@diagnostic.invalid","password":"probe1234"}' \
+            https://raid-coach-api.onrender.com/auth/login || echo "curl_failed")
+          echo "HTTP $code2"
+          cat /tmp/l.json 2>/dev/null || true
+          echo
+          echo "=== Headers /health (routage Render) ==="
+          curl -sSI -m 60 https://raid-coach-api.onrender.com/health | head -15 || true
