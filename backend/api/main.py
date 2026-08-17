@@ -773,6 +773,36 @@ def schedule_week(body: ScheduleIn) -> dict:
     return _safe(lambda p: coach.schedule_week(p, cfg), body.model_dump())
 
 
+class SchedulePhaseIn(BaseModel):
+    """« Cette semaine est ma GRANDE (is_big_week=true) / PETITE semaine »."""
+    is_big_week: bool
+    reference_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
+@app.post("/schedule/phase")
+def set_schedule_phase(body: SchedulePhaseIn) -> dict:
+    """Recale la PHASE du rythme 3/2/2/3 sur la réalité de l'athlète (l'ancre
+    stockée peut être décalée d'une semaine après un changement de service ou
+    un redémarrage de programme). La progression 5/3/1 est PRÉSERVÉE : le J0
+    courant est figé dans `start_monday` avant de bouger l'ancre — recaler son
+    planning de service ne doit pas décaler son cycle de force."""
+    cfg = _schedule_config()
+    if cfg.get("type") != "police_3223":
+        raise HTTPException(
+            status_code=409,
+            detail="Rythme hebdomadaire : aucune phase 3/2/2/3 à recaler.")
+    ref = _date.fromisoformat(body.reference_date) if body.reference_date else _date.today()
+    keep_start = _us.plan_start(cfg).isoformat()   # J0 5/3/1 AVANT déplacement
+    ws = {**cfg,
+          "anchor_big_week_monday": _us.anchor_for_current_week(body.is_big_week, ref),
+          "start_monday": keep_start}
+    store.athletes.update_profile(_aid(), work_schedule=_us.normalize(ws))
+    new_cfg = _schedule_config()
+    return {"profile": store.profile_payload(_aid()),
+            "week_type": _us.week_type_for(new_cfg, ref),
+            "week": _us.week_schedule(new_cfg, ref)}
+
+
 @app.post("/roadmap")
 def roadmap(body: RoadmapIn) -> dict:
     return _safe(coach.roadmap, body.model_dump())

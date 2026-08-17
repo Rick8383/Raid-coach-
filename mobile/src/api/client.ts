@@ -605,6 +605,18 @@ export const api = {
     return data;
   },
 
+  // Recale la PHASE du rythme 3/2/2/3 (« cette semaine est ma petite/grande
+  // semaine ») → tout l'agenda se réaligne. La progression 5/3/1 est préservée
+  // côté serveur (start_monday figé avant le déplacement de l'ancre).
+  setSchedulePhase: async (isBigWeek: boolean): Promise<AthleteProfile> => {
+    const res = await post<{ profile: AthleteProfile }>(
+      '/schedule/phase', { is_big_week: isBigWeek });
+    await AsyncStorage.setItem('cache:profile',
+      JSON.stringify({ t: Date.now(), data: res.profile }));
+    await invalidatePlanCaches();
+    return res.profile;
+  },
+
   // Authentification (inscription par code d'invitation, 1er inscrit = propriétaire)
   register: (email: string, password: string, inviteCode?: string, name?: string) =>
     post<AuthResponse>('/auth/register', {

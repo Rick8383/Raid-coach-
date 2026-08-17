@@ -104,13 +104,20 @@ export function OnboardingScreen({ onDone }: { onDone: (p: AthleteProfile) => vo
           <>
             <Text style={styles.q}>Cette semaine, tu es en :</Text>
             <View style={styles.modeRow}>
-              {([[true, 'GRANDE semaine'], [false, 'PETITE semaine']] as const).map(([b, l]) => (
+              {([[true, 'GRANDE semaine', 'service lun, mar, ven, sam, dim'],
+                 [false, 'PETITE semaine', 'service mer + jeu']] as const).map(([b, l, sub]) => (
                 <Pressable key={l} onPress={() => setBigThisWeek(b)} style={[styles.modeBtn, bigThisWeek === b && styles.modeBtnOn]}>
                   <Text style={[styles.modeT, bigThisWeek === b && styles.modeTOn]}>{l}</Text>
+                  {/* Conséquence affichée : un choix par défaut mal calé décale
+                      TOUT l'agenda d'une semaine. */}
+                  <Text style={styles.modeSub}>{sub}</Text>
                 </Pressable>
               ))}
             </View>
-            <Text style={styles.hint}>Grande = service lun/mar/ven/sam/dim · Petite = service mer/jeu.</Text>
+            <Text style={styles.hint}>
+              Vérifie bien : tes jours de service de CETTE semaine doivent correspondre.
+              (Modifiable à tout moment dans Profil → Phase du rythme.)
+            </Text>
           </>
         ) : (
           <>
@@ -183,6 +190,7 @@ const styles = StyleSheet.create({
   modeBtn: { flex: 1, paddingVertical: spacing.m, borderRadius: 6, alignItems: 'center', borderWidth: 1, borderColor: colors.hairlineStrong },
   modeBtnOn: { backgroundColor: colors.signalSoft, borderColor: colors.signal },
   modeT: { color: colors.textSecondary, ...typography.label, fontSize: 10, textAlign: 'center' },
+  modeSub: { color: colors.textDisabled, fontSize: typography.sizes.micro, marginTop: 3, textAlign: 'center' },
   modeTOn: { color: colors.signal },
   daysRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   dayChip: { width: 42, paddingVertical: spacing.s, borderRadius: 6, alignItems: 'center', backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.hairline },

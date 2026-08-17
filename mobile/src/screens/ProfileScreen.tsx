@@ -13,7 +13,7 @@ import { StandbyCard } from '../components/StandbyCard';
 import { Roadmap } from '../components/Roadmap';
 import { applyReminders, loadPrefs, ReminderPrefs } from '../notifications';
 import { colors, spacing, typography } from '../theme/tokens';
-import { todayLocalAsUTC } from '../schedule';
+import { configFrom, todayLocalAsUTC, weekTypeFor } from '../schedule';
 
 function weeksToGoal(goalDate?: string): number {
   const target = new Date(goalDate ?? '2029-03-01').getTime();
@@ -146,6 +146,9 @@ export function ProfileScreen({ profile, onProfile, onConnectWatch, user, onLogo
       {/* Style d'entraînement force : split ou full body */}
       <TrainingStyleCard profile={profile} onProfile={onProfile} />
 
+      {/* Phase du rythme 3/2/2/3 : cette semaine est petite ou grande ? */}
+      <SchedulePhaseCard profile={profile} onProfile={onProfile} />
+
       {/* Redémarrer le programme (J0 = lundi prochain) */}
       <ProgramRestartCard profile={profile} onProfile={onProfile} />
 
@@ -189,6 +192,62 @@ function nextMondayISO(): string {
   const isoWd = (t.getUTCDay() + 6) % 7;            // 0 = lundi
   const add = isoWd === 0 ? 0 : 7 - isoWd;          // ce lundi si on est lundi, sinon le prochain
   return new Date(utc + add * DAY_MS).toISOString().slice(0, 10);
+}
+
+/** Recale la phase du 3/2/2/3 sur la réalité du terrain. Utile quand le service
+ * change, ou quand l'ancre a été fixée d'un cran à côté (inscription/redémarrage)
+ * → l'agenda affichait alors les jours de service décalés d'une semaine. */
+function SchedulePhaseCard({ profile, onProfile }:
+  { profile: AthleteProfile; onProfile: (p: AthleteProfile) => void }) {
+  const [busy, setBusy] = useState<boolean | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
+  const cfg = configFrom(profile.work_schedule);
+  if (cfg.type !== 'police_3223') return null;   // rythme hebdo : pas de phase
+  const isBig = weekTypeFor(todayLocalAsUTC(), cfg) === 'big_work';
+
+  const apply = async (big: boolean) => {
+    setBusy(big); setSaved(null);
+    try {
+      onProfile(await api.setSchedulePhase(big));
+      setSaved(big ? 'Cette semaine = GRANDE · service lun, mar, ven, sam, dim'
+                   : 'Cette semaine = PETITE · service mer et jeu');
+    } catch {
+      setSaved('Erreur réseau — réessaie une fois en ligne.');
+    } finally { setBusy(null); }
+  };
+
+  return (
+    <>
+      <Text style={styles.section}>PHASE DU RYTHME 3/2/2/3</Text>
+      <Card style={{ padding: spacing.m }}>
+        <Text style={styles.hint}>
+          Dis à l'app où tu en es dans ton cycle de service : tout l'agenda
+          (semaines passées et à venir) se recale d'un coup. Ta progression
+          5/3/1 et ton historique ne bougent pas.
+        </Text>
+        <View style={[styles.styleRow, { marginTop: spacing.m }]}>
+          <Pressable onPress={() => apply(false)} disabled={busy !== null}
+            style={[styles.styleBtn, !isBig && styles.styleBtnOn]}>
+            <Text style={[styles.styleT, !isBig && styles.styleTOn]}>
+              {busy === false ? '…' : 'PETITE SEMAINE'}
+            </Text>
+            <Text style={styles.phaseSub}>service mer + jeu</Text>
+          </Pressable>
+          <Pressable onPress={() => apply(true)} disabled={busy !== null}
+            style={[styles.styleBtn, isBig && styles.styleBtnOn]}>
+            <Text style={[styles.styleT, isBig && styles.styleTOn]}>
+              {busy === true ? '…' : 'GRANDE SEMAINE'}
+            </Text>
+            <Text style={styles.phaseSub}>service lun, mar, ven, sam, dim</Text>
+          </Pressable>
+        </View>
+        <Text style={styles.hint}>
+          Réglage actuel : cette semaine est une {isBig ? 'GRANDE' : 'PETITE'} semaine.
+        </Text>
+        {saved && <Text style={styles.saved}>✓ {saved}</Text>}
+      </Card>
+    </>
+  );
 }
 
 function ProgramRestartCard({ profile, onProfile }:
@@ -349,6 +408,7 @@ const styles = StyleSheet.create({
   styleBtn: { flex: 1, paddingVertical: spacing.m, borderRadius: 6, alignItems: 'center', borderWidth: 1, borderColor: colors.hairlineStrong },
   styleBtnOn: { backgroundColor: colors.signalSoft, borderColor: colors.signal },
   styleT: { color: colors.textSecondary, ...typography.label, fontSize: 11 },
+  phaseSub: { color: colors.textDisabled, fontSize: typography.sizes.micro, marginTop: 3, textAlign: 'center' },
   styleTOn: { color: colors.signal },
   restartBtn: { marginTop: spacing.s, paddingVertical: 12, borderRadius: spacing.cardRadius, borderWidth: 1, borderColor: colors.readyOrange, alignItems: 'center' },
   restartT: { color: colors.readyOrange, ...typography.label, fontSize: 11 },

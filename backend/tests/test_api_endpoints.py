@@ -910,14 +910,20 @@ def test_standby_default_empty(client):
 
 
 def test_standby_pause_freezes_then_reboot_then_shift(client):
+    # Dates RELATIVES à aujourd'hui : une fenêtre codée en dur finit par tomber
+    # dans le passé, et l'API la replie alors (fold_if_complete) → le test
+    # échouait avec le temps sans qu'aucun code n'ait changé.
+    from datetime import date, timedelta
+    start = date.today() + timedelta(days=1)
+    end = start + timedelta(days=13)
     r = client.post("/standby", json={
-        "mode": "pause", "start_date": "2026-06-22", "end_date": "2026-07-05"})
+        "mode": "pause", "start_date": start.isoformat(), "end_date": end.isoformat()})
     assert r.status_code == 200 and r.json()["mode"] == "pause"
-    during = client.get("/plan/day?date=2026-06-24").json()
+    during = client.get(f"/plan/day?date={(start + timedelta(days=2)).isoformat()}").json()
     assert during["standby"]["mode"] == "pause" and during["sessions"] == []
-    reboot = client.get("/plan/day?date=2026-07-08").json()
+    reboot = client.get(f"/plan/day?date={(end + timedelta(days=3)).isoformat()}").json()
     assert reboot["standby"]["mode"] == "reboot" and len(reboot["sessions"]) >= 1
-    after = client.get("/plan/day?date=2026-07-20").json()
+    after = client.get(f"/plan/day?date={(end + timedelta(days=15)).isoformat()}").json()
     assert after["standby"] is None and after["sessions"]
     client.delete("/standby")
 

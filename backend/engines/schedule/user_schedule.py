@@ -34,19 +34,29 @@ def normalize(work_schedule: dict | None) -> dict:
             out["start_monday"] = ws["start_monday"]
         return out
     anchor = ws.get("anchor_big_week_monday") or P.ANCHOR_MONDAY.isoformat()
-    return {"type": "police_3223", "anchor_big_week_monday": anchor,
-            "training_style": style}
+    out = {"type": "police_3223", "anchor_big_week_monday": anchor,
+           "training_style": style}
+    # `start_monday` est conservé AUSSI en police : il découple le J0 de la
+    # progression 5/3/1 de l'ancre du rythme de travail. Sans lui, recaler la
+    # phase (« cette semaine est ma petite semaine ») décalerait le cycle de
+    # force d'une semaine — ce qui n'a rien à voir avec le planning de service.
+    if ws.get("start_monday"):
+        out["start_monday"] = ws["start_monday"]
+    return out
 
 
 def plan_start(config: dict) -> date:
-    """J0 du programme (la progression 5/3/1 démarre ici). Police : l'ancre EST
-    le J0 (lundi de grande semaine). Weekly : start_monday, sinon ancre globale."""
-    if config.get("type") == "weekly":
-        sm = config.get("start_monday")
+    """J0 du programme (la progression 5/3/1 démarre ici).
+    `start_monday` explicite s'il existe (les deux rythmes) ; sinon police =
+    l'ancre (lundi de grande semaine), weekly = ancre globale."""
+    sm = config.get("start_monday")
+    if sm:
         try:
-            return date.fromisoformat(sm) if sm else P.ANCHOR_MONDAY
+            return date.fromisoformat(sm)
         except (ValueError, TypeError):
-            return P.ANCHOR_MONDAY
+            pass
+    if config.get("type") == "weekly":
+        return P.ANCHOR_MONDAY
     return _anchor(config)
 
 

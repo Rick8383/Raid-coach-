@@ -900,3 +900,20 @@ Comptes **email + mot de passe**, **par athlète**, avec **isolation stricte** d
 TypeScript 0 erreur, export web OK (aucun changement backend).
 
 *Addendum v3.23 · 01/07/2026 · Claude Fable 5.*
+
+-----
+
+### Addendum v3.24 — Recalage de la phase 3/2/2/3 (petite/grande semaine) (17/08/2026)
+
+> « Lundi 17 et mardi 18 sont comptés en service alors que je suis en petite semaine (je travaille mercredi et jeudi). » Diagnostic : l'ancre stockée du profil était `2026-08-17` **déclarée GRANDE** (fixée par « Redémarrer le programme », qui pose l'ancre au lundi suivant comme grande semaine, ou par le choix par défaut à l'inscription). Avec l'ancre par défaut (15/06), la semaine du 17/08 tombe bien en PETITE — front et back étaient donc cohérents : seule la donnée du profil était décalée d'un cran. Déployé.
+
+- **Découplage phase / progression** : `plan_start()` accepte désormais `start_monday` **aussi en rythme police** (préservé par `normalize`). L'ancre du rythme de travail et le J0 du cycle 5/3/1 ne sont plus le même point : recaler son planning de service ne décale plus sa progression de force.
+- **`POST /schedule/phase`** `{is_big_week, reference_date?}` — recale l'ancre via `anchor_for_current_week` (aujourd'hui = serveur), après avoir figé le J0 courant dans `start_monday`. Renvoie profil + `week_type` + semaine recalculée. 409 si rythme hebdomadaire. Routes 61 → 62 (audit build12 mis à jour).
+- **App — Profil → « PHASE DU RYTHME 3/2/2/3 »** : deux boutons (PETITE = service mer + jeu / GRANDE = service lun, mar, ven, sam, dim) avec l'état courant affiché ; un tap recale tout l'agenda (semaines passées et à venir) et invalide les caches de plan.
+- **Cause racine (onboarding)** : le choix « GRANDE / PETITE semaine » affiche maintenant les jours de service impliqués sous chaque option + rappel que c'est modifiable dans Profil — un défaut mal calé décalait tout l'agenda d'une semaine sans signal visible.
+- **Test périmé corrigé** : `test_standby_pause_freezes_then_reboot_then_shift` utilisait une fenêtre de pause en dur (juin/juillet 2026), passée depuis → l'API la repliait légitimement et le test échouait avec le temps. Dates rendues relatives à `date.today()`.
+- **Tests** : `tests/test_schedule_phase.py` (6) — bascule des jours de service, **préservation du `week_index` 5/3/1**, alternance S-1/S+1, idempotence, 409 en hebdo, priorité de `start_monday`.
+
+**État** : 176 tests pytest + 4 audits PASS (62 routes), TypeScript strict 0 erreur, export web OK.
+
+*Addendum v3.24 · 17/08/2026 · Claude Opus 5.*
