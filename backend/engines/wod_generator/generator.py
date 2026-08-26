@@ -18,6 +18,21 @@ WOD_FORMATS = [
     "multi_amrap_blocks", "rft", "tabata", "amrap_score_double", "ladder",
 ]
 
+# Rotation ANTI-MONOTONIE. Un tirage aléatoire indépendant sur 15 formats
+# retombe souvent sur le même à quelques jours d'intervalle (paradoxe des
+# anniversaires) : deux WOD d'affilée pouvaient sortir en « pyramide » ou
+# « ladder ». Avec un `variety_index` qui avance d'une séance à l'autre, on
+# parcourt les 15 formats sans jamais répéter avant un tour complet. L'ordre
+# est volontairement contrasté (chrono → AMRAP → intervalle → pyramide…) pour
+# que deux séances consécutives ne se ressemblent pas non plus dans la forme.
+FORMAT_CYCLE = (
+    "amrap", "chipper", "emom", "pyramid_asc", "for_time",
+    "tabata", "buy_in_amrap_buy_out", "death_by", "ladder",
+    "multi_amrap_blocks", "rft", "pyramid_desc", "death_by_emom",
+    "amrap_score_double", "pyramid_full",
+)
+assert sorted(FORMAT_CYCLE) == sorted(WOD_FORMATS), "rotation incomplète"
+
 _PREFIX = ["OPÉRATION", "PROTOCOLE", "ASSAUT", "SECTEUR", "CODE", "MISSION"]
 _NAME = ["VIPÈRE", "FANTÔME", "ORAGE", "GRANIT", "TONNERRE", "CHACAL", "MISTRAL",
          "TITANE", "BRASIER", "ACIER", "CORBEAU", "SOMBRE", "OBSIDIENNE", "FAUCON"]
@@ -145,12 +160,13 @@ def _b_amrap(rng, dur, pool):
     return lines, f"AMRAP {dur} min", f"{dur} min", "Viser le maximum de tours", moves
 
 def _b_for_time(rng, dur, pool):
-    scheme = rng.choice([[21, 15, 9], [10, 8, 6], [50, 40, 30]])
+    # Schéma de reps calibré sur la durée demandée (le cap DOIT valoir `dur` :
+    # un finisher de 10 min ne peut pas sortir un cap de 15).
+    scheme = rng.choice([[21, 15, 9], [10, 8, 6]] if dur <= 12 else [[21, 15, 9], [50, 40, 30]])
     moves = _reps_move(rng, pool, 2)
     sched = "-".join(str(x) for x in scheme)
     lines = [f"{sched} reps : " + " / ".join(m["name"] + (f" @{m['load']}kg" if m.get("load") else "") for m in moves)]
-    cap = rng.choice([8, 10, 12, 15])
-    return lines, "For Time", f"time cap {cap} min", "Le plus rapide possible", moves
+    return lines, "For Time", f"time cap {dur} min", "Le plus rapide possible", moves
 
 def _b_emom(rng, dur, pool):
     moves = _pick(rng, pool, rng.choice([2, 3]), need_cardio=True)
@@ -171,9 +187,12 @@ def _b_death_by_emom(rng, dur, pool):
     return lines, "Death by EMOM", "jusqu'à échec", "Dernière minute complétée", moves
 
 def _b_chipper(rng, dur, pool):
-    moves = _pick(rng, pool, rng.choice([5, 6, 7]), need_cardio=True)
+    # Longueur de la liste proportionnelle à la durée : un chipper de 10 min
+    # tient en 3-4 mouvements, pas 7.
+    n = max(3, min(7, dur // 3))
+    moves = _pick(rng, pool, n, need_cardio=True)
     lines = [_render(m, _mag(rng, m, chipper=True)) for m in moves]
-    return lines, "Chipper (1 tour)", f"time cap {rng.choice([16,18,20])} min", "Finir la liste", moves
+    return lines, "Chipper (1 tour)", f"time cap {dur} min", "Finir la liste", moves
 
 def _b_buy_in(rng, dur, pool):
     cardio = [m for m in pool if m["pattern"] == "cardio"]
@@ -181,47 +200,53 @@ def _b_buy_in(rng, dur, pool):
     buyin, buyout = cardio[0], cardio[1] if len(cardio) > 1 else cardio[0]
     mid = _pick(rng, [m for m in pool if m["pattern"] != "cardio"], 2, need_cardio=False)
     lines = [f"Buy-in : {_render(buyin, rng.choice([400,500]) if buyin['unit'] in ('m_cardio','m_run') else 20)}",
-             f"Puis AMRAP {dur - 4} min : " + " / ".join(_render(m, _mag(rng, m)) for m in mid),
+             f"Puis AMRAP {max(4, dur - 4)} min : " + " / ".join(_render(m, _mag(rng, m)) for m in mid),
              f"Buy-out : {_render(buyout, rng.choice([400,500]) if buyout['unit'] in ('m_cardio','m_run') else 20)}"]
     return lines, "Buy-in + AMRAP + Buy-out", f"{dur} min", "Max de tours sur le bloc central", [buyin] + mid + [buyout]
 
 def _b_pyr_asc(rng, dur, pool):
     moves = _reps_move(rng, pool, 2)
     lines = ["Échelle 1-2-3-4-5-6-7-8-9-10 reps de : " + " + ".join(m["name"] + (f" @{m['load']}kg" if m.get('load') else "") for m in moves)]
-    return lines, "Pyramide ascendante", f"time cap {rng.choice([12,15])} min", "Monter le plus haut", moves
+    return lines, "Pyramide ascendante", f"time cap {dur} min", "Monter le plus haut", moves
 
 def _b_pyr_desc(rng, dur, pool):
     moves = _reps_move(rng, pool, 2)
     lines = ["Échelle 10-9-8-7-6-5-4-3-2-1 reps de : " + " + ".join(m["name"] for m in moves)]
-    return lines, "Pyramide descendante", f"time cap {rng.choice([12,15])} min", "Le plus rapide", moves
+    return lines, "Pyramide descendante", f"time cap {dur} min", "Le plus rapide", moves
 
 def _b_pyr_full(rng, dur, pool):
     moves = _reps_move(rng, pool, 2)
-    sched = rng.choice(["1-2-3-4-5-4-3-2-1", "3-6-9-12-9-6-3"])
+    # schéma court si la séance est courte
+    sched = rng.choice(["1-2-3-4-5-4-3-2-1"] if dur <= 12 else ["1-2-3-4-5-4-3-2-1", "3-6-9-12-9-6-3"])
     lines = [f"Pyramide {sched} reps de : " + " + ".join(m["name"] for m in moves)]
-    return lines, "Pyramide complète", f"time cap {rng.choice([14,16,18])} min", "Finir la pyramide", moves
+    return lines, "Pyramide complète", f"time cap {dur} min", "Finir la pyramide", moves
 
 def _b_multi_amrap(rng, dur, pool):
-    blocks = rng.choice([2, 3])
+    # blocs + repos 2 min = durée demandée (avant : 2 ou 3 blocs de 5 min figés
+    # → un « finisher 10 min » sortait à 19 min).
+    blocks = max(2, min(4, (dur + 2) // 7))
+    blen = max(3, (dur - (blocks - 1) * 2) // blocks)
     lines = []
     moves_all = []
     for b in range(blocks):
         mv = _pick(rng, pool, 2)
         moves_all += mv
-        lines.append(f"Bloc {b + 1} — AMRAP 5 min : " + " / ".join(_render(m, _mag(rng, m)) for m in mv))
+        lines.append(f"Bloc {b + 1} — AMRAP {blen} min : " + " / ".join(_render(m, _mag(rng, m)) for m in mv))
     lines.append("Repos 2 min entre les blocs")
-    return lines, f"{blocks}×(5 min AMRAP)", f"{blocks * 5 + (blocks - 1) * 2} min", "Score = total des tours", moves_all
+    total = blocks * blen + (blocks - 1) * 2
+    return lines, f"{blocks}×({blen} min AMRAP)", f"{total} min", "Score = total des tours", moves_all
 
 def _b_rft(rng, dur, pool):
-    rounds = rng.choice([3, 4, 5])
+    rounds = max(3, min(6, dur // 4))
     moves = _pick(rng, pool, 3, need_cardio=True)
     lines = [f"{rounds} tours pour le temps :"] + [_render(m, _mag(rng, m)) for m in moves]
-    return lines, f"{rounds} RFT", f"time cap {rounds * 5} min", "Le plus rapide", moves
+    return lines, f"{rounds} RFT", f"time cap {dur} min", "Le plus rapide", moves
 
 def _b_tabata(rng, dur, pool):
-    moves = _pick(rng, pool, rng.choice([1, 2, 3]), need_cardio=False)
+    n = max(1, min(4, dur // 4))          # 4 min par mouvement
+    moves = _pick(rng, pool, n, need_cardio=False)
     lines = ["8×(20s travail / 10s repos) — score = reps du tour le plus faible :"] + [m["name"] for m in moves]
-    return lines, "Tabata", "4 min/mouvement", "Maximiser le tour le plus faible", moves
+    return lines, "Tabata", f"{n * 4} min ({n}×4 min)", "Maximiser le tour le plus faible", moves
 
 def _b_amrap_double(rng, dur, pool):
     lines, _, _, _, moves = _b_amrap(rng, dur, pool)
@@ -232,7 +257,7 @@ def _b_ladder(rng, dur, pool):
     fixed = _pick(rng, [m for m in pool if m not in rep_moves], 1, need_cardio=False)[0]
     lines = [f"Montée 3-6-9-12-15 {rep_moves[0]['name']}",
              f"+ {_render(fixed, _mag(rng, fixed))} fixe à chaque tour"]
-    return lines, "Ladder", f"time cap {rng.choice([10,12])} min", "Monter l'échelle", rep_moves + [fixed]
+    return lines, "Ladder", f"time cap {dur} min", "Monter l'échelle", rep_moves + [fixed]
 
 
 _BUILDERS = {
@@ -255,11 +280,15 @@ _TEAM_FORMATS = [
 
 def generate_wod(fmt: str = "auto", duration_min: int = 12, seed: str = "wod",
                  exclude_lumbar: bool = True, bodyweight: bool = False,
-                 team_size: int = 1) -> dict:
+                 team_size: int = 1, variety_index: int | None = None) -> dict:
+    """`variety_index` : position dans la rotation des formats (voir
+    FORMAT_CYCLE). Fourni par le plan → deux WOD consécutifs ne partagent
+    jamais le même format. Absent (WOD à la demande) → tirage aléatoire."""
     team_size = max(1, min(int(team_size), 4))
     rng = _rng(f"{fmt}:{duration_min}:{seed}:{exclude_lumbar}:{bodyweight}:{team_size}")
     if fmt == "auto" or fmt not in _BUILDERS:
-        fmt = rng.choice(WOD_FORMATS)
+        fmt = (rng.choice(WOD_FORMATS) if variety_index is None
+               else FORMAT_CYCLE[int(variety_index) % len(FORMAT_CYCLE)])
     dur = max(4, min(int(duration_min), 30))
     pool = _pool(exclude_lumbar, bodyweight)
     lines, label, cap, score, moves = _BUILDERS[fmt](rng, dur, pool)

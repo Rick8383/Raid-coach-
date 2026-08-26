@@ -8,6 +8,7 @@ obligatoire en échauffement ; finisher WOD non lombaire.
 from __future__ import annotations
 
 from engines.wod_generator import generate_wod
+from engines.wod_generator.generator import FORMAT_CYCLE
 
 DAYS = ["push", "pull", "legs"]
 
@@ -180,9 +181,20 @@ def _accessories(day: str) -> list[dict]:
 
 
 def _finisher(day: str, week: int, cycle: int) -> dict:
-    # WOD court non lombaire, qui ne retape pas les mêmes muscles que le jour
-    dur = 8 if week == 4 else 10
-    wod = generate_wod(fmt="auto", duration_min=dur,
+    """WOD court non lombaire, qui ne retape pas les mêmes muscles que le jour.
+
+    Le format suit la ROTATION (variety_index) et non un tirage aléatoire :
+    d'une séance de force à la suivante (push → pull → legs → semaine
+    suivante…) l'index avance de 1, donc le format change à chaque fois et les
+    15 formats défilent. La durée alterne aussi (10/12 min, 8 en deload) pour
+    que deux finishers ne se ressemblent pas.
+    """
+    idx = (cycle * 4 + (week - 1)) * len(DAYS) + (DAYS.index(day) if day in DAYS else 0)
+    fmt = FORMAT_CYCLE[idx % len(FORMAT_CYCLE)]
+    # Les builders respectent désormais la durée demandée → la fenêtre 8-12 min
+    # d'un finisher est garantie quel que soit le format tiré.
+    dur = 8 if week == 4 else (10 if idx % 2 == 0 else 12)
+    wod = generate_wod(fmt=fmt, duration_min=dur,
                        seed=f"finisher_{day}_{week}_{cycle}", exclude_lumbar=True)
     wod["role"] = "finisher musculation (8-12 min, non lombaire)"
     return wod

@@ -204,8 +204,10 @@ def test_fullbody_style_in_plan(client, monkeypatch):
     s531 = client.get("/generate/strength?day=fullbody", headers=H).json()
     assert len(s531["movements"]) == 5           # lower + push + pull + 2 accessoires
     assert all(m.get("sets") and m.get("reps") for m in s531["movements"])
-    # le plan du jour propose une séance FULL BODY (2026-06-15 = lundi = jour force)
-    day = client.get("/plan/day?date=2026-06-15", headers=H).json()
+    # Le plan du jour propose une séance FULL BODY. 2026-06-17 = MERCREDI d'une
+    # grande semaine = jour OFF : la force ne tombe QUE sur les jours OFF
+    # (en service l'athlète ne peut pas toujours s'entraîner).
+    day = client.get("/plan/day?date=2026-06-17", headers=H).json()
     strength = [s for s in day["sessions"] if s["type"] == "strength"]
     assert strength and "FULL BODY" in strength[0]["title"]
     assert strength[0]["duration_min"] <= 75

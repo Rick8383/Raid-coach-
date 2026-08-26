@@ -917,3 +917,26 @@ TypeScript 0 erreur, export web OK (aucun changement backend).
 **État** : 176 tests pytest + 4 audits PASS (62 routes), TypeScript strict 0 erreur, export web OK.
 
 *Addendum v3.24 · 17/08/2026 · Claude Opus 5.*
+
+-----
+
+### Addendum v3.25 — Force sur les jours OFF + variété réelle des WOD (17/08/2026)
+
+> Deux retours terrain : « les WOD en fin de séance sont toujours du même format » et « les séances push/pull/legs doivent tomber les jours OFF en double — au travail je ne peux pas forcément m'entraîner, je rattrape plus tard et ça décale tout ». Déployé.
+
+**1. Force exclusivement les jours OFF, toujours en séance double**
+- Templates réécrits. Règle structurante : aucune séance de force sur un jour de SERVICE. Les jours de service ne portent plus que du footing court, de la natation récup ou du repos actif (mobilité seule).
+- **Petite semaine** (OFF lun/mar/ven/sam/dim) : lun VMA + **PUSH**, mar côtes + **PULL**, ven VMA longue + **LEGS**, sam Z2 + WOD ; mer footing court, jeu repos actif (jours de service).
+- **Grande semaine** (2 jours OFF seulement) : mer VMA + force, jeu WOD + force. La paire de groupes tourne (`_BIG_PAIRS`, résolue par `_resolve_strength`) → sur 12 semaines **push/pull/legs passent exactement 10 fois chacun** (vérifié par test).
+- Vérifié : 0 séance de force un jour de service sur 12 semaines ; toute séance de force est bien accompagnée d'une séance le matin.
+
+**2. Variété des WOD — cause racine corrigée**
+- Le format était tiré **aléatoirement et indépendamment** à chaque WOD : sur 15 formats, les collisions rapprochées sont fréquentes (paradoxe des anniversaires) — deux WOD d'affilée en « pyramide », même format le même jour deux semaines de suite. Remplacé par une **rotation déterministe** (`FORMAT_CYCLE`, ordre volontairement contrasté) pilotée par un `variety_index` qui avance à chaque séance : plan (`w_index*7 + weekday`) et finishers (`(cycle*4 + semaine)*3 + groupe`). Résultat mesuré : **0 répétition consécutive**, les **15 formats** défilent.
+- **Bug de fond trouvé au passage** : 9 builders sur 15 **ignoraient `duration_min`** et tiraient leur cap dans une liste figée — un finisher demandé à 10 min pouvait sortir « chipper time cap 20 min » ou « 3×(5 min AMRAP) = 19 min » après 70 min de force. Tous les builders dérivent désormais leur cap (et leur volume : longueur du chipper, nombre de tours RFT, nombre de blocs AMRAP, mouvements Tabata, schéma des pyramides) de la durée demandée. `/generate/wod?duration_min=X` est enfin honnête.
+- Durées variées aussi : finishers 10/12 min (8 en deload), WOD du plan 12/14/16/18 min de cap.
+
+**Tests** : `tests/test_plan_variety.py` (9) — pas de force en service, force toujours en double, équilibre des groupes, semaine en cours conforme (push lun / pull mar / legs ven), pas de répétition consécutive (plan + finishers), finisher ≤ 12 min, les 15 formats respectent la durée demandée, rotation déterministe. `test_fullbody_style_in_plan` recalé sur un jour OFF (sa prémisse « lundi = jour de force » disparaît par conception).
+
+**État** : 185 tests pytest + 4 audits PASS (62 routes), TypeScript strict 0 erreur, export web OK.
+
+*Addendum v3.25 · 17/08/2026 · Claude Opus 5.*
