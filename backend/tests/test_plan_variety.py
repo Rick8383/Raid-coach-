@@ -39,18 +39,19 @@ def test_no_strength_on_service_days():
 
 
 def test_strength_is_always_a_double_session():
-    """Une séance de force est toujours accompagnée d'une séance le matin."""
+    """La force tombe toujours dans une journée à DEUX séances (jour OFF). En
+    grande semaine le jeudi porte deux séances de force distinctes (pull le
+    matin, legs le soir) : push/pull/legs ne sont jamais fusionnés."""
     for d, day in _days(12):
         main = [s for s in day["sessions"] if s["type"] != "recovery"]
         if any(s["type"] == "strength" for s in main):
             assert len(main) >= 2, f"force en séance isolée : {d}"
-            assert any(s["type"] in ("run", "crossfit") for s in main)
+            assert day["is_work_day"] is False
 
 
 def test_push_pull_legs_stay_balanced():
-    """Les 3 patterns passent le même nombre de fois (±1) sur 12 semaines. On
-    compte les MOUVEMENTS PRINCIPAUX, pas les titres : une séance « haut du
-    corps » en porte deux (développé + rowing)."""
+    """Les 3 patterns passent le même nombre de fois (±1) sur 12 semaines,
+    comptés sur les MOUVEMENTS PRINCIPAUX plutôt que sur les titres."""
     lifts = Counter()
     for _d, day in _days(12):
         for s in day["sessions"]:
@@ -87,9 +88,12 @@ def test_plan_wods_never_repeat_consecutively():
             for _d, day in _days(12)
             for s in day["sessions"]
             if s["type"] == "crossfit" and "format_key" in s["detail"]]
-    assert len(fmts) >= 8
+    # 1 WOD autonome par petite semaine (les grandes semaines consacrent leurs
+    # 2 jours OFF aux 3 séances de force ; le conditioning y passe par les
+    # finishers de 8-12 min).
+    assert len(fmts) >= 5
     assert all(a != b for a, b in zip(fmts, fmts[1:])), fmts
-    assert len(set(fmts)) >= 8, "au moins 8 formats distincts sur 12 semaines"
+    assert len(set(fmts)) >= 5, "des formats variés d'une semaine à l'autre"
 
 
 def test_finisher_stays_short():
@@ -128,7 +132,7 @@ def test_variety_index_is_deterministic_and_cycles():
 # ---------- Chaque semaine couvre les 3 patterns (push / pull / legs) ----------
 def test_every_week_covers_push_pull_legs():
     """Aucune semaine ne doit rester sans tirage (ou sans poussée) : en grande
-    semaine, les 2 jours OFF portent « upper » (développé+rowing) et « legs »."""
+    semaine, les 2 jours OFF portent push (mer) puis pull + legs (jeu)."""
     for w in range(12):
         monday = START + timedelta(days=7 * w)
         lifts = set()
@@ -197,3 +201,19 @@ def test_recorded_loads_read_combined_sessions():
     maxes = api_main._strength_maxes()
     assert maxes.get("bench", 0) >= 95 * (1 + 5 / 30) - 0.5
     assert maxes.get("row", 0) >= 85 * (1 + 8 / 30) - 0.5
+
+
+def test_push_and_pull_are_never_merged():
+    """Demande explicite : push et pull restent DEUX séances distinctes, même
+    les semaines où l'athlète n'a que deux jours OFF."""
+    for w in range(12):
+        monday = START + timedelta(days=7 * w)
+        sessions = []
+        for i in range(7):
+            day = build_day(monday + timedelta(days=i), config=CFG)
+            sessions += [s for s in day["sessions"] if s["type"] == "strength"]
+        # aucune séance ne porte deux mouvements principaux
+        assert all(len(s["detail"].get("main_lifts", [])) == 1 for s in sessions), monday
+        # et les trois séances existent bien, séparément
+        mains = [s["detail"]["main_lifts"][0]["lift"] for s in sessions]
+        assert sorted(mains) == ["bench", "row", "squat"], (monday, mains)

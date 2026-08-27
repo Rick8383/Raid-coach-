@@ -32,8 +32,8 @@ START = date(2026, 6, 15)   # ancre lundi, grande semaine
 _BIG_WORK = {   # service lun/mar/ven/sam/dim ; OFF mer/jeu → 2 séances de force
     0: [],                                                              # lun service — repos actif (mobilité)
     1: [("matin", "run", "tempo")],                                     # mar service — course courte
-    2: [("matin", "run", "vma_courte"), ("soir", "strength", "upper")],  # mer OFF — DOUBLE (push+pull)
-    3: [("matin", "crossfit", None), ("soir", "strength", "legs")],      # jeu OFF — DOUBLE
+    2: [("matin", "run", "vma_courte"), ("soir", "strength", "push")],   # mer OFF — DOUBLE
+    3: [("matin", "strength", "pull"), ("soir", "strength", "legs")],    # jeu OFF — DOUBLE force
     4: [("matin", "run", "seuil")],                                     # ven service — course courte
     5: [("matin", "run", "z2")],                                        # sam service — footing
     6: [("matin", "swim", None)],                                       # dim service — récup
@@ -49,10 +49,13 @@ _SMALL_WORK = {  # service mer/jeu ; OFF le reste → les 3 groupes passent
 }
 
 # GRANDE semaine : seulement 2 jours OFF (mer/jeu) pour 3 groupes musculaires.
-# Faire tourner les groupes d'une semaine à l'autre laissait une semaine entière
-# SANS tirage (ou sans poussée) — inacceptable pour la progression 5/3/1. On
-# fusionne donc push+pull en une séance « upper » à deux mouvements principaux :
-# les 3 patterns passent chaque semaine, et la force reste sur les jours OFF.
+# Choix retenu : push, pull et legs restent TROIS SÉANCES DISTINCTES (jamais
+# fusionnées), quitte à doubler la force le jeudi (pull le matin, legs le soir)
+# — c'est un jour OFF, et deux patterns différents dans la journée se supportent
+# bien. Ainsi les 3 mouvements principaux passent chaque semaine, la force ne
+# tombe jamais un jour de service, et la VMA du mercredi est préservée.
+# (Le type de séance combinée `upper` reste disponible via
+# /generate/strength?day=upper pour qui préfère 2 séances au lieu de 3.)
 
 
 def _swim_session() -> dict:

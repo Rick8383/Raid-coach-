@@ -965,3 +965,21 @@ TypeScript 0 erreur, export web OK (aucun changement backend).
 **État** : 189 tests pytest + 4 audits PASS (62 routes), TypeScript strict 0 erreur, export web OK.
 
 *Addendum v3.26 · 17/08/2026 · Claude Opus 5.*
+
+-----
+
+### Addendum v3.27 — Push et pull toujours en séances distinctes (17/08/2026)
+
+> « Je veux deux séances distinctes push et pull même avec deux jours off. » La v3.26 les fusionnait en une séance « haut du corps » les semaines à 2 jours OFF. Déployé.
+
+- **Grande semaine** (OFF mer/jeu) : **mer = VMA courte + PUSH**, **jeu = PULL (matin) + LEGS (soir)**. Les trois mouvements principaux restent **trois séances séparées**, jamais fusionnées ; le jeudi devient un double force (deux patterns différents dans la même journée OFF, ce qui se supporte bien).
+- **Petite semaine inchangée** : lun VMA + PUSH, mar côtes + PULL, ven VMA longue + LEGS.
+- Compromis assumé : la grande semaine n'a plus de WOD autonome (ses 2 jours OFF portent les 3 séances de force). Le conditioning y passe par les **finishers de 8-12 min** présents dans chaque séance de force ; la VMA du mercredi est préservée.
+- Le type de séance combinée `upper` reste dans le moteur et accessible via `/generate/strength?day=upper` pour qui préfère 2 séances au lieu de 3 — il n'est simplement plus utilisé par le plan.
+- Vérifié : sur 12 semaines, `bench` / `row` / `squat` = **12 fois chacun** (1 par semaine), **0 séance de force un jour de service**, et **aucune séance ne porte 2 mouvements principaux**.
+
+**Tests** : `test_push_and_pull_are_never_merged` ajouté (chaque semaine = 3 séances distinctes bench/row/squat) ; `test_strength_is_always_a_double_session` recalé (le jeudi de grande semaine est un double force, sans course) ; seuils WOD ajustés (1 WOD autonome par petite semaine).
+
+**État** : 190 tests pytest + 4 audits PASS (62 routes), TypeScript strict 0 erreur, export web OK.
+
+*Addendum v3.27 · 17/08/2026 · Claude Opus 5.*
