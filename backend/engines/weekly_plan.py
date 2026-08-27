@@ -30,13 +30,13 @@ START = date(2026, 6, 15)   # ancre lundi, grande semaine
 # de force la faisait sauter, puis rattraper plus tard, ce qui décalait tout le
 # plan. Les jours de service ne portent donc que du footing court (ou du repos).
 _BIG_WORK = {   # service lun/mar/ven/sam/dim ; OFF mer/jeu → 2 séances de force
-    0: [],                                                             # lun service — repos actif (mobilité)
-    1: [("matin", "run", "tempo")],                                    # mar service — course courte
-    2: [("matin", "run", "vma_courte"), ("soir", "strength", None)],   # mer OFF — DOUBLE
-    3: [("matin", "crossfit", None), ("soir", "strength", None)],      # jeu OFF — DOUBLE
-    4: [("matin", "run", "seuil")],                                    # ven service — course courte
-    5: [("matin", "run", "z2")],                                       # sam service — footing
-    6: [("matin", "swim", None)],                                      # dim service — récup
+    0: [],                                                              # lun service — repos actif (mobilité)
+    1: [("matin", "run", "tempo")],                                     # mar service — course courte
+    2: [("matin", "run", "vma_courte"), ("soir", "strength", "upper")],  # mer OFF — DOUBLE (push+pull)
+    3: [("matin", "crossfit", None), ("soir", "strength", "legs")],      # jeu OFF — DOUBLE
+    4: [("matin", "run", "seuil")],                                     # ven service — course courte
+    5: [("matin", "run", "z2")],                                        # sam service — footing
+    6: [("matin", "swim", None)],                                       # dim service — récup
 }
 _SMALL_WORK = {  # service mer/jeu ; OFF le reste → les 3 groupes passent
     0: [("matin", "run", "vma_courte"), ("soir", "strength", "push")],  # lun OFF — DOUBLE
@@ -48,23 +48,11 @@ _SMALL_WORK = {  # service mer/jeu ; OFF le reste → les 3 groupes passent
     6: [("matin", "swim", None)],                                       # dim OFF — récup
 }
 
-# GRANDE semaine : seulement 2 jours OFF (mer/jeu) → 2 créneaux de force. La
-# paire tourne pour que push/pull/legs restent équilibrés dans la durée : sur
-# 6 semaines (3 grandes + 3 petites) chaque groupe passe exactement 5 fois.
-_BIG_PAIRS = (("legs", "push"), ("pull", "legs"), ("push", "pull"))
-
-
-def _resolve_strength(specs: list, template: dict, weekday: int, plan_w: int) -> list:
-    """Attribue un groupe aux créneaux de force laissés ouverts (sous-type None,
-    grande semaine) selon la paire tournante de la semaine."""
-    if not any(t == "strength" and s is None for (_m, t, s) in specs):
-        return specs
-    slots = sorted(wd for wd, sp in template.items()
-                   for (_m, t, _s) in sp if t == "strength")
-    pair = _BIG_PAIRS[(plan_w // 2) % len(_BIG_PAIRS)]
-    lift = pair[slots.index(weekday) % len(pair)]
-    return [(m, t, lift if (t == "strength" and s is None) else s)
-            for (m, t, s) in specs]
+# GRANDE semaine : seulement 2 jours OFF (mer/jeu) pour 3 groupes musculaires.
+# Faire tourner les groupes d'une semaine à l'autre laissait une semaine entière
+# SANS tirage (ou sans poussée) — inacceptable pour la progression 5/3/1. On
+# fusionne donc push+pull en une séance « upper » à deux mouvements principaux :
+# les 3 patterns passent chaque semaine, et la force reste sur les jours OFF.
 
 
 def _swim_session() -> dict:
@@ -110,7 +98,8 @@ def _build_session(spec, w_index, weekday, vma, fcmax, maxes=None):
             title = f"Force FULL BODY — S{week_in_cycle}" + (" deload" if week_in_cycle == 4 else "")
         else:
             dur = 70 if week_in_cycle != 4 else 55
-            title = f"Force {sub.upper()} — S{week_in_cycle}" + (" deload" if week_in_cycle == 4 else "")
+            label = "HAUT DU CORPS (push+pull)" if sub == "upper" else sub.upper()
+            title = f"Force {label} — S{week_in_cycle}" + (" deload" if week_in_cycle == 4 else "")
     elif stype == "crossfit":
         # Rotation des formats (variety_index) + durée variable : deux WOD
         # consécutifs du plan ne partagent ni le format ni le gabarit. Avec un
@@ -148,8 +137,6 @@ def _day_payload(d: date, shift_weeks: int, vma: float, fcmax: int,
     if cfg.get("training_style") == "fullbody":
         # En full body, toute séance de force devient une séance corps entier.
         specs = [(m, t, "fullbody") if t == "strength" else (m, t, s) for (m, t, s) in specs]
-    else:
-        specs = _resolve_strength(specs, template, d.weekday(), plan_w)
     sessions = [_build_session(spec, plan_w, d.weekday(), vma, fcmax, maxes)
                 for spec in specs]
     # SEMAINE DE TESTS toutes les 6 semaines (S6, S12, S18…) : le dimanche, la

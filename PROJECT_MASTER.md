@@ -940,3 +940,28 @@ TypeScript 0 erreur, export web OK (aucun changement backend).
 **État** : 185 tests pytest + 4 audits PASS (62 routes), TypeScript strict 0 erreur, export web OK.
 
 *Addendum v3.25 · 17/08/2026 · Claude Opus 5.*
+
+-----
+
+### Addendum v3.26 — Les 3 patterns chaque semaine + charges pilotées par les séries enregistrées (17/08/2026)
+
+> « Cette semaine il n'y a pas de séance de pull, ce n'est pas logique pour la progression — corrige ça en prenant en compte le poids renseigné des séances précédentes, et corrige la programmation des semaines à venir. » Défaut réel de la v3.25. Déployé.
+
+**1. Aucune semaine sans tirage (ni sans poussée)**
+- Cause : une GRANDE semaine n'a que **2 jours OFF pour 3 groupes**. La v3.25 faisait tourner la paire push/pull/legs (`_BIG_PAIRS`) → équilibre correct sur 12 semaines, mais **une semaine entière sans pull**, ce qui casse la progression 5/3/1 (chaque mouvement doit être sollicité chaque semaine).
+- Correctif : nouvelle séance **`upper`** (`COMBO_DAYS = {"upper": ("bench", "row")}`) — deux mouvements principaux dans la même séance, accessoires réduits (2 push + 2 pull) pour tenir la même durée. Grande semaine : **mer = HAUT DU CORPS (push+pull)**, **jeu = LEGS**. `_BIG_PAIRS`/`_resolve_strength` supprimés.
+- Vérifié sur 12 semaines : `bench`, `row`, `squat` = **12 fois chacun**, soit exactement une fois par semaine, la force restant à 100 % sur les jours OFF.
+- `main_lifts` (déjà présent dans le schéma) porte les deux mouvements ; `main_lift` reste renseigné pour la compatibilité des clients existants. Rotation des finishers adaptée (`_ROT_IDX`) pour éviter toute collision d'index.
+
+**2. Les charges suivent les poids réellement enregistrés**
+- Avant : `_strength_maxes()` ne lisait que les benchmarks `{lift}_1rm`. Logger « rowing 6×90 kg » ne changeait **rien** tant qu'on n'avait pas tapé manuellement la suggestion de 1RM → la séance suivante repartait sur des charges périmées.
+- Désormais `_logged_e1rm()` parcourt les séries enregistrées des 60 dernières séances et en déduit le meilleur 1RM estimé (Epley, reps 1-12) ; `_strength_maxes()` renvoie le **max(benchmark, séries réelles)**. Le plan s'adapte donc automatiquement à ce qui est soulevé (TM = 90 % de ce 1RM, marge 5/3/1 conservée). La suggestion manuelle reste disponible.
+- Deux formats de `performed` supportés (`_performed_entries`) : `{lift, sets, est_1rm}` (séance simple) et `{lifts: [...]}` (séance combinée) — historique existant inclus.
+
+**3. App** — `StrengthActualsForm` refondu : un bloc de saisie **par mouvement principal** (avec 1RM estimé par mouvement), émission au format combiné quand la séance en porte deux ; `PerformedView` affiche chaque mouvement. Sans ça, le rowing n'aurait jamais été loggeable en grande semaine.
+
+**Tests** : 4 ajoutés — chaque semaine couvre bench/row/squat sur 12 semaines, séance `upper` à 2 mouvements principaux, charges pilotées par les séries loggées (TM > défaut), lecture du format combiné. Test d'équilibre recalé sur les mouvements principaux plutôt que sur les titres.
+
+**État** : 189 tests pytest + 4 audits PASS (62 routes), TypeScript strict 0 erreur, export web OK.
+
+*Addendum v3.26 · 17/08/2026 · Claude Opus 5.*

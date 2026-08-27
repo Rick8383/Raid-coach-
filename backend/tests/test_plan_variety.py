@@ -48,13 +48,16 @@ def test_strength_is_always_a_double_session():
 
 
 def test_push_pull_legs_stay_balanced():
-    """Les 3 groupes passent le même nombre de fois (±1) sur 12 semaines."""
+    """Les 3 patterns passent le même nombre de fois (±1) sur 12 semaines. On
+    compte les MOUVEMENTS PRINCIPAUX, pas les titres : une séance « haut du
+    corps » en porte deux (développé + rowing)."""
     lifts = Counter()
     for _d, day in _days(12):
         for s in day["sessions"]:
             if s["type"] == "strength":
-                lifts[s["title"].split("—")[0].strip()] += 1
-    assert set(lifts) == {"Force PUSH", "Force PULL", "Force LEGS"}
+                for m in s["detail"].get("main_lifts", []):
+                    lifts[m["lift"]] += 1
+    assert set(lifts) == {"bench", "row", "squat"}
     assert max(lifts.values()) - min(lifts.values()) <= 1, lifts
 
 
@@ -120,3 +123,77 @@ def test_variety_index_is_deterministic_and_cycles():
     assert got == list(FORMAT_CYCLE)
     # un tour complet plus loin → même format (rotation stable)
     assert generate_wod("auto", 12, "s", variety_index=len(FORMAT_CYCLE))["format_key"] == FORMAT_CYCLE[0]
+
+
+# ---------- Chaque semaine couvre les 3 patterns (push / pull / legs) ----------
+def test_every_week_covers_push_pull_legs():
+    """Aucune semaine ne doit rester sans tirage (ou sans poussée) : en grande
+    semaine, les 2 jours OFF portent « upper » (développé+rowing) et « legs »."""
+    for w in range(12):
+        monday = START + timedelta(days=7 * w)
+        lifts = set()
+        for i in range(7):
+            day = build_day(monday + timedelta(days=i), config=CFG)
+            for s in day["sessions"]:
+                if s["type"] == "strength":
+                    lifts.update(m["lift"] for m in s["detail"].get("main_lifts", []))
+        assert {"bench", "row", "squat"} <= lifts, (monday, lifts)
+
+
+def test_upper_session_has_two_main_lifts():
+    from engines.strength_531 import generate_strength_531
+    s = generate_strength_531("upper", week=1, cycle=0)
+    lifts = [m["lift"] for m in s["main_lifts"]]
+    assert lifts == ["bench", "row"]
+    assert s["main_lift"]["lift"] == "bench"          # compat clients existants
+    assert s["accessories"] and s["finisher_wod"]
+
+
+def test_recorded_loads_drive_the_plan():
+    """Les charges suivent les séries ENREGISTRÉES : logger rowing 6×90 kg
+    (1RM estimé 108) doit alourdir la séance de tirage suivante."""
+    from fastapi.testclient import TestClient
+    import importlib
+    from api import main as api_main
+    importlib.reload(api_main)
+    c = TestClient(api_main.app)
+
+    from engines.strength_531.engine import TRAINING_MAX
+    default_tm = TRAINING_MAX["row"]["tm"]
+
+    c.post("/sessions/save", json={
+        "discipline": "strength", "session_date": "2026-08-18",
+        "duration_min": 70, "intensity_rpe": 8, "status": "done",
+        "title": "Force PULL — S2",
+        "performed": {"lift": "Rowing barre", "est_1rm": 108.0,
+                      "sets": [{"reps": 6, "load_kg": 90, "top": True}]}})
+
+    # 6×90 kg → 1RM estimé Epley = 108 kg, lu directement depuis les séries.
+    assert api_main._logged_e1rm(api_main._aid()).get("row", 0) >= 108.0
+    maxes = api_main._strength_maxes()
+    assert maxes.get("row", 0) >= 108.0
+    # …et la séance de tirage suivante est réellement plus lourde qu'au défaut.
+    session = api_main.coach.strength_531("pull", 1, 0, maxes)
+    assert session["main_lift"]["training_max"] > default_tm
+
+
+def test_recorded_loads_read_combined_sessions():
+    """Format combiné { lifts: [...] } (séance haut du corps) pris en compte."""
+    from fastapi.testclient import TestClient
+    import importlib
+    from api import main as api_main
+    importlib.reload(api_main)
+    c = TestClient(api_main.app)
+
+    c.post("/sessions/save", json={
+        "discipline": "strength", "session_date": "2026-08-26",
+        "duration_min": 70, "intensity_rpe": 8, "status": "done",
+        "title": "Force HAUT DU CORPS (push+pull) — S3",
+        "performed": {"lifts": [
+            {"lift": "Développé couché", "est_1rm": 0,
+             "sets": [{"reps": 5, "load_kg": 95, "top": True}]},
+            {"lift": "Rowing barre", "est_1rm": 0,
+             "sets": [{"reps": 8, "load_kg": 85, "top": True}]}]}})
+    maxes = api_main._strength_maxes()
+    assert maxes.get("bench", 0) >= 95 * (1 + 5 / 30) - 0.5
+    assert maxes.get("row", 0) >= 85 * (1 + 8 / 30) - 0.5

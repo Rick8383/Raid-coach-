@@ -143,15 +143,59 @@ def _lift_key_of(name: str) -> str | None:
     return None
 
 
+def _performed_entries(perf: dict | None) -> list[dict]:
+    """Séries enregistrées, quel que soit le format : `{lift, sets, est_1rm}`
+    (séance à un mouvement principal) ou `{lifts: [...]}` (séance combinée
+    haut du corps : développé + rowing dans la même séance)."""
+    if not isinstance(perf, dict):
+        return []
+    if isinstance(perf.get("lifts"), list):
+        return [e for e in perf["lifts"] if isinstance(e, dict)]
+    return [perf] if perf.get("lift") else []
+
+
+def _logged_e1rm(aid: int) -> dict[str, float]:
+    """Meilleur 1RM estimé (Epley) déduit des SÉRIES RÉELLEMENT ENREGISTRÉES.
+
+    Les charges du plan doivent suivre ce que l'athlète soulève vraiment : sans
+    ça, logger « rowing 6×90 kg » ne changeait rien tant qu'on n'avait pas tapé
+    manuellement sur la suggestion de 1RM, et la séance suivante repartait sur
+    des charges périmées."""
+    best: dict[str, float] = {}
+    for s in store.sessions.last_n(aid, 60):
+        if s["status"] != "done":
+            continue
+        for entry in _performed_entries((_detail_of(s) or {}).get("performed")):
+            key = _lift_key_of(str(entry.get("lift") or ""))
+            sets = entry.get("sets")
+            if not key or not isinstance(sets, list):
+                continue
+            for st in sets:
+                if not isinstance(st, dict):
+                    continue
+                try:
+                    reps, load = int(st.get("reps") or 0), float(st.get("load_kg") or 0)
+                except (TypeError, ValueError):
+                    continue
+                # Epley reste fiable jusqu'à ~12 reps ; au-delà l'estimation dérive.
+                if 1 <= reps <= 12 and load > 0:
+                    best[key] = max(best.get(key, 0.0), load * (1 + reps / 30))
+    return best
+
+
 def _strength_maxes() -> dict:
-    """1RM (kg) de l'athlète courant par mouvement, depuis ses benchmarks
-    `{lift}_1rm`. Mouvement absent → défaut du moteur (l'utilisateur peut régler)."""
+    """1RM (kg) de l'athlète courant par mouvement : le meilleur entre son
+    benchmark `{lift}_1rm` et ce que ses séries enregistrées démontrent.
+    Mouvement absent partout → défaut du moteur."""
     aid = _aid()
+    logged = _logged_e1rm(aid)
     out: dict[str, float] = {}
     for lift in _STRENGTH_LIFTS:
         prog = store.benchmarks.progression(aid, f"{lift}_1rm")
-        if prog:
-            out[lift] = float(prog[-1]["result_value"])
+        recorded = float(prog[-1]["result_value"]) if prog else 0.0
+        value = max(recorded, logged.get(lift, 0.0))
+        if value > 0:
+            out[lift] = round(value * 2) / 2   # arrondi 0,5 kg
     return out
 
 
@@ -1158,18 +1202,20 @@ def save_session(body: SessionSaveIn) -> dict:
     # estimé au-dessus du 1RM enregistré, on PROPOSE la mise à jour (1 clic
     # côté app) — jamais automatique (une très bonne journée n'est pas un max).
     rm_suggestion = None
-    if body.performed and isinstance(body.performed, dict):
-        est = float(body.performed.get("est_1rm") or 0)
-        key = _lift_key_of(str(body.performed.get("lift") or ""))
-        if key and est > 0:
-            current = _strength_maxes().get(key)
-            if current is None or est > float(current) + 1.0:
-                from engines.strength_531.engine import TRAINING_MAX as _TM
-                rm_suggestion = {
-                    "lift_key": key, "lift_name": _TM[key]["name"],
-                    "current_1rm": float(current) if current is not None else None,
-                    "estimated_1rm": round(est * 2) / 2,
-                }
+    for entry in _performed_entries(body.performed):
+        est = float(entry.get("est_1rm") or 0)
+        key = _lift_key_of(str(entry.get("lift") or ""))
+        if not key or est <= 0:
+            continue
+        current = _strength_maxes().get(key)
+        if current is None or est > float(current) + 1.0:
+            from engines.strength_531.engine import TRAINING_MAX as _TM
+            rm_suggestion = {
+                "lift_key": key, "lift_name": _TM[key]["name"],
+                "current_1rm": float(current) if current is not None else None,
+                "estimated_1rm": round(est * 2) / 2,
+            }
+            break
     # Idempotent : re-marquer faite la MÊME séance (même date + discipline +
     # titre) met à jour la ligne existante au lieu de créer un doublon. Une
     # autre séance du même jour (CAP matin puis force soir) → ligne séparée.

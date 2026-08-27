@@ -14,7 +14,7 @@ import { PlanSession, StandbyInfo, api } from '../api/client';
 import { RunDetail, StrengthDetail, WodDetail } from './SessionDetail';
 import { RpeScale } from './RpeScale';
 import { WatchMetricsForm, WatchMetricsView, WatchMetrics } from './WatchMetricsForm';
-import { StrengthActualsForm, PerformedView, Performed } from './StrengthActualsForm';
+import { StrengthActualsForm, PerformedView, Performed, performedEntries } from './StrengthActualsForm';
 import { colors, spacing, typography } from '../theme/tokens';
 
 const TYPE_COLOR: Record<string, string> = {
@@ -86,7 +86,12 @@ function CompleteRow({ s, dateIso, alreadyDone, onSaved }: {
       const v = metrics[k];
       if (typeof v === 'number' && v > 0) body[k] = v;
     }
-    if (performed && performed.sets.some(x => x.load_kg > 0 || x.reps > 0)) body.performed = performed;
+    // Une séance « haut du corps » porte deux mouvements principaux → on
+    // enregistre dès qu'un mouvement a des séries renseignées.
+    if (performed && performedEntries(performed)
+        .some(e => e.sets.some(x => x.load_kg > 0 || x.reps > 0))) {
+      body.performed = performed;
+    }
     try {
       const res = await api.saveSession(body);
       if (res.rm_suggestion) setRmSug(res.rm_suggestion);

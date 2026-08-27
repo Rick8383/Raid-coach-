@@ -12,6 +12,17 @@ from engines.wod_generator.generator import FORMAT_CYCLE
 
 DAYS = ["push", "pull", "legs"]
 
+# Séance COMBINÉE haut du corps (2 mouvements principaux). En grande semaine il
+# n'y a que 2 jours OFF pour 3 groupes : sauter un groupe laissait une semaine
+# entière sans tirage (ou sans poussée), ce qui casse la progression 5/3/1.
+# Avec « upper » = développé couché + rowing, les 3 patterns passent CHAQUE
+# semaine, sans jamais placer de force un jour de service.
+COMBO_DAYS = {"upper": ("bench", "row")}
+
+# Position dans la rotation des finishers. `upper` remplace `push` la semaine où
+# il apparaît (les deux ne coexistent jamais) → pas de collision d'index.
+_ROT_IDX = {"push": 0, "pull": 1, "legs": 2, "upper": 0, "fullbody": 1}
+
 # 1RM réels (estimés du niveau actuel) → Training Max (90%, arrondi 2,5 kg).
 # Niveau actuel : DC 4×8 @75kg (1RM ~100), Squat 4×5 @100kg (1RM ~117).
 # Objectifs : DC 140 kg, Squat 160 kg.
@@ -177,6 +188,11 @@ def _accessories_from(rows) -> list[dict]:
 
 
 def _accessories(day: str) -> list[dict]:
+    if day in COMBO_DAYS:
+        # Séance combinée : on garde 2 accessoires de chaque groupe pour tenir
+        # dans la même durée qu'une séance simple (2 mouvements principaux).
+        rows = _ACCESSORIES["push"][:2] + _ACCESSORIES["pull"][:2]
+        return _accessories_from(rows)
     return _accessories_from(_ACCESSORIES[day])
 
 
@@ -189,7 +205,7 @@ def _finisher(day: str, week: int, cycle: int) -> dict:
     15 formats défilent. La durée alterne aussi (10/12 min, 8 en deload) pour
     que deux finishers ne se ressemblent pas.
     """
-    idx = (cycle * 4 + (week - 1)) * len(DAYS) + (DAYS.index(day) if day in DAYS else 0)
+    idx = (cycle * 4 + (week - 1)) * len(DAYS) + _ROT_IDX.get(day, 0)
     fmt = FORMAT_CYCLE[idx % len(FORMAT_CYCLE)]
     # Les builders respectent désormais la durée demandée → la fenêtre 8-12 min
     # d'un finisher est garantie quel que soit le format tiré.
@@ -202,8 +218,10 @@ def _finisher(day: str, week: int, cycle: int) -> dict:
 
 def generate_strength_531(day: str, week: int = 1, cycle: int = 0,
                           maxes: dict | None = None, variant: int = 0) -> dict:
-    if day not in DAYS and day != "fullbody":
-        raise ValueError(f"jour inconnu: {day} (attendus: {', '.join(DAYS)}, fullbody)")
+    if day not in DAYS and day != "fullbody" and day not in COMBO_DAYS:
+        raise ValueError(
+            f"jour inconnu: {day} (attendus: {', '.join(DAYS)}, "
+            f"{', '.join(COMBO_DAYS)}, fullbody)")
     week = max(1, min(int(week), 4))
     cycle = max(0, int(cycle))
     base = resolve_maxes(maxes)
@@ -222,21 +240,27 @@ def generate_strength_531(day: str, week: int = 1, cycle: int = 0,
             ],
         }
 
-    lift = _MAIN_BY_DAY[day]
+    lifts = COMBO_DAYS[day] if day in COMBO_DAYS else (_MAIN_BY_DAY[day],)
+    mains = [_main_lift(lift, week, cycle, base) for lift in lifts]
+    notes = [
+        "Big 3 McGill obligatoire en échauffement de TOUTE séance force.",
+        "Dernière série du mouvement principal en AMRAP (sauf deload).",
+    ]
+    if len(mains) > 1:
+        notes.insert(0, "Séance HAUT DU CORPS : deux mouvements principaux "
+                        f"({' + '.join(m['name'] for m in mains)}) — alterner "
+                        "les séries lourdes, récup complète entre les deux.")
     session = {
         "day": day,
         "week": week,
         "cycle": cycle,
         "is_deload": week == 4,
         "warmup_mcgill": _MCGILL,
-        "main_lift": _main_lift(lift, week, cycle, base),
-        "main_lifts": [_main_lift(lift, week, cycle, base)],
+        "main_lift": mains[0],          # compat clients existants
+        "main_lifts": mains,
         "accessories": _accessories(day),
         "finisher_wod": _finisher(day, week, cycle),
-        "notes": [
-            "Big 3 McGill obligatoire en échauffement de TOUTE séance force.",
-            "Dernière série du mouvement principal en AMRAP (sauf deload).",
-        ],
+        "notes": notes,
     }
     if day == "pull":
         max_pullups = 16
