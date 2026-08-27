@@ -24,38 +24,38 @@ START = date(2026, 6, 15)   # ancre lundi, grande semaine
 # Templates hebdo : weekday (0=lun..6=dim) -> liste de specs séance.
 # spec = (moment, type, sous-type)  ; sous-type = run_type ou jour force.
 #
-# RÈGLE STRUCTURANTE : la FORCE (push/pull/legs) ne tombe QUE sur des jours OFF,
-# toujours en séance double (course le matin + force le soir). En service,
-# l'athlète n'a pas toujours la possibilité de s'entraîner : y placer une séance
-# de force la faisait sauter, puis rattraper plus tard, ce qui décalait tout le
-# plan. Les jours de service ne portent donc que du footing court (ou du repos).
-_BIG_WORK = {   # service lun/mar/ven/sam/dim ; OFF mer/jeu → 2 séances de force
-    0: [],                                                              # lun service — repos actif (mobilité)
-    1: [("matin", "run", "tempo")],                                     # mar service — course courte
-    2: [("matin", "run", "vma_courte"), ("soir", "strength", "push")],   # mer OFF — DOUBLE
-    3: [("matin", "strength", "pull"), ("soir", "strength", "legs")],    # jeu OFF — DOUBLE force
-    4: [("matin", "run", "seuil")],                                     # ven service — course courte
-    5: [("matin", "run", "z2")],                                        # sam service — footing
+# RÈGLES STRUCTURANTES (contraintes réelles de l'athlète) :
+#  1. Un JOUR DE SERVICE ne porte qu'UNE SEULE séance — jamais de double. Il a
+#     un créneau sport au travail : cette séance PEUT donc être de la force.
+#  2. JAMAIS deux séances de force le même jour.
+#  3. Un JOUR OFF peut porter un double (course/WOD le matin + force le soir).
+# → push, pull et legs restent trois séances distinctes, réparties sur des jours
+#   différents, chaque semaine.
+_BIG_WORK = {   # service lun/mar/ven/sam/dim ; OFF mer/jeu
+    0: [("matin", "strength", "push")],                                 # lun service — SEULE séance (créneau sport)
+    1: [("matin", "run", "tempo")],                                     # mar service — SEULE séance
+    2: [("matin", "run", "vma_courte"), ("soir", "strength", "pull")],  # mer OFF — DOUBLE
+    3: [("matin", "crossfit", None), ("soir", "strength", "legs")],     # jeu OFF — DOUBLE
+    4: [("matin", "run", "seuil")],                                     # ven service — SEULE séance
+    5: [("matin", "run", "z2")],                                        # sam service — SEULE séance
     6: [("matin", "swim", None)],                                       # dim service — récup
 }
-_SMALL_WORK = {  # service mer/jeu ; OFF le reste → les 3 groupes passent
+_SMALL_WORK = {  # service mer/jeu ; OFF le reste
     0: [("matin", "run", "vma_courte"), ("soir", "strength", "push")],  # lun OFF — DOUBLE
     1: [("matin", "run", "cotes"), ("soir", "strength", "pull")],       # mar OFF — DOUBLE
-    2: [("matin", "run", "z2")],                                        # mer service — footing court
-    3: [],                                                              # jeu service — repos actif (mobilité)
-    4: [("matin", "run", "vma_longue"), ("soir", "strength", "legs")],  # ven OFF — DOUBLE
-    5: [("matin", "run", "z2"), ("soir", "crossfit", None)],            # sam OFF — DOUBLE
+    2: [("matin", "strength", "legs")],                                 # mer service — SEULE séance (créneau sport)
+    3: [("matin", "run", "z2")],                                        # jeu service — SEULE séance
+    4: [("matin", "run", "vma_longue"), ("soir", "crossfit", None)],    # ven OFF — DOUBLE
+    5: [("matin", "run", "z2")],                                        # sam OFF — sortie longue
     6: [("matin", "swim", None)],                                       # dim OFF — récup
 }
 
-# GRANDE semaine : seulement 2 jours OFF (mer/jeu) pour 3 groupes musculaires.
-# Choix retenu : push, pull et legs restent TROIS SÉANCES DISTINCTES (jamais
-# fusionnées), quitte à doubler la force le jeudi (pull le matin, legs le soir)
-# — c'est un jour OFF, et deux patterns différents dans la journée se supportent
-# bien. Ainsi les 3 mouvements principaux passent chaque semaine, la force ne
-# tombe jamais un jour de service, et la VMA du mercredi est préservée.
+# Répartition des 3 séances de force : 2 sur les jours OFF (en double avec la
+# course ou le WOD) et 1 sur un jour de service, où elle est la SEULE séance de
+# la journée — l'athlète y a un créneau sport dédié. Aucun jour ne porte deux
+# séances de force, et aucun jour de service ne porte deux séances tout court.
 # (Le type de séance combinée `upper` reste disponible via
-# /generate/strength?day=upper pour qui préfère 2 séances au lieu de 3.)
+# /generate/strength?day=upper pour qui préfère condenser en 2 séances.)
 
 
 def _swim_session() -> dict:

@@ -30,23 +30,30 @@ def _days(n_weeks: int):
         yield d, build_day(d, config=CFG)
 
 
-# ---------- Force : jours OFF uniquement, toujours en double ----------
-def test_no_strength_on_service_days():
+# ---------- Contraintes réelles de l'athlète ----------
+def _main_sessions(day: dict) -> list:
+    """Séances d'entraînement du jour (la mobilité quotidienne est un ajout de
+    récupération, pas une séance)."""
+    return [s for s in day["sessions"] if s["type"] != "recovery"]
+
+
+def test_service_days_carry_a_single_session():
+    """Un jour de SERVICE ne porte qu'une seule séance — jamais de double."""
     for d, day in _days(12):
         if day["is_work_day"]:
-            kinds = [s["type"] for s in day["sessions"]]
-            assert "strength" not in kinds, f"force un jour de service : {d}"
+            assert len(_main_sessions(day)) <= 1, f"double un jour de service : {d}"
 
 
-def test_strength_is_always_a_double_session():
-    """La force tombe toujours dans une journée à DEUX séances (jour OFF). En
-    grande semaine le jeudi porte deux séances de force distinctes (pull le
-    matin, legs le soir) : push/pull/legs ne sont jamais fusionnés."""
+def test_never_two_strength_sessions_on_the_same_day():
     for d, day in _days(12):
-        main = [s for s in day["sessions"] if s["type"] != "recovery"]
-        if any(s["type"] == "strength" for s in main):
-            assert len(main) >= 2, f"force en séance isolée : {d}"
-            assert day["is_work_day"] is False
+        n = sum(1 for s in _main_sessions(day) if s["type"] == "strength")
+        assert n <= 1, f"deux séances de force le même jour : {d}"
+
+
+def test_doubles_happen_only_on_off_days():
+    for d, day in _days(12):
+        if len(_main_sessions(day)) > 1:
+            assert day["is_work_day"] is False, f"double un jour de service : {d}"
 
 
 def test_push_pull_legs_stay_balanced():
@@ -63,13 +70,16 @@ def test_push_pull_legs_stay_balanced():
 
 
 def test_current_week_matches_athlete_reality():
-    """Petite semaine : push lundi, pull mardi, legs vendredi (jours OFF)."""
-    expected = {0: "PUSH", 1: "PULL", 4: "LEGS"}
-    for offset, lift in expected.items():
+    """Petite semaine réelle : push lundi (OFF), pull mardi (OFF), legs mercredi
+    — mercredi étant un jour de SERVICE, la force y est la seule séance."""
+    expected = {0: ("PUSH", False), 1: ("PULL", False), 2: ("LEGS", True)}
+    for offset, (lift, is_service) in expected.items():
         day = build_day(START + timedelta(days=offset), config=CFG)
-        assert day["is_work_day"] is False
+        assert day["is_work_day"] is is_service, offset
         titles = [s["title"] for s in day["sessions"] if s["type"] == "strength"]
         assert titles and lift in titles[0], (offset, titles)
+        if is_service:
+            assert len(_main_sessions(day)) == 1
 
 
 # ---------- Variété des formats ----------

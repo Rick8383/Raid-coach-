@@ -983,3 +983,29 @@ TypeScript 0 erreur, export web OK (aucun changement backend).
 **État** : 190 tests pytest + 4 audits PASS (62 routes), TypeScript strict 0 erreur, export web OK.
 
 *Addendum v3.27 · 17/08/2026 · Claude Opus 5.*
+
+-----
+
+### Addendum v3.28 — Une seule séance par jour de service, jamais deux forces le même jour (18/08/2026)
+
+> « Je ne veux pas deux séances de force dans la même journée non plus. Hier push, aujourd'hui pull, demain leg **au travail** : le principe de base c'était de ne pas mettre deux séances dans une journée de service — j'ai au moins un créneau sport au travail où je peux faire une séance de force. »
+
+**Correction d'interprétation.** La contrainte n'était pas « pas de force en service » (lecture erronée des v3.25→v3.27) mais **« pas DEUX séances dans une journée de service »**. L'athlète dispose d'un créneau sport au travail : une séance de force y a toute sa place, tant qu'elle est la seule de la journée.
+
+**Règles désormais encodées et testées :**
+1. Un jour de SERVICE porte **une seule séance** (elle peut être de la force).
+2. **Jamais deux séances de force** le même jour.
+3. Les doubles n'existent que les jours OFF (course/WOD le matin + force le soir).
+
+**Répartition** — 2 séances de force sur les jours OFF, la 3ᵉ sur un jour de service en séance unique :
+- **Petite semaine** (service mer/jeu) : lun OFF `VMA + PUSH` · mar OFF `côtes + PULL` · **mer SERVICE `LEGS` (seule séance)** · jeu SERVICE `Z2` · ven OFF `VMA longue + WOD` · sam OFF `sortie longue` · dim `natation`.
+- **Grande semaine** (service lun/mar/ven/sam/dim) : **lun SERVICE `PUSH` (seule séance)** · mar SERVICE `tempo` · mer OFF `VMA + PULL` · jeu OFF `WOD + LEGS` · ven SERVICE `seuil` · sam SERVICE `Z2` · dim `natation`.
+- Le WOD autonome revient dans les deux types de semaine (perdu en v3.27).
+
+**Vérifié sur 12 semaines** : `bench`/`row`/`squat` = 12 fois chacun (1 par semaine), **aucun jour de service à 2 séances**, **aucun jour à 2 séances de force**, doubles uniquement les jours OFF.
+
+**Tests** : `test_service_days_carry_a_single_session`, `test_never_two_strength_sessions_on_the_same_day`, `test_doubles_happen_only_on_off_days` remplacent l'ancienne règle « pas de force en service » ; `test_current_week_matches_athlete_reality` recalé (push lun / pull mar / legs mer en service, séance unique).
+
+**État** : 191 tests pytest + 4 audits PASS (62 routes), TypeScript strict 0 erreur, export web OK.
+
+*Addendum v3.28 · 18/08/2026 · Claude Opus 5.*
