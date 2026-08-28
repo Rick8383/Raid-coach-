@@ -1033,3 +1033,21 @@ Le verdict est renvoyé par `POST /sessions/save` (flux chrono) **et** par le PA
 **État** : 201 tests pytest + 4 audits PASS (63 routes), TypeScript strict 0 erreur, export web OK.
 
 *Addendum v3.29 · 18/08/2026 · Claude Opus 5.*
+
+-----
+
+### Addendum v3.30 — La séance s'enregistre au jour où elle a été FAITE (28/08/2026)
+
+> « Dans suivi j'ai la séance push et legs qui apparaissent enregistrées jeudi alors que hier j'ai fait push et aujourd'hui legs. Corrige ça et je ne veux plus que ça le fasse à l'avenir. »
+
+**Cause** : « MARQUER FAIT » envoyait toujours `session_date = date de la carte du plan`, c'est-à-dire le jour **planifié**. Marquer depuis la carte de jeudi un mercredi (ou l'inverse) enregistrait donc la séance au mauvais jour, sans aucun moyen de le corriger — d'où deux séances faites des jours différents qui atterrissaient le même jour.
+
+**Correctif** : le flux « marquer fait » ouvre désormais sur un sélecteur **« SÉANCE FAITE LE »** — les 8 derniers jours en pastilles (aujourd'hui en tête, libellé `AUJ. 28`), pré-sélectionné sur la date de la carte, et complété par cette date si elle est plus ancienne. La date choisie part dans `session_date`. Le message de confirmation l'affiche explicitement (« enregistrée comme faite — aujourd'hui » / « au 27/08 ») : une erreur de jour devient visible immédiatement au lieu d'être silencieuse.
+- L'état « déjà enregistrée » de la carte n'est marqué que si la date retenue est bien celle de la carte (`onSaved` conditionné) — sinon la carte du jour planifié resterait cochée à tort.
+- Helper partagé `recentDays(n)` dans `schedule.ts` (dates locales, jamais UTC).
+
+**Rappel** : l'édition du score de WOD depuis Agenda → Suivi (bouton « ✎ MODIFIER LE SCORE ») était déjà livrée en v3.29 — déploiement confirmé en succès (run #39, commit `866e80e`).
+
+**État** : 201 tests pytest + 4 audits PASS (63 routes), TypeScript strict 0 erreur, export web OK.
+
+*Addendum v3.30 · 28/08/2026 · Claude Opus 5.*

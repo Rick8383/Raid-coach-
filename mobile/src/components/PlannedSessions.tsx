@@ -15,6 +15,7 @@ import { RunDetail, StrengthDetail, WodDetail } from './SessionDetail';
 import { RpeScale } from './RpeScale';
 import { WatchMetricsForm, WatchMetricsView, WatchMetrics } from './WatchMetricsForm';
 import { StrengthActualsForm, PerformedView, Performed, performedEntries } from './StrengthActualsForm';
+import { localISODate, recentDays } from '../schedule';
 import { colors, spacing, typography } from '../theme/tokens';
 
 const TYPE_COLOR: Record<string, string> = {
@@ -64,7 +65,18 @@ function CompleteRow({ s, dateIso, alreadyDone, onSaved }: {
   const [rmSug, setRmSug] = useState<{ lift_key: string; lift_name: string;
     current_1rm: number | null; estimated_1rm: number } | null>(null);
   const [rmUpdated, setRmUpdated] = useState(false);
+  // Date à laquelle la séance a RÉELLEMENT été faite. Par défaut celle de la
+  // carte (le jour planifié) — mais modifiable : marquer faite depuis la carte
+  // d'un autre jour enregistrait la séance au jour PLANIFIÉ, pas au jour où
+  // elle a été faite (push/legs qui atterrissaient tous les deux jeudi).
+  const [when, setWhen] = useState(dateIso);
   const isStrength = s.type === 'strength';
+  const dayChoices = (() => {
+    const days = recentDays(8);
+    return days.some(d => d.iso === dateIso)
+      ? days
+      : [...days, { iso: dateIso, label: `${dateIso.slice(8)}/${dateIso.slice(5, 7)}` }];
+  })();
 
   const applyRm = async () => {
     if (!rmSug) return;
@@ -79,7 +91,7 @@ function CompleteRow({ s, dateIso, alreadyDone, onSaved }: {
     setBusy(true);
     const dur = metrics.duration_min && metrics.duration_min > 0 ? metrics.duration_min : s.duration_min;
     const body: Record<string, unknown> = {
-      discipline: s.type, session_date: dateIso, duration_min: dur,
+      discipline: s.type, session_date: when, duration_min: dur,
       intensity_rpe: rpe, title: s.title, status: 'done', detail: s.detail ?? {},
     };
     for (const k of METRIC_KEYS) {
@@ -96,14 +108,18 @@ function CompleteRow({ s, dateIso, alreadyDone, onSaved }: {
       const res = await api.saveSession(body);
       if (res.rm_suggestion) setRmSug(res.rm_suggestion);
       setDone(true);
-      onSaved();   // le parent marque la séance faite → l'état survit au repli/dépli
+      // Le parent ne marque la carte comme faite que si la date correspond.
+      if (when === dateIso) onSaved();
     } finally { setBusy(false); }
   };
 
   if (done) {
     return (
       <View>
-        <Text style={styles.doneMsg}>✓ Séance enregistrée comme faite (RPE {rpe})</Text>
+        <Text style={styles.doneMsg}>
+          ✓ Séance enregistrée comme faite (RPE {rpe}) —{' '}
+          {when === localISODate() ? "aujourd'hui" : `au ${when.slice(8)}/${when.slice(5, 7)}`}
+        </Text>
         {performed ? <PerformedView p={performed} /> : null}
         <WatchMetricsView m={metrics} />
         {rmSug && (rmUpdated ? (
@@ -141,6 +157,18 @@ function CompleteRow({ s, dateIso, alreadyDone, onSaved }: {
     <View style={styles.completeBox}>
       {open ? (
         <>
+          <Text style={styles.rpeLbl}>SÉANCE FAITE LE</Text>
+          <View style={styles.dayRow}>
+            {dayChoices.map(d => (
+              <Pressable key={d.iso} onPress={() => setWhen(d.iso)}
+                style={[styles.dayChip, when === d.iso && styles.dayChipOn]}>
+                <Text style={[styles.dayChipT, when === d.iso && styles.dayChipTOn]}>
+                  {d.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
           <Text style={styles.rpeLbl}>DIFFICULTÉ RESSENTIE (RPE)</Text>
           <RpeScale value={rpe} onChange={setRpe} />
 
@@ -285,6 +313,12 @@ const styles = StyleSheet.create({
   markBtn: { paddingVertical: 12, borderRadius: spacing.cardRadius, borderWidth: 1, borderColor: colors.signal, alignItems: 'center' },
   markBtnT: { color: colors.signal, ...typography.label, fontSize: 11 },
   rpeLbl: { color: colors.textSecondary, ...typography.label, marginBottom: spacing.s, textAlign: 'center' },
+  dayRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, justifyContent: 'center', marginBottom: spacing.m },
+  dayChip: { paddingVertical: spacing.xs, paddingHorizontal: spacing.s, borderRadius: 6,
+    borderWidth: 1, borderColor: colors.hairline, backgroundColor: colors.bgCard },
+  dayChipOn: { backgroundColor: colors.signalSoft, borderColor: colors.signal },
+  dayChipT: { color: colors.textSecondary, ...typography.label, fontSize: 9 },
+  dayChipTOn: { color: colors.signal },
   watchToggle: { marginTop: spacing.m, paddingVertical: spacing.s, alignItems: 'center' },
   watchToggleT: { color: colors.signal, fontSize: typography.sizes.small, ...typography.bodyBold },
   editBtn: { alignItems: 'center', paddingVertical: spacing.s },

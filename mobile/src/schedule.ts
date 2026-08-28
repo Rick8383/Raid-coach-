@@ -128,6 +128,23 @@ export function todayLocalAsUTC(): Date {
   return new Date(`${localISODate()}T00:00:00Z`);
 }
 
+const DAY_SHORT = ['LUN', 'MAR', 'MER', 'JEU', 'VEN', 'SAM', 'DIM'];
+
+/** Les n derniers jours (aujourd'hui en premier), pour choisir la date à
+ * laquelle une séance a RÉELLEMENT été faite. */
+export function recentDays(n = 8): { iso: string; label: string }[] {
+  const base = todayLocalAsUTC();
+  return Array.from({ length: n }, (_, i) => {
+    const d = new Date(base.getTime() - i * DAY_MS);
+    const iso = d.toISOString().slice(0, 10);
+    return {
+      iso,
+      label: i === 0 ? `AUJ. ${d.getUTCDate()}`
+        : `${DAY_SHORT[(d.getUTCDay() + 6) % 7]} ${d.getUTCDate()}`,
+    };
+  });
+}
+
 export function daySchedule(d: Date, config?: ScheduleConfig): DaySchedule {
   const weekType = weekTypeFor(d, config);
   const dayCode = dayCodeFor(d);
