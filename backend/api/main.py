@@ -26,6 +26,7 @@ from engines.coach_chat import answer as _coach_chat_answer
 from engines.coach_chat import llm_answer as _coach_llm, llm_enabled as _coach_llm_enabled
 from engines import standby as _standby
 from engines.mobility import generate_mobility as _gen_mobility
+from engines.wod_generator import scoring as _wod_scoring
 from engines.schedule import user_schedule as _us
 # CoachAPI met engines/legacy sur sys.path à l'import → AnalyticsInput accessible
 from build6_analytics_engine.models import AnalyticsInput  # noqa: E402
@@ -1216,6 +1217,15 @@ def save_session(body: SessionSaveIn) -> dict:
                 "estimated_1rm": round(est * 2) / 2,
             }
             break
+    # WOD chronométré : libellé de score + commentaire honnête de performance,
+    # comparés aux tentatives précédentes (même format en priorité).
+    assessment = None
+    res = detail.get("result")
+    if isinstance(res, dict) and res.get("mode") in ("for_time", "amrap"):
+        detail.setdefault("score_label", _wod_scoring.score_label(res))
+        assessment = _wod_scoring.assess(
+            {**res, "format_key": detail.get("format_key")}, _wod_history(_aid()))
+        detail["assessment"] = assessment
     # Idempotent : re-marquer faite la MÊME séance (même date + discipline +
     # titre) met à jour la ligne existante au lieu de créer un doublon. Une
     # autre séance du même jour (CAP matin puis force soir) → ligne séparée.
@@ -1226,13 +1236,15 @@ def save_session(body: SessionSaveIn) -> dict:
             store.sessions.update_done(
                 existing, body.duration_min, body.intensity_rpe, su, detail)
             return {"status": "updated", "session_id": existing,
-                    "persisted_status": "done", "rm_suggestion": rm_suggestion}
+                    "persisted_status": "done", "rm_suggestion": rm_suggestion,
+                    "assessment": assessment}
     session_id = store.sessions.record(
         _aid(), body.discipline, body.session_date,
         body.duration_min, body.intensity_rpe, su,
         detail, status=body.status, family_id=body.title)
     return {"status": "saved", "session_id": session_id,
-            "persisted_status": body.status, "rm_suggestion": rm_suggestion}
+            "persisted_status": body.status, "rm_suggestion": rm_suggestion,
+            "assessment": assessment}
 
 
 @app.post("/sessions/manual")
@@ -1360,6 +1372,60 @@ def recent_sessions(n: int = 30) -> dict:
     return {"sessions": rows}
 
 
+class WodScoreIn(BaseModel):
+    """Score d'un WOD saisi ou corrigé à la main (chrono, ou depuis l'agenda)."""
+    mode: str = Field(pattern="^(for_time|amrap)$")
+    time_sec: int = Field(default=0, ge=0, le=36000)
+    reps: int = Field(default=0, ge=0, le=100000)
+    rounds: int | None = Field(default=None, ge=0, le=1000)
+    distance_m: int | None = Field(default=None, ge=0, le=200000)
+    capped: bool = False
+    cap_sec: int = Field(default=0, ge=0, le=36000)
+    notes: str | None = Field(default=None, max_length=500)
+
+
+def _wod_history(aid: int, exclude_id: int | None = None) -> list[dict]:
+    """Résultats de WOD passés (du plus ancien au plus récent) pour comparer."""
+    out = []
+    for s in reversed(store.sessions.last_n(aid, 120)):
+        if s["status"] != "done" or s["discipline"] != "crossfit":
+            continue
+        if exclude_id is not None and s["id"] == exclude_id:
+            continue
+        det = _detail_of(s) or {}
+        res = det.get("result")
+        if isinstance(res, dict) and res.get("mode") in ("for_time", "amrap"):
+            out.append({**res, "format_key": det.get("format_key")})
+    return out
+
+
+@app.patch("/sessions/{session_id}/score")
+def update_session_score(session_id: int, body: WodScoreIn) -> dict:
+    """Saisit/corrige le score d'un WOD déjà enregistré (agenda → suivi), et
+    renvoie un commentaire honnête de performance."""
+    row = store.sessions.get(_aid(), session_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Séance introuvable.")
+    if row["discipline"] != "crossfit":
+        raise HTTPException(status_code=409,
+                            detail="Seules les séances CrossFit ont un score de WOD.")
+    detail = dict(_detail_of(row) or {})
+    result = {k: v for k, v in body.model_dump().items() if v is not None}
+    detail["result"] = result
+    detail["score_label"] = _wod_scoring.score_label(result)
+    assessment = _wod_scoring.assess(
+        {**result, "format_key": detail.get("format_key")},
+        _wod_history(_aid(), exclude_id=session_id))
+    detail["assessment"] = assessment
+    # Le temps réel du WOD fait la durée de séance (et donc la charge).
+    dur = max(1, round(body.time_sec / 60)) if body.time_sec else int(row["duration_min"] or 1)
+    rpe = float(row["intensity_rpe"] or 9)
+    su = coach.compute_su(dur, rpe)
+    store.sessions.update_done(session_id, dur, rpe, su, detail)
+    return {"status": "updated", "session_id": session_id,
+            "score_label": detail["score_label"], "assessment": assessment}
+
+
 @app.delete("/sessions/{session_id}")
 def delete_session(session_id: int) -> dict:
     """Supprime une séance enregistrée (annule une mauvaise manip). Ne supprime
@@ -1391,7 +1457,10 @@ def agenda_week(body: ScheduleIn) -> dict:
                 "status": rec["status"], "title": rec.get("family_id"),
                 "score_label": score["label"] if score else None,
                 "metrics": det.get("metrics"),
-                "performed": det.get("performed")}
+                "performed": det.get("performed"),
+                # WOD : score courant + commentaire → édition depuis l'agenda.
+                "wod_result": det.get("result") if rec["discipline"] == "crossfit" else None,
+                "assessment": det.get("assessment")}
 
     for day in week["days"]:
         recs = by_date.get(day["date"], [])

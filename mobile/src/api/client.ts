@@ -381,6 +381,13 @@ export interface DoneEntry {
   // Un mouvement principal → forme simple ; séance combinée haut du corps
   // (développé + rowing) → { lifts: [...] }.
   performed?: PerformedLiftRow | { lifts: PerformedLiftRow[] } | null;
+  // WOD : score courant (pour pré-remplir la fenêtre d'édition) + verdict.
+  wod_result?: {
+    mode?: string; time_sec?: number; reps?: number; rounds?: number;
+    distance_m?: number; capped?: boolean; cap_sec?: number;
+  } | null;
+  assessment?: { verdict: string; comment: string;
+                 reference: string | null; delta_pct: number | null } | null;
 }
 
 export interface PerformedLiftRow {
@@ -612,6 +619,20 @@ export const api = {
     return data;
   },
 
+  // Saisit/corrige le score d'un WOD déjà enregistré (agenda → suivi) et
+  // renvoie le commentaire honnête de performance.
+  updateWodScore: async (sessionId: number, score: Json): Promise<{
+    score_label: string;
+    assessment: { verdict: string; comment: string; reference: string | null; delta_pct: number | null };
+  }> => {
+    const res = await patch<{
+      score_label: string;
+      assessment: { verdict: string; comment: string; reference: string | null; delta_pct: number | null };
+    }>(`/sessions/${sessionId}/score`, score);
+    await invalidateAgendaCaches();
+    return res;
+  },
+
   // Recale la PHASE du rythme 3/2/2/3 (« cette semaine est ma petite/grande
   // semaine ») → tout l'agenda se réaligne. La progression 5/3/1 est préservée
   // côté serveur (start_monday figé avant le déplacement de l'ancre).
@@ -684,6 +705,9 @@ export const api = {
     session_id?: number; queued?: boolean;
     rm_suggestion?: { lift_key: string; lift_name: string;
                       current_1rm: number | null; estimated_1rm: number } | null;
+    // WOD chronométré : commentaire honnête de performance renvoyé par le serveur.
+    assessment?: { verdict: string; comment: string;
+                   reference: string | null; delta_pct: number | null } | null;
   }> => {
     try {
       const res = await post<{ session_id?: number }>('/sessions/save', body);

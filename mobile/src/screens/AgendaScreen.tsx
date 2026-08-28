@@ -5,11 +5,12 @@
  */
 import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { AgendaWeek, AnalyticsSnapshot, AthleteProfile, api } from '../api/client';
+import { AgendaWeek, AnalyticsSnapshot, AthleteProfile, DoneEntry, api } from '../api/client';
 import { ReadinessBar } from '../components/ReadinessBar';
 import { PlanView } from '../components/PlanView';
 import { WatchMetricsView } from '../components/WatchMetricsForm';
 import { PerformedView } from '../components/StrengthActualsForm';
+import { WodScoreSheet, WodScoreInput } from '../components/WodScoreSheet';
 import { Card, Tag } from '../components/ui';
 import { DAY_LABELS, DayCode, WEEK_LABEL, todayLocalAsUTC, localISODate } from '../schedule';
 import {
@@ -43,6 +44,16 @@ export function AgendaScreen({ profile }: { profile?: AthleteProfile | null }) {
 
   const reload = () => api.agendaWeek(mondayISO(offset)).then(setWeek).catch(() => setWeek(null));
   useEffect(() => { reload(); }, [offset]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Séance CrossFit dont on saisit/corrige le score (fenêtre modale).
+  const [editing, setEditing] = useState<DoneEntry | null>(null);
+
+  const submitScore = async (s: WodScoreInput) => {
+    if (!editing?.id) return null;
+    const res = await api.updateWodScore(editing.id, s as unknown as Record<string, unknown>);
+    await reload();
+    return res.assessment;
+  };
 
   const removeDone = async (id?: number) => {
     if (!id) return;
@@ -130,6 +141,17 @@ export function AgendaScreen({ profile }: { profile?: AthleteProfile | null }) {
                       </Pressable>
                     ) : null}
                   </View>
+                  {/* WOD : saisir ou corriger le score (temps/tours/reps/distance) */}
+                  {e.discipline === 'crossfit' && e.id && e.status === 'done' && (
+                    <Pressable onPress={() => setEditing(e)} style={styles.scoreBtn}>
+                      <Text style={styles.scoreT}>
+                        {e.score_label ? '✎ MODIFIER LE SCORE' : '＋ SAISIR LE SCORE'}
+                      </Text>
+                    </Pressable>
+                  )}
+                  {e.assessment ? (
+                    <Text style={styles.assess}>💬 {e.assessment.comment}</Text>
+                  ) : null}
                   {e.performed ? <PerformedView p={e.performed} /> : null}
                   {e.metrics ? <WatchMetricsView m={e.metrics} /> : null}
                 </View>
@@ -140,6 +162,23 @@ export function AgendaScreen({ profile }: { profile?: AthleteProfile | null }) {
         );
       })}
       </>)}
+
+      {editing && (
+        <WodScoreSheet
+          visible
+          title={editing.title ?? 'WOD'}
+          initial={{
+            mode: (editing.wod_result?.mode as 'for_time' | 'amrap') ?? 'amrap',
+            time_sec: editing.wod_result?.time_sec ?? 0,
+            reps: editing.wod_result?.reps ?? 0,
+            rounds: editing.wod_result?.rounds,
+            distance_m: editing.wod_result?.distance_m,
+            capped: !!editing.wod_result?.capped,
+            cap_sec: editing.wod_result?.cap_sec ?? 0,
+          }}
+          onSubmit={submitScore}
+          onClose={() => setEditing(null)} />
+      )}
     </ScrollView>
   );
 }
@@ -207,6 +246,10 @@ const styles = StyleSheet.create({
   viewTextOn: { color: colors.bg },
   formHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   formLabel: { color: colors.textSecondary, ...typography.label },
+  scoreBtn: { alignSelf: 'flex-start', paddingVertical: spacing.xs, paddingHorizontal: spacing.s,
+    borderRadius: 6, borderWidth: 1, borderColor: colors.signal, marginTop: spacing.xs },
+  scoreT: { color: colors.signal, ...typography.label, fontSize: 9 },
+  assess: { color: colors.textSecondary, fontSize: typography.sizes.small, lineHeight: 18, marginTop: spacing.xs },
   z2Box: { marginTop: spacing.m },
   z2Head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   z2Label: { color: colors.textSecondary, ...typography.label, fontSize: 9 },

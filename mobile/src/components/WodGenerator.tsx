@@ -6,7 +6,8 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { Wod, api } from '../api/client';
 import { WodDetail } from './SessionDetail';
-import { WodTimer, WodResult } from './WodTimer';
+import { WodTimer } from './WodTimer';
+import { WodScoreInput } from './WodScoreSheet';
 import { NumberField } from './NumberField';
 import { Card, PrimaryButton, Tag } from './ui';
 import { colors, spacing, typography } from '../theme/tokens';
@@ -74,20 +75,21 @@ export function WodGenerator() {
     setSaved(true);
   };
 
-  // Le chrono a livré un score → on enregistre la séance comme FAITE avec le
-  // score (temps ou reps) dans le détail → suivi dans l'agenda/l'historique.
-  const saveScore = async (r: WodResult) => {
-    if (!wod) return;
-    const scoreLabel = r.mode === 'for_time'
-      ? `${fmtTime(r.time_sec)}${r.capped ? ' (cap)' : ''}`
-      : `${r.reps} reps/rounds`;
-    await api.saveSession({
+  // Score confirmé dans la fenêtre → séance enregistrée comme FAITE avec le
+  // score dans le détail (suivi agenda/historique) ; le serveur renvoie le
+  // libellé et un commentaire honnête de performance.
+  // NB : le titre reste le NOM du WOD (sans le score). Y mettre le score
+  // cassait la mise à jour idempotente — corriger un score créait un doublon.
+  const saveScore = async (s: WodScoreInput) => {
+    if (!wod) return null;
+    const res = await api.saveSession({
       discipline: 'crossfit', session_date: localISODate(),
-      duration_min: Math.max(1, Math.round(r.time_sec / 60)) || duration,
-      intensity_rpe: 9, title: `${wod.name} — ${scoreLabel}`, status: 'done',
-      detail: { ...wod, result: r, score_label: scoreLabel },
+      duration_min: Math.max(1, Math.round(s.time_sec / 60)) || duration,
+      intensity_rpe: 9, title: wod.name, status: 'done',
+      detail: { ...wod, result: s },
     });
-    setScoreSaved(scoreLabel);
+    setScoreSaved(res.assessment?.comment ?? 'Score enregistré');
+    return res.assessment ?? null;
   };
 
   return (

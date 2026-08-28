@@ -148,6 +148,13 @@ class SessionRepository:
                         (session_id, athlete_id))
         return True
 
+    def get(self, athlete_id: int, session_id: int) -> dict | None:
+        """Une séance précise de l'athlète (édition de score)."""
+        rows = self.db.query(
+            "SELECT * FROM sessions WHERE id = ? AND athlete_id = ?",
+            (session_id, athlete_id))
+        return rows[0] if rows else None
+
     def last_n(self, athlete_id: int, n: int = 20) -> list[dict]:
         return self.db.query(
             """SELECT * FROM sessions WHERE athlete_id = ?

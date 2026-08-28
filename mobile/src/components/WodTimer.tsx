@@ -11,6 +11,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Wod } from '../api/client';
 import { beepGo, beepTick, beepRound, primeSound } from './sound';
+import { WodScoreSheet, WodScoreInput, WodAssessment } from './WodScoreSheet';
 import { colors, spacing, typography } from '../theme/tokens';
 
 export type ScoreMode = 'for_time' | 'amrap';
@@ -48,7 +49,8 @@ const COUNTDOWN_CHOICES = [0, 5, 10, 15, 20, 30];
 export function WodTimer({ wod, durationMin, onFinish }: {
   wod?: Wod | null;
   durationMin?: number;
-  onFinish?: (r: WodResult) => void;
+  /** Score confirmé/corrigé dans la fenêtre → renvoie le verdict de perf. */
+  onFinish?: (s: WodScoreInput) => Promise<WodAssessment | null>;
 }) {
   const [mode, setMode] = useState<ScoreMode>(modeForWod(wod));
   const [countdownSec, setCountdownSec] = useState(15);
@@ -58,6 +60,7 @@ export function WodTimer({ wod, durationMin, onFinish }: {
   const [reps, setReps] = useState(0);
   const [now, setNow] = useState(Date.now());
   const [result, setResult] = useState<WodResult | null>(null);
+  const [sheet, setSheet] = useState(false);   // fenêtre de saisie du score
 
   // Réinitialise quand le WOD change.
   useEffect(() => {
@@ -104,6 +107,7 @@ export function WodTimer({ wod, durationMin, onFinish }: {
     setResult(r);
     setPhase('done');
     beepGo();
+    if (onFinish) setSheet(true);   // fenêtre de score dès l'arrêt du chrono
   };
 
   // Boucle de tick (200 ms) pendant décompte / course, pilotée par timestamps.
@@ -256,7 +260,7 @@ export function WodTimer({ wod, durationMin, onFinish }: {
         )}
       </View>
 
-      {/* Résultat + enregistrement du score */}
+      {/* Résultat + fenêtre de saisie du score (ouverte dès l'arrêt du chrono) */}
       {phase === 'done' && result && (
         <View style={styles.resultBox}>
           <Text style={styles.resultText}>
@@ -265,11 +269,22 @@ export function WodTimer({ wod, durationMin, onFinish }: {
               : `Score : ${result.reps} reps/rounds en ${fmt(result.time_sec)}`}
           </Text>
           {onFinish && (
-            <Pressable onPress={() => onFinish(result)} style={styles.saveScoreBtn}>
-              <Text style={styles.saveScoreT}>✓ ENREGISTRER LE SCORE</Text>
+            <Pressable onPress={() => setSheet(true)} style={styles.saveScoreBtn}>
+              <Text style={styles.saveScoreT}>✓ SAISIR / VALIDER LE SCORE</Text>
             </Pressable>
           )}
         </View>
+      )}
+      {onFinish && result && (
+        <WodScoreSheet
+          visible={sheet}
+          title={wod?.name ?? 'WOD'}
+          initial={{
+            mode: result.mode, time_sec: result.time_sec, reps: result.reps,
+            capped: result.capped, cap_sec: result.cap_sec,
+          }}
+          onSubmit={onFinish}
+          onClose={() => setSheet(false)} />
       )}
     </View>
   );

@@ -1009,3 +1009,27 @@ TypeScript 0 erreur, export web OK (aucun changement backend).
 **État** : 191 tests pytest + 4 audits PASS (62 routes), TypeScript strict 0 erreur, export web OK.
 
 *Addendum v3.28 · 18/08/2026 · Claude Opus 5.*
+
+-----
+
+### Addendum v3.29 — Score de WOD : saisie/correction + commentaire honnête (18/08/2026)
+
+> « Dans agenda → suivi de séance, je veux pouvoir modifier les séances de CrossFit (temps/distance/tour/rep). Et à la fin de chaque WOD quand le chrono s'arrête, je veux une fenêtre pour rentrer les scores et que tout soit pris en compte avec un commentaire honnête sur la performance. »
+
+**1. Fenêtre de score à l'arrêt du chrono** — `WodScoreSheet` (modale) s'ouvre automatiquement dès que le chrono s'arrête, pré-remplie avec le temps/reps mesurés. Champs : type de score (For Time / AMRAP), temps (min + s), reps, **tours**, **distance (m)**, interrupteur « time cap atteint », note libre. Validation → enregistrement + verdict affiché.
+
+**2. Édition depuis l'agenda** — chaque séance CrossFit faite porte un bouton **« ✎ MODIFIER LE SCORE »** (ou « ＋ SAISIR LE SCORE » si vide) ouvrant la même fenêtre pré-remplie. Nouveau `PATCH /sessions/{id}/score` (routes 62 → 63) : met à jour `detail.result` + `score_label`, **recalcule la durée réelle et la charge (SU)** → le score est pris en compte dans le suivi et l'analytics.
+
+**3. Commentaire honnête** — `engines/wod_generator/scoring.py` compare le résultat aux tentatives passées (même format en priorité, sinon même type de score) et renvoie un verdict franc, sans félicitations automatiques :
+- `non terminé` — time cap atteint : « le WOD n'est pas fini », avec la piste (scaler, alléger).
+- `référence posée` — première tentative : pas d'éloge, un repère à battre.
+- `record` / `stable` / `en retrait` — écart chiffré en % contre le meilleur (« 14 % plus lent que ton 12:00 — fatigue, sommeil, ou départ trop rapide ? »).
+Le verdict est renvoyé par `POST /sessions/save` (flux chrono) **et** par le PATCH, stocké dans `detail.assessment` et affiché sous la séance dans l'agenda.
+
+**Bug corrigé au passage** : le titre de séance contenait le score (`NOM — 12:34`). Comme la mise à jour idempotente s'appuie sur (date, discipline, **titre**), corriger un score aurait créé un **doublon** au lieu de mettre à jour. Le titre est désormais le seul nom du WOD, le score vivant dans `detail`/`score_label`.
+
+**Tests** : `tests/test_wod_score.py` (10) — cap nommé, première référence sans éloge, régression chiffrée, record, comparaison AMRAP, libellés, saisie + correction depuis l'agenda **sans doublon**, tours/distance persistés, 409 hors CrossFit, 404 inconnu, verdict renvoyé par le flux chrono.
+
+**État** : 201 tests pytest + 4 audits PASS (63 routes), TypeScript strict 0 erreur, export web OK.
+
+*Addendum v3.29 · 18/08/2026 · Claude Opus 5.*
