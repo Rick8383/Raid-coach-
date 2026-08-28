@@ -197,3 +197,43 @@ def test_rounds_reps_round_trip_through_the_api(client):
     day = next(d for d in week["days"] if d["date"] == "2028-06-12")
     e = next(x for x in day["done_all"] if x["id"] == saved["session_id"])
     assert e["wod_result"]["rounds"] == 2 and e["wod_result"]["reps"] == 22
+
+
+# ---------- Le suivi expose le CONTENU des séances, pas juste le nom ----------
+def test_tracking_exposes_full_session_content(client):
+    """Agenda → suivi : on doit pouvoir revoir ce qui a été fait (lignes du WOD,
+    mouvements/séries/reps/charges d'une séance de force), pas seulement le nom."""
+    client.post("/sessions/save", json={
+        "discipline": "crossfit", "session_date": "2028-07-03", "duration_min": 20,
+        "intensity_rpe": 9, "status": "done", "title": "OPÉRATION VIPÈRE",
+        "detail": {"name": "OPÉRATION VIPÈRE", "format_key": "amrap",
+                   "format": "AMRAP 12 min", "duration_or_cap": "12 min",
+                   "description": ["10 thrusters @40kg", "12 tractions", "200 m course"],
+                   "target_score": "max de tours",
+                   "result": {"mode": "amrap", "rounds": 2, "reps": 22}}})
+    client.post("/sessions/save", json={
+        "discipline": "strength", "session_date": "2028-07-03", "duration_min": 70,
+        "intensity_rpe": 8, "status": "done", "title": "Force PUSH — S2",
+        "detail": {"day": "push", "week": 2, "cycle": 0, "warmup_mcgill": [],
+                   "main_lifts": [{"lift": "bench", "name": "Développé couché",
+                                   "training_max": 92.5, "note": "",
+                                   "sets": [{"pct_tm": 85, "reps": "5+", "load_kg": 80,
+                                             "rest_sec": 180, "amrap": True}]}],
+                   "accessories": [{"name": "Dips lestés", "sets": 4, "reps": "10-12",
+                                    "load_kg": 12, "tempo": "2-0-1", "rest_sec": 90,
+                                    "notes": ""}]}})
+
+    week = client.post("/agenda/week", json={"date": "2028-07-03"}).json()
+    day = next(d for d in week["days"] if d["date"] == "2028-07-03")
+    by_disc = {e["discipline"]: e for e in day["done_all"]}
+
+    wod = by_disc["crossfit"]["detail"]
+    assert wod["description"] == ["10 thrusters @40kg", "12 tractions", "200 m course"]
+    assert wod["format"] == "AMRAP 12 min"
+    # Les champs déjà exposés à part ne sont pas dupliqués dans le détail.
+    assert "result" not in wod and "assessment" not in wod
+
+    force = by_disc["strength"]["detail"]
+    assert force["main_lifts"][0]["name"] == "Développé couché"
+    assert force["main_lifts"][0]["sets"][0]["load_kg"] == 80
+    assert force["accessories"][0]["name"] == "Dips lestés"

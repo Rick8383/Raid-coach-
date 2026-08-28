@@ -1464,7 +1464,12 @@ def agenda_week(body: ScheduleIn) -> dict:
                 # l'agenda (y compris sur une séance encore « prévue »).
                 "wod_result": det.get("result") if rec["discipline"] == "crossfit" else None,
                 "wod_format_key": det.get("format_key") if rec["discipline"] == "crossfit" else None,
-                "assessment": det.get("assessment")}
+                "assessment": det.get("assessment"),
+                # Contenu complet de la séance (mouvements, séries/reps/charges,
+                # lignes du WOD, intervalles de course) → dépliable dans le
+                # suivi. Les champs déjà exposés à part sont retirés.
+                "detail": {k: v for k, v in det.items()
+                           if k not in ("result", "assessment", "metrics", "performed")}}
 
     for day in week["days"]:
         recs = by_date.get(day["date"], [])

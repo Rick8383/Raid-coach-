@@ -11,6 +11,7 @@ import { PlanView } from '../components/PlanView';
 import { WatchMetricsView } from '../components/WatchMetricsForm';
 import { PerformedView } from '../components/StrengthActualsForm';
 import { WodScoreSheet, WodScoreInput, modeForFormatKey } from '../components/WodScoreSheet';
+import { SessionContent } from '../components/SessionDetail';
 import { Card, Tag } from '../components/ui';
 import { DAY_LABELS, DayCode, WEEK_LABEL, todayLocalAsUTC, localISODate } from '../schedule';
 import {
@@ -47,6 +48,13 @@ export function AgendaScreen({ profile }: { profile?: AthleteProfile | null }) {
 
   // Séance CrossFit dont on saisit/corrige le score (fenêtre modale).
   const [editing, setEditing] = useState<DoneEntry | null>(null);
+  // Séances dépliées dans le suivi (contenu détaillé de ce qui a été fait).
+  const [openIds, setOpenIds] = useState<Set<string>>(new Set());
+  const toggleOpen = (key: string) => setOpenIds(prev => {
+    const next = new Set(prev);
+    next.has(key) ? next.delete(key) : next.add(key);
+    return next;
+  });
 
   const submitScore = async (s: WodScoreInput) => {
     if (!editing?.id) return null;
@@ -128,19 +136,31 @@ export function AgendaScreen({ profile }: { profile?: AthleteProfile | null }) {
                 // chacune comptée au suivi, supprimable individuellement (✕).
                 <View key={e.id ?? i}>
                   <View style={styles.doneRow}>
-                    <Text style={[e.status === 'done' ? styles.done : styles.planned, { flex: 1 }]}>
-                      {e.status === 'done' ? '✓' : '○'} {disciplineLabel(e.discipline)}
-                      {e.title ? ` · ${e.title}` : ''}
-                      {' · '}{e.duration_min} min
-                      {e.status === 'done' ? ' · fait' : ' · prévu'}
-                      {e.score_label ? ` · 🏁 ${e.score_label}` : ''}
-                    </Text>
+                    {/* Le titre déplie le CONTENU réel de la séance :
+                        mouvements, séries × reps × charges, lignes du WOD,
+                        intervalles de course. */}
+                    <Pressable style={{ flex: 1 }} hitSlop={4}
+                      onPress={() => toggleOpen(String(e.id ?? `${day.date}-${i}`))}>
+                      <Text style={[e.status === 'done' ? styles.done : styles.planned]}>
+                        {e.status === 'done' ? '✓' : '○'} {disciplineLabel(e.discipline)}
+                        {e.title ? ` · ${e.title}` : ''}
+                        {' · '}{e.duration_min} min
+                        {e.status === 'done' ? ' · fait' : ' · prévu'}
+                        {e.score_label ? ` · 🏁 ${e.score_label}` : ''}
+                        {e.detail ? (openIds.has(String(e.id ?? `${day.date}-${i}`)) ? '  ▴' : '  ▾') : ''}
+                      </Text>
+                    </Pressable>
                     {e.id ? (
                       <Pressable onPress={() => removeDone(e.id!)} hitSlop={8} style={styles.delBtn}>
                         <Text style={styles.delT}>✕</Text>
                       </Pressable>
                     ) : null}
                   </View>
+                  {e.detail && openIds.has(String(e.id ?? `${day.date}-${i}`)) && (
+                    <View style={styles.detailBox}>
+                      <SessionContent type={e.discipline} detail={e.detail} />
+                    </View>
+                  )}
                   {/* WOD : saisir ou corriger le score (temps/tours/reps/distance).
                       Disponible aussi sur une séance encore PRÉVUE — saisir le
                       score vaut réalisation, elle bascule alors en « fait ». */}
@@ -249,6 +269,8 @@ const styles = StyleSheet.create({
   viewTextOn: { color: colors.bg },
   formHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   formLabel: { color: colors.textSecondary, ...typography.label },
+  detailBox: { marginTop: spacing.xs, paddingLeft: spacing.s,
+    borderLeftWidth: 2, borderLeftColor: colors.hairlineStrong },
   scoreBtn: { alignSelf: 'flex-start', paddingVertical: spacing.xs, paddingHorizontal: spacing.s,
     borderRadius: 6, borderWidth: 1, borderColor: colors.signal, marginTop: spacing.xs },
   scoreT: { color: colors.signal, ...typography.label, fontSize: 9 },

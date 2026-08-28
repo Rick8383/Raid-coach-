@@ -387,6 +387,9 @@ export interface DoneEntry {
     distance_m?: number; capped?: boolean; cap_sec?: number;
   } | null;
   wod_format_key?: string | null;
+  /** Contenu complet de la séance (mouvements, séries/reps/charges, lignes du
+   *  WOD, intervalles) → dépliable dans le suivi. */
+  detail?: Record<string, any> | null;
   assessment?: { verdict: string; comment: string;
                  reference: string | null; delta_pct: number | null } | null;
 }

@@ -254,3 +254,25 @@ const styles = StyleSheet.create({
   wodScore: { color: colors.textPrimary, fontSize: typography.sizes.small, marginTop: spacing.xs },
   lumbar: { fontSize: typography.sizes.small, marginTop: spacing.xs },
 });
+
+/** Contenu d'une séance selon sa discipline : allures de course, séries 5/3/1,
+ * lignes du WOD, blocs natation/mobilité. Partagé par le plan (PlannedSessions)
+ * et le suivi (Agenda) — le réalisé doit montrer exactement ce qui a été fait. */
+export function SessionContent({ type, detail }: { type: string; detail: any }) {
+  const d = detail || {};
+  if (type === 'run' && Array.isArray(d.body)) return <RunDetail session={d} />;
+  if (type === 'strength' && (d.main_lift || d.main_lifts?.length || d.movements)) {
+    return <StrengthDetail session={d} />;
+  }
+  if (type === 'crossfit' && Array.isArray(d.description)) return <WodDetail wod={d} />;
+  if (Array.isArray(d.blocks)) {
+    return (
+      <View>
+        {d.blocks.map((b: string, i: number) => (
+          <Text key={i} style={styles.line}>• {b}</Text>))}
+        {!!d.note && <Text style={styles.sciatic}>💡 {d.note}</Text>}
+      </View>
+    );
+  }
+  return null;
+}

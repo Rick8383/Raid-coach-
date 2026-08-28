@@ -11,7 +11,7 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { PlanSession, StandbyInfo, api } from '../api/client';
-import { RunDetail, StrengthDetail, WodDetail } from './SessionDetail';
+import { SessionContent } from './SessionDetail';
 import { RpeScale } from './RpeScale';
 import { WatchMetricsForm, WatchMetricsView, WatchMetrics } from './WatchMetricsForm';
 import { StrengthActualsForm, PerformedView, Performed, performedEntries } from './StrengthActualsForm';
@@ -29,23 +29,10 @@ const TYPE_LABEL: Record<string, string> = {
 const COMPLETABLE = new Set(['run', 'strength', 'crossfit', 'swim', 'recovery']);
 
 function SessionExpanded({ s }: { s: PlanSession }) {
-  const d = s.detail || {};
-  if (s.type === 'run' && Array.isArray(d.body)) return <RunDetail session={d} />;
-  if (s.type === 'strength' && (d.main_lift || d.movements)) return <StrengthDetail session={d} />;
-  if (s.type === 'crossfit' && Array.isArray(d.description)) return <WodDetail wod={d} />;
-  if ((s.type === 'swim' || s.type === 'recovery') && Array.isArray(d.blocks)) {
-    // Natation ou mobilité (GOWOD) : liste de blocs minutés + consigne.
-    return (
-      <View>
-        {d.blocks.map((b: string, i: number) => (
-          <Text key={i} style={styles.detailLine}>• {b}</Text>))}
-        {!!d.note && <Text style={styles.detailNote}>💡 {d.note}</Text>}
-      </View>
-    );
-  }
-  return null;
+  return <SessionContent type={s.type} detail={s.detail} />;
 }
 
+// Métriques montre envoyées au serveur (0 = non renseigné → non transmis).
 const METRIC_KEYS: (keyof WatchMetrics)[] = [
   'distance_km', 'hr_avg', 'hr_max', 'elevation_m', 'calories', 'cadence_spm',
   'te_aerobic', 'te_anaerobic',

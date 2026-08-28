@@ -1096,3 +1096,21 @@ Le verdict est renvoyé par `POST /sessions/save` (flux chrono) **et** par le PA
 **État** : 206 tests pytest + 4 audits PASS (63 routes), TypeScript strict 0 erreur, export web OK.
 
 *Addendum v3.32 · 28/08/2026 · Claude Opus 5.*
+
+-----
+
+### Addendum v3.33 — Le suivi montre le CONTENU des séances, plus seulement leur nom (28/08/2026)
+
+> « Dans suivi il n'y a que le nom du WOD, j'aimerais pouvoir voir les entraînements effectués ainsi que les WOD (mouvement / série / rep / poids / round / rep…). »
+
+**Constat** : tout le contenu était déjà stocké en base (`detail_json`) mais l'agenda n'en exposait qu'un résumé — titre, durée, statut, score. Impossible de revoir ce qu'on avait réellement fait.
+
+- **Backend** : chaque entrée de `done_all` porte désormais `detail`, le contenu complet de la séance (lignes du WOD, `main_lifts` avec séries × reps × charges, accessoires, intervalles de course, blocs natation/mobilité). Les champs déjà exposés séparément (`result`, `assessment`, `metrics`, `performed`) en sont retirés pour ne rien dupliquer.
+- **App** : dans **SUIVI / RÉALISÉ**, le titre d'une séance devient **cliquable** (chevron ▾/▴) et déplie son contenu réel, rendu par les mêmes composants que le plan — allures et zones FC pour la course, séries 5/3/1 avec charges et accessoires pour la force, lignes et cap pour le WOD.
+- **Refactor** : le dispatch d'affichage par discipline, jusque-là privé dans `PlannedSessions`, devient `SessionContent({ type, detail })` exporté depuis `SessionDetail.tsx` — une seule implémentation partagée par le plan et le suivi (le réalisé doit montrer exactement ce que montrait le plan). `main_lifts` pris en compte (séance à deux mouvements principaux).
+
+**Tests** : `test_tracking_exposes_full_session_content` — lignes du WOD et format présents, séries/charges/accessoires d'une séance de force présents, et pas de duplication des champs exposés à part.
+
+**État** : 207 tests pytest + 4 audits PASS (63 routes), TypeScript strict 0 erreur, export web OK.
+
+*Addendum v3.33 · 28/08/2026 · Claude Opus 5.*
