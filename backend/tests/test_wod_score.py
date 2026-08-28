@@ -61,7 +61,8 @@ def test_amrap_compares_reps():
 def test_score_label_formats():
     assert score_label({"mode": "for_time", "time_sec": 754}) == "12:34"
     assert score_label({"mode": "for_time", "time_sec": 900, "capped": True}) == "15:00 (cap)"
-    assert score_label({"mode": "amrap", "reps": 142, "time_sec": 720}) == "142 reps/rounds en 12:00"
+    # Score AMRAP : « tours + reps du tour en cours » (cf. test dédié plus bas).
+    assert score_label({"mode": "amrap", "rounds": 2, "reps": 22}) == "2 tours + 22 reps"
 
 
 # ---------- Édition depuis l'agenda ----------
@@ -94,7 +95,7 @@ def test_score_edit_records_rounds_and_distance(client):
     r = client.patch(f"/sessions/{sid}/score", json={
         "mode": "amrap", "reps": 138, "rounds": 9, "distance_m": 1200,
         "time_sec": 720, "cap_sec": 720, "notes": "scaling 20 kg"}).json()
-    assert "138 reps/rounds" in r["score_label"]
+    assert r["score_label"] == "9 tours + 138 reps"
     week = client.post("/agenda/week", json={"date": "2028-05-08"}).json()
     day = next(d for d in week["days"] if d["date"] == "2028-05-08")
     res = next(e for e in day["done_all"] if e["id"] == sid)["wod_result"]
@@ -139,10 +140,60 @@ def test_score_on_a_planned_wod_marks_it_done(client):
     r = client.patch(f"/sessions/{sid}/score", json={
         "mode": "amrap", "reps": 146, "rounds": 9, "time_sec": 720}).json()
     assert r["persisted_status"] == "done"
-    assert "146 reps/rounds" in r["score_label"]
+    assert r["score_label"] == "9 tours + 146 reps"
 
     rows = [s for s in client.get("/sessions/recent?n=80").json()["sessions"]
             if s["session_date"] == "2028-06-05"]
     assert len(rows) == 1                          # mise à jour, pas de doublon
     assert rows[0]["status"] == "done"
     assert float(rows[0]["stress_units"]) > 0      # la charge est enfin comptée
+
+
+# ---------- Score AMRAP : tours complets + reps du tour EN COURS ----------
+def test_rounds_and_partial_reps_are_distinct():
+    """Cas réel : 2 tours finis puis 22 reps avant de bloquer sur les burpees.
+    Avant, « 22 » seul était ambigu (22 reps ? 22 tours ? 1000 m = 1000 reps ?)."""
+    assert score_label({"mode": "amrap", "rounds": 2, "reps": 22}) == "2 tours + 22 reps"
+    assert score_label({"mode": "amrap", "rounds": 1, "reps": 0}) == "1 tour"
+    assert score_label({"mode": "amrap", "rounds": 3, "reps": 0}) == "3 tours"
+    assert score_label({"mode": "amrap", "rounds": 0, "reps": 0}) == "score non saisi"
+    # Rétro-compatibilité : anciens scores sans tours.
+    assert score_label({"mode": "amrap", "rounds": 0, "reps": 142}) == "142 reps"
+
+
+def test_rounds_outrank_partial_reps():
+    """Classement de compétition : les tours d'abord, les reps départagent."""
+    hist = [{"mode": "amrap", "rounds": 2, "reps": 22, "format_key": "amrap"}]
+    assert assess({"mode": "amrap", "rounds": 3, "reps": 0,
+                   "format_key": "amrap"}, hist)["verdict"] == "record"
+    assert assess({"mode": "amrap", "rounds": 2, "reps": 30,
+                   "format_key": "amrap"}, hist)["verdict"] == "record"
+    assert assess({"mode": "amrap", "rounds": 2, "reps": 22,
+                   "format_key": "amrap"}, hist)["verdict"] == "stable"
+    # 1 tour + 40 reps reste DERRIÈRE 2 tours + 22 reps, malgré plus de reps.
+    assert assess({"mode": "amrap", "rounds": 1, "reps": 40,
+                   "format_key": "amrap"}, hist)["verdict"] == "en retrait"
+
+
+def test_partial_reps_percentage_only_when_comparable():
+    """Un % n'a de sens qu'à nombre de tours égal — sinon il mélangerait
+    tours et reps."""
+    hist = [{"mode": "amrap", "rounds": 2, "reps": 22, "format_key": "amrap"}]
+    same = assess({"mode": "amrap", "rounds": 2, "reps": 30, "format_key": "amrap"}, hist)
+    other = assess({"mode": "amrap", "rounds": 3, "reps": 5, "format_key": "amrap"}, hist)
+    assert same["delta_pct"] is not None
+    assert other["delta_pct"] is None
+
+
+def test_rounds_reps_round_trip_through_the_api(client):
+    saved = client.post("/sessions/save", json={
+        "discipline": "crossfit", "session_date": "2028-06-12", "duration_min": 20,
+        "status": "planned", "title": "WOD TOURS",
+        "detail": {"name": "WOD TOURS", "format_key": "amrap", "description": ["x"]}}).json()
+    r = client.patch(f"/sessions/{saved['session_id']}/score", json={
+        "mode": "amrap", "rounds": 2, "reps": 22, "time_sec": 720}).json()
+    assert r["score_label"] == "2 tours + 22 reps"
+    week = client.post("/agenda/week", json={"date": "2028-06-12"}).json()
+    day = next(d for d in week["days"] if d["date"] == "2028-06-12")
+    e = next(x for x in day["done_all"] if x["id"] == saved["session_id"])
+    assert e["wod_result"]["rounds"] == 2 and e["wod_result"]["reps"] == 22

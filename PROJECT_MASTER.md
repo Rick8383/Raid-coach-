@@ -1070,3 +1070,29 @@ Le verdict est renvoyé par `POST /sessions/save` (flux chrono) **et** par le PA
 **État** : 202 tests pytest + 4 audits PASS (63 routes), TypeScript strict 0 erreur, export web OK.
 
 *Addendum v3.31 · 28/08/2026 · Claude Opus 5.*
+
+-----
+
+### Addendum v3.32 — Score AMRAP sans ambiguïté : tours + reps du tour en cours (28/08/2026)
+
+> « J'ai rentré 22 mais c'est 22 reps du 3ᵉ tour, il me manquait les 20 burpees. Je veux une saisie plus instinctive : le nombre de rounds puis le nombre de reps. Les 1000 m rameur comptent comme 1000 reps ? Ce n'est pas intuitif. »
+
+**Problème réel** : deux champs « reps » et « tours » côte à côte, sans dire ce que chacun représente ni comment ils se combinent. Impossible de savoir si « reps » = total du WOD, reps du tour en cours, ou si une distance se convertit en répétitions.
+
+**Sémantique retenue — la notation CrossFit standard « 2+22 »** :
+- `rounds` = **tours entièrement terminés**
+- `reps` = **répétitions faites dans le tour suivant, non terminé**
+- Libellé : « 2 tours + 22 reps » (`score_label`, pluriel géré : « 1 tour »).
+- **Une distance n'est jamais convertie en reps** : 1000 m de rameur est un mouvement du tour, pas 1000 répétitions. Dit explicitement dans l'aide de la fenêtre.
+
+**Saisie repensée** (`WodScoreSheet`) : ordre imposé **1 · TOURS COMPLÈTEMENT TERMINÉS**, puis **2 · REPS FAITES DANS LE TOUR SUIVANT**, avec l'exemple exact du cas remonté, et un **aperçu en direct** du score tel qu'il sera enregistré. Les champs temps/tours s'adaptent au type de score (For Time → temps seul ; Tours + reps → tours, reps, puis durée réelle pour la charge). Distance reléguée en champ optionnel d'information.
+
+**Chrono** : le compteur affichait « REPS / ROUNDS » — même ambiguïté. Il compte désormais explicitement les **TOURS TERMINÉS (+1 par tour fini)** ; les reps partielles se saisissent à la fin dans la fenêtre. `WodResult` porte `rounds` et `reps` séparément.
+
+**Classement** : comparaison de compétition — les **tours d'abord**, les reps départagent. « 1 tour + 40 reps » reste derrière « 2 tours + 22 reps » malgré plus de répétitions. Le pourcentage d'écart n'est calculé qu'à nombre de tours égal (sinon il mélangerait tours et reps) et est omis autrement plutôt que d'afficher un chiffre trompeur.
+
+**Tests** : 4 ajoutés — libellés (dont pluriel et rétro-compatibilité des anciens scores sans tours), priorité des tours sur les reps, pourcentage seulement quand comparable, aller-retour complet via l'API. 3 assertions héritées de l'ancien libellé « reps/rounds » recalées.
+
+**État** : 206 tests pytest + 4 audits PASS (63 routes), TypeScript strict 0 erreur, export web OK.
+
+*Addendum v3.32 · 28/08/2026 · Claude Opus 5.*

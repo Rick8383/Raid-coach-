@@ -67,6 +67,15 @@ export function WodScoreSheet({ visible, title, initial, onSubmit, onClose }: {
   const [result, setResult] = useState<WodAssessment | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Aperçu du score tel qu'il sera enregistré (même règle que le serveur).
+  const previewLabel = (() => {
+    const t = `${rounds} tour${rounds > 1 ? 's' : ''}`;
+    if (rounds && reps) return `${t} + ${reps} reps`;
+    if (rounds) return t;
+    if (reps) return `${reps} reps`;
+    return 'score non saisi';
+  })();
+
   const submit = async () => {
     setBusy(true); setError(null);
     try {
@@ -114,13 +123,42 @@ export function WodScoreSheet({ visible, title, initial, onSubmit, onClose }: {
                     <Pressable key={m} onPress={() => setMode(m)}
                       style={[styles.modeBtn, mode === m && styles.modeBtnOn]}>
                       <Text style={[styles.modeT, mode === m && styles.modeTOn]}>
-                        {m === 'for_time' ? 'FOR TIME (chrono)' : 'AMRAP (reps/rounds)'}
+                        {m === 'for_time' ? 'FOR TIME\n(chrono)' : 'TOURS + REPS\n(AMRAP / RFT)'}
                       </Text>
                     </Pressable>
                   ))}
                 </View>
 
-                <Text style={styles.lbl}>TEMPS RÉALISÉ</Text>
+                {mode === 'amrap' ? (
+                  <>
+                    {/* Ordre naturel : d'abord les tours FINIS, puis les reps du
+                        tour entamé — la notation CrossFit « 2+22 ». */}
+                    <Text style={styles.lbl}>1 · TOURS COMPLÈTEMENT TERMINÉS</Text>
+                    <NumberField value={rounds} step={1} min={0} max={1000} unit="tours"
+                      onChange={setRounds} />
+
+                    <Text style={styles.lbl}>2 · REPS FAITES DANS LE TOUR SUIVANT (non terminé)</Text>
+                    <NumberField value={reps} step={1} min={0} max={100000} unit="reps"
+                      onChange={setReps} />
+
+                    <Text style={styles.help}>
+                      Compte les répétitions du tour EN COURS, dans l'ordre du WOD.
+                      Une distance (1000 m rameur, 400 m course) ne compte pas en
+                      répétitions : c'est un mouvement du tour, pas 1000 reps.
+                      Exemple : 2 tours finis puis 22 reps avant de bloquer sur les
+                      burpees → 2 tours + 22 reps.
+                    </Text>
+
+                    <View style={styles.preview}>
+                      <Text style={styles.previewLbl}>SCORE ENREGISTRÉ</Text>
+                      <Text style={styles.previewVal}>{previewLabel}</Text>
+                    </View>
+
+                    <Text style={styles.lbl}>DURÉE RÉELLE (pour la charge)</Text>
+                  </>
+                ) : (
+                  <Text style={styles.lbl}>TEMPS RÉALISÉ</Text>
+                )}
                 <View style={styles.row}>
                   <View style={styles.half}>
                     <NumberField value={min} step={1} min={0} max={240} unit="min" onChange={setMin} />
@@ -130,21 +168,15 @@ export function WodScoreSheet({ visible, title, initial, onSubmit, onClose }: {
                   </View>
                 </View>
 
-                <Text style={styles.lbl}>REPS / ROUNDS (0 si non concerné)</Text>
-                <View style={styles.row}>
-                  <View style={styles.half}>
-                    <NumberField value={reps} step={1} min={0} max={100000} unit="reps" onChange={setReps} />
-                  </View>
-                  <View style={styles.half}>
-                    <NumberField value={rounds} step={1} min={0} max={1000} unit="tours" onChange={setRounds} />
-                  </View>
-                </View>
-
-                <Text style={styles.lbl}>DISTANCE (0 si non concerné)</Text>
+                <Text style={styles.lbl}>DISTANCE TOTALE — optionnel (0 = non concerné)</Text>
                 <NumberField value={distance} step={100} min={0} max={200000} unit="m" onChange={setDistance} />
 
                 <View style={styles.switchRow}>
-                  <Text style={styles.switchLbl}>Time cap atteint (WOD non terminé)</Text>
+                  <Text style={styles.switchLbl}>
+                    {mode === 'for_time'
+                      ? 'Time cap atteint (WOD non terminé)'
+                      : 'Arrêté avant la fin du temps'}
+                  </Text>
                   <Switch value={capped} onValueChange={setCapped}
                     trackColor={{ true: colors.readyOrange, false: colors.hairline }} />
                 </View>
@@ -197,6 +229,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.signalSoft, borderWidth: 1, borderColor: colors.signal, alignItems: 'center',
   },
   primaryT: { color: colors.signal, ...typography.label, fontSize: 11 },
+  help: { color: colors.textSecondary, fontSize: typography.sizes.micro, lineHeight: 16, marginTop: spacing.xs },
+  preview: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginTop: spacing.m, backgroundColor: colors.signalSoft, borderRadius: 8, padding: spacing.s,
+  },
+  previewLbl: { color: colors.textSecondary, ...typography.label, fontSize: 9 },
+  previewVal: { color: colors.signal, fontFamily: typography.display.fontFamily, fontSize: typography.sizes.h2 },
   cancelBtn: { paddingVertical: spacing.m, alignItems: 'center' },
   cancelT: { color: colors.textSecondary, fontSize: typography.sizes.small },
   verdict: { fontFamily: typography.display.fontFamily, fontSize: typography.sizes.h1, marginBottom: spacing.s },

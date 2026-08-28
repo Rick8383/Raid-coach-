@@ -14,16 +14,28 @@ def fmt_time(sec: float | int | None) -> str:
     return f"{s // 60:02d}:{s % 60:02d}"
 
 
+def rounds_reps(result: dict) -> tuple[int, int]:
+    """(tours COMPLETS, reps faites dans le tour EN COURS). Convention CrossFit
+    « 2+22 » : deux tours terminés puis 22 répétitions du troisième. Les vieux
+    enregistrements n'ont qu'un total de reps → (0, total)."""
+    return int(result.get("rounds") or 0), int(result.get("reps") or 0)
+
+
 def score_label(result: dict) -> str:
     """Libellé court affiché dans l'agenda/l'historique."""
     mode = result.get("mode")
     if mode == "for_time":
         base = fmt_time(result.get("time_sec"))
         return f"{base} (cap)" if result.get("capped") else base
-    reps = int(result.get("reps") or 0)
-    label = f"{reps} reps/rounds"
-    t = int(result.get("time_sec") or 0)
-    return f"{label} en {fmt_time(t)}" if t else label
+    rounds, reps = rounds_reps(result)
+    tours = f"{rounds} tour" + ("s" if rounds > 1 else "")
+    if rounds and reps:
+        return f"{tours} + {reps} reps"
+    if rounds:
+        return tours
+    if reps:
+        return f"{reps} reps"
+    return "score non saisi"
 
 
 def _pct(a: float, b: float) -> float:
@@ -91,10 +103,13 @@ def assess(result: dict, history: list[dict] | None = None) -> dict:
             "reference": fmt_time(best), "delta_pct": d,
         }
 
-    # AMRAP / EMOM / Death by… : score en reps ou rounds
-    reps = int(result.get("reps") or 0)
-    scored = [int(h.get("reps") or 0) for h in pool if int(h.get("reps") or 0) > 0]
-    if reps <= 0:
+    # AMRAP / RFT / EMOM… : score = tours complets, puis reps du tour en cours.
+    # On classe comme en compétition : d'abord les tours, les reps départagent.
+    mine = rounds_reps(result)
+    label = score_label(result)
+    scored = [(h, rounds_reps(h)) for h in pool]
+    scored = [(h, k) for h, k in scored if k != (0, 0)]
+    if mine == (0, 0):
         return {
             "verdict": "score manquant",
             "comment": "Aucun score saisi : sans chiffre, impossible de suivre la progression.",
@@ -103,31 +118,36 @@ def assess(result: dict, history: list[dict] | None = None) -> dict:
     if not scored:
         return {
             "verdict": "référence posée",
-            "comment": (f"{reps} reps/rounds. Première référence sur ce format "
-                        f"({ref_scope}) : objectif, faire mieux la prochaine fois."),
+            "comment": (f"{label}. Première référence sur ce format ({ref_scope}) : "
+                        "objectif, faire mieux la prochaine fois."),
             "reference": None, "delta_pct": None,
         }
-    best = max(scored)
-    d = _pct(reps, best)                     # positif = mieux
-    if reps > best:
+    best_h, best = max(scored, key=lambda x: x[1])
+    best_label = score_label(best_h)
+    # Écart chiffré seulement quand c'est comparable (mêmes tours, ou aucun tour
+    # de part et d'autre) — sinon un % mélangerait tours et reps.
+    d = _pct(mine[1], best[1]) if mine[0] == best[0] and best[1] else None
+    if mine > best:
+        extra = f" (+{d:.0f} %)" if d else ""
         return {
             "verdict": "record",
-            "comment": (f"{reps} reps/rounds : nouveau record sur ce format "
-                        f"(+{d:.0f} % vs {best}). Le moteur suit."),
-            "reference": str(best), "delta_pct": d,
+            "comment": (f"{label} : nouveau record sur ce format, devant {best_label}"
+                        f"{extra}. Le moteur suit."),
+            "reference": best_label, "delta_pct": d,
         }
-    if d >= -5:
+    if mine == best or (d is not None and d >= -5):
         return {
             "verdict": "stable",
-            "comment": (f"{reps} contre {best} au mieux : au même niveau. "
+            "comment": (f"{label} contre {best_label} au mieux : au même niveau. "
                         "Stagnation sur ce format — il faudra pousser le volume "
                         "ou l'intensité pour débloquer."),
-            "reference": str(best), "delta_pct": d,
+            "reference": best_label, "delta_pct": d,
         }
+    gap = f", {abs(d):.0f} % sous" if d else ", sous"
     return {
         "verdict": "en retrait",
-        "comment": (f"{reps} reps/rounds, {abs(d):.0f} % sous ton meilleur ({best}). "
-                    "Si ce n'est pas un jour de fatigue assumé, revois le pacing : "
-                    "partir trop vite coûte cher sur ce format."),
-        "reference": str(best), "delta_pct": d,
+        "comment": (f"{label}{gap} ton meilleur ({best_label}). Si ce n'est pas un "
+                    "jour de fatigue assumé, revois le pacing : partir trop vite "
+                    "coûte cher sur ce format."),
+        "reference": best_label, "delta_pct": d,
     }

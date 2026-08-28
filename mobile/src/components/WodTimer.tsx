@@ -3,8 +3,9 @@
  *  - Compte à rebours de départ (15 s par défaut) avec bips 3-2-1 puis GO.
  *  - Réglable en cliquant sur le chrono : durée du décompte, time cap, mode.
  *  - Mode FOR TIME : le chrono monte, on enregistre le temps de fin → score.
- *  - Mode AMRAP   : le chrono descend depuis le time cap, compteur de reps/rounds
- *    → score. Bip à la fin.
+ *  - Mode AMRAP   : le chrono descend depuis le time cap, compteur de TOURS
+ *    terminés (+1 par tour). Les reps du tour en cours se saisissent à la fin,
+ *    dans la fenêtre de score (notation CrossFit « 2 tours + 22 reps »).
  * Le score (temps ou reps) remonte via onFinish pour être sauvegardé/suivi.
  */
 import React, { useEffect, useRef, useState } from 'react';
@@ -15,11 +16,16 @@ import { WodScoreSheet, WodScoreInput, WodAssessment, modeForFormatKey } from '.
 import { colors, spacing, typography } from '../theme/tokens';
 
 export type ScoreMode = 'for_time' | 'amrap';
-export interface WodResult { mode: ScoreMode; time_sec: number; reps: number; capped: boolean; cap_sec: number; }
+export interface WodResult {
+  mode: ScoreMode; time_sec: number;
+  rounds: number;   // tours COMPLÈTEMENT terminés (compteur du chrono)
+  reps: number;     // reps du tour en cours — saisies à la fin, pas au chrono
+  capped: boolean; cap_sec: number;
+}
 
 type Phase = 'idle' | 'countdown' | 'running' | 'done';
 
-// For Time → le chrono monte ; sinon score en reps/rounds → on descend du cap.
+// For Time → le chrono monte ; sinon score en tours + reps → on descend du cap.
 function modeForWod(wod?: Wod | null): ScoreMode {
   return modeForFormatKey(wod?.format_key);
 }
@@ -51,7 +57,7 @@ export function WodTimer({ wod, durationMin, onFinish }: {
   const [capSec, setCapSec] = useState(minutesFrom(wod?.duration_or_cap, durationMin ?? 12) * 60);
   const [phase, setPhase] = useState<Phase>('idle');
   const [showSettings, setShowSettings] = useState(false);
-  const [reps, setReps] = useState(0);
+  const [rounds, setRounds] = useState(0);   // tours terminés
   const [now, setNow] = useState(Date.now());
   const [result, setResult] = useState<WodResult | null>(null);
   const [sheet, setSheet] = useState(false);   // fenêtre de saisie du score
@@ -70,12 +76,12 @@ export function WodTimer({ wod, durationMin, onFinish }: {
   const prevWholeRef = useRef(-1);
 
   const reset = () => {
-    setPhase('idle'); setReps(0); setResult(null); prevWholeRef.current = -1;
+    setPhase('idle'); setRounds(0); setResult(null); prevWholeRef.current = -1;
   };
 
   const start = () => {
     primeSound();
-    setReps(0); setResult(null); prevWholeRef.current = -1;
+    setRounds(0); setResult(null); prevWholeRef.current = -1;
     if (countdownSec > 0) {
       cdEndRef.current = Date.now() + countdownSec * 1000;
       setPhase('countdown');
@@ -97,7 +103,7 @@ export function WodTimer({ wod, durationMin, onFinish }: {
     // Temps réel écoulé dans les deux modes : un AMRAP stoppé à la main (■)
     // enregistre le temps effectif, pas le cap complet.
     const timeSec = Math.min(capSec, Math.round((Date.now() - runStartRef.current) / 1000));
-    const r: WodResult = { mode, time_sec: timeSec, reps, capped, cap_sec: capSec };
+    const r: WodResult = { mode, time_sec: timeSec, rounds, reps: 0, capped, cap_sec: capSec };
     setResult(r);
     setPhase('done');
     beepGo();
@@ -153,10 +159,10 @@ export function WodTimer({ wod, durationMin, onFinish }: {
       sub = 'TEMPS RESTANT';
     }
   } else if (phase === 'done' && result) {
-    big = result.mode === 'for_time' ? fmt(result.time_sec) : `${result.reps}`;
+    big = result.mode === 'for_time' ? fmt(result.time_sec) : `${result.rounds}`;
     sub = result.mode === 'for_time'
       ? (result.capped ? 'TIME CAP ATTEINT' : 'TEMPS FINAL')
-      : 'REPS / ROUNDS';
+      : 'TOURS TERMINÉS';
   } else {
     big = mode === 'for_time' ? '00:00' : fmt(capSec);
     sub = mode === 'for_time' ? `TIME CAP ${fmt(capSec)}` : 'AMRAP — TEMPS';
@@ -222,13 +228,13 @@ export function WodTimer({ wod, durationMin, onFinish }: {
       {/* Compteur de reps (AMRAP) pendant la course */}
       {running && mode === 'amrap' && (
         <View style={styles.repBox}>
-          <Text style={styles.repLabel}>REPS / ROUNDS</Text>
+          <Text style={styles.repLabel}>TOURS TERMINÉS (+1 par tour fini)</Text>
           <View style={styles.repRow}>
-            <Pressable onPress={() => setReps(r => Math.max(0, r - 1))} style={styles.repBtnMinus}>
+            <Pressable onPress={() => setRounds(r => Math.max(0, r - 1))} style={styles.repBtnMinus}>
               <Text style={styles.repBtnT}>–</Text>
             </Pressable>
-            <Text style={styles.repCount}>{reps}</Text>
-            <Pressable onPress={() => { setReps(r => r + 1); beepRound(); }} style={styles.repBtnPlus}>
+            <Text style={styles.repCount}>{rounds}</Text>
+            <Pressable onPress={() => { setRounds(r => r + 1); beepRound(); }} style={styles.repBtnPlus}>
               <Text style={styles.repBtnPlusT}>+1</Text>
             </Pressable>
           </View>
@@ -260,7 +266,7 @@ export function WodTimer({ wod, durationMin, onFinish }: {
           <Text style={styles.resultText}>
             {result.mode === 'for_time'
               ? `Score : ${fmt(result.time_sec)}${result.capped ? ' (cap atteint)' : ''}`
-              : `Score : ${result.reps} reps/rounds en ${fmt(result.time_sec)}`}
+              : `${result.rounds} tour${result.rounds > 1 ? 's' : ''} terminé${result.rounds > 1 ? 's' : ''} — ajoute les reps du tour en cours`}
           </Text>
           {onFinish && (
             <Pressable onPress={() => setSheet(true)} style={styles.saveScoreBtn}>
@@ -274,7 +280,8 @@ export function WodTimer({ wod, durationMin, onFinish }: {
           visible={sheet}
           title={wod?.name ?? 'WOD'}
           initial={{
-            mode: result.mode, time_sec: result.time_sec, reps: result.reps,
+            mode: result.mode, time_sec: result.time_sec,
+            rounds: result.rounds, reps: result.reps,
             capped: result.capped, cap_sec: result.cap_sec,
           }}
           onSubmit={onFinish}
