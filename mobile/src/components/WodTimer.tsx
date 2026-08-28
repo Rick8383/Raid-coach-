@@ -11,7 +11,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Wod } from '../api/client';
 import { beepGo, beepTick, beepRound, primeSound } from './sound';
-import { WodScoreSheet, WodScoreInput, WodAssessment } from './WodScoreSheet';
+import { WodScoreSheet, WodScoreInput, WodAssessment, modeForFormatKey } from './WodScoreSheet';
 import { colors, spacing, typography } from '../theme/tokens';
 
 export type ScoreMode = 'for_time' | 'amrap';
@@ -19,15 +19,9 @@ export interface WodResult { mode: ScoreMode; time_sec: number; reps: number; ca
 
 type Phase = 'idle' | 'countdown' | 'running' | 'done';
 
-// Formats dont le score est un TEMPS (on monte le chrono). Le reste = score en
-// reps/rounds (AMRAP, EMOM, Death By, Tabata, échelles…) → on descend du cap.
-const TIME_FORMATS = new Set([
-  'for_time', 'rft', 'chipper', 'pyramid_asc', 'pyramid_desc', 'pyramid_full',
-]);
-
+// For Time → le chrono monte ; sinon score en reps/rounds → on descend du cap.
 function modeForWod(wod?: Wod | null): ScoreMode {
-  if (wod && TIME_FORMATS.has(wod.format_key)) return 'for_time';
-  return 'amrap';
+  return modeForFormatKey(wod?.format_key);
 }
 
 /** Extrait un nombre de minutes d'une chaîne (« AMRAP 12 min », « cap 15' »). */

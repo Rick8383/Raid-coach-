@@ -1421,8 +1421,10 @@ def update_session_score(session_id: int, body: WodScoreIn) -> dict:
     dur = max(1, round(body.time_sec / 60)) if body.time_sec else int(row["duration_min"] or 1)
     rpe = float(row["intensity_rpe"] or 9)
     su = coach.compute_su(dur, rpe)
-    store.sessions.update_done(session_id, dur, rpe, su, detail)
-    return {"status": "updated", "session_id": session_id,
+    # Saisir un score vaut réalisation : une séance encore « prévue » passe à
+    # FAITE (et sa charge est enfin comptée dans le suivi).
+    store.sessions.update_done(session_id, dur, rpe, su, detail, status="done")
+    return {"status": "updated", "session_id": session_id, "persisted_status": "done",
             "score_label": detail["score_label"], "assessment": assessment}
 
 
@@ -1458,8 +1460,10 @@ def agenda_week(body: ScheduleIn) -> dict:
                 "score_label": score["label"] if score else None,
                 "metrics": det.get("metrics"),
                 "performed": det.get("performed"),
-                # WOD : score courant + commentaire → édition depuis l'agenda.
+                # WOD : score courant, format et commentaire → édition depuis
+                # l'agenda (y compris sur une séance encore « prévue »).
                 "wod_result": det.get("result") if rec["discipline"] == "crossfit" else None,
+                "wod_format_key": det.get("format_key") if rec["discipline"] == "crossfit" else None,
                 "assessment": det.get("assessment")}
 
     for day in week["days"]:

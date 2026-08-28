@@ -1051,3 +1051,22 @@ Le verdict est renvoyé par `POST /sessions/save` (flux chrono) **et** par le PA
 **État** : 201 tests pytest + 4 audits PASS (63 routes), TypeScript strict 0 erreur, export web OK.
 
 *Addendum v3.30 · 28/08/2026 · Claude Opus 5.*
+
+-----
+
+### Addendum v3.31 — Score saisissable sur un WOD encore « prévu » (28/08/2026)
+
+> « Je ne peux toujours pas modifier le résultat du WOD que j'ai fait aujourd'hui. » Capture à l'appui : le WOD du VEN 28/08 est en statut **« prévu »**.
+
+**Cause** : le bouton de score livré en v3.29 était conditionné à `status === 'done'`. Un WOD ajouté au plan (statut `planned`) — le cas normal quand on le génère puis qu'on le fait — n'affichait donc **aucun** bouton. Il fallait d'abord le marquer fait ailleurs, ce qui n'était ni évident ni cohérent : saisir un score, c'est déjà déclarer la séance réalisée.
+
+**Correctifs :**
+- Le bouton **« ＋ SAISIR LE SCORE DU WOD »** s'affiche sur toute séance CrossFit ayant un id, **prévue comme faite**.
+- `PATCH /sessions/{id}/score` fait passer la séance à **`status = "done"`** (`update_done` accepte un `status` optionnel) : la charge (SU) est enfin comptée dans le suivi et l'analytics, et la ligne reste unique (mise à jour, pas de doublon).
+- L'agenda expose `wod_format_key` → la fenêtre pré-remplit le **bon type de score** (For Time pour RFT/chipper/pyramides, AMRAP sinon) et un time cap déduit de la durée prévue. Helper `modeForFormatKey` mutualisé dans `WodScoreSheet` (`WodTimer` l'utilise, plus de copie locale).
+
+**Tests** : `test_score_on_a_planned_wod_marks_it_done` — WOD `planned` dans l'agenda, `wod_format_key` exposé, score saisi → `persisted_status = done`, une seule ligne, SU > 0.
+
+**État** : 202 tests pytest + 4 audits PASS (63 routes), TypeScript strict 0 erreur, export web OK.
+
+*Addendum v3.31 · 28/08/2026 · Claude Opus 5.*

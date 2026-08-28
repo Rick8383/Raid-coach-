@@ -125,11 +125,21 @@ class SessionRepository:
         return rows[0]["id"] if rows else None
 
     def update_done(self, session_id: int, duration_min: int,
-                    intensity_rpe: float, stress_units: float, detail: dict) -> None:
+                    intensity_rpe: float, stress_units: float, detail: dict,
+                    status: str | None = None) -> None:
+        """`status` permet de faire passer une séance PLANIFIÉE à FAITE — saisir
+        le score d'un WOD prévu vaut réalisation."""
+        if status is None:
+            self.db.execute(
+                """UPDATE sessions SET duration_min = ?, intensity_rpe = ?,
+                   stress_units = ?, detail_json = ? WHERE id = ?""",
+                (duration_min, intensity_rpe, stress_units, json.dumps(detail), session_id))
+            return
         self.db.execute(
             """UPDATE sessions SET duration_min = ?, intensity_rpe = ?,
-               stress_units = ?, detail_json = ? WHERE id = ?""",
-            (duration_min, intensity_rpe, stress_units, json.dumps(detail), session_id))
+               stress_units = ?, detail_json = ?, status = ? WHERE id = ?""",
+            (duration_min, intensity_rpe, stress_units, json.dumps(detail),
+             status, session_id))
 
     def complete(self, session_id: int, feedback: dict | None = None) -> None:
         self.db.execute(

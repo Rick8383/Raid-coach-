@@ -117,3 +117,32 @@ def test_timer_save_returns_assessment(client):
                     {"mode": "amrap", "reps": 120}, fmt="amrap")
     assert res["assessment"]["comment"]
     assert res["assessment"]["verdict"]
+
+
+def test_score_on_a_planned_wod_marks_it_done(client):
+    """Cas réel : le WOD du jour est encore « prévu » dans l'agenda. Saisir son
+    score doit le faire passer à FAIT et compter sa charge — sans quoi aucun
+    bouton de score n'était accessible sur la séance."""
+    saved = client.post("/sessions/save", json={
+        "discipline": "crossfit", "session_date": "2028-06-05", "duration_min": 20,
+        "status": "planned", "title": "PROTOCOLE OBSIDIENNE",
+        "detail": {"name": "PROTOCOLE OBSIDIENNE", "format_key": "amrap",
+                   "description": ["x"]}}).json()
+    sid = saved["session_id"]
+
+    week = client.post("/agenda/week", json={"date": "2028-06-05"}).json()
+    day = next(d for d in week["days"] if d["date"] == "2028-06-05")
+    entry = next(e for e in day["done_all"] if e["id"] == sid)
+    assert entry["status"] == "planned"
+    assert entry["wod_format_key"] == "amrap"      # → pré-remplit le type de score
+
+    r = client.patch(f"/sessions/{sid}/score", json={
+        "mode": "amrap", "reps": 146, "rounds": 9, "time_sec": 720}).json()
+    assert r["persisted_status"] == "done"
+    assert "146 reps/rounds" in r["score_label"]
+
+    rows = [s for s in client.get("/sessions/recent?n=80").json()["sessions"]
+            if s["session_date"] == "2028-06-05"]
+    assert len(rows) == 1                          # mise à jour, pas de doublon
+    assert rows[0]["status"] == "done"
+    assert float(rows[0]["stress_units"]) > 0      # la charge est enfin comptée

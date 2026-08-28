@@ -10,6 +10,16 @@ import { colors, spacing, typography } from '../theme/tokens';
 
 export type ScoreMode = 'for_time' | 'amrap';
 
+// Formats dont le score est un TEMPS ; tout le reste se score en reps/rounds.
+export const TIME_FORMATS = new Set([
+  'for_time', 'rft', 'chipper', 'pyramid_asc', 'pyramid_desc', 'pyramid_full',
+]);
+
+/** Mode de score attendu pour un format de WOD donné. */
+export function modeForFormatKey(key?: string | null): ScoreMode {
+  return key && TIME_FORMATS.has(key) ? 'for_time' : 'amrap';
+}
+
 export interface WodScoreInput {
   mode: ScoreMode;
   time_sec: number;

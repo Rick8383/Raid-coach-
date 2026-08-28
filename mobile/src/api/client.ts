@@ -386,6 +386,7 @@ export interface DoneEntry {
     mode?: string; time_sec?: number; reps?: number; rounds?: number;
     distance_m?: number; capped?: boolean; cap_sec?: number;
   } | null;
+  wod_format_key?: string | null;
   assessment?: { verdict: string; comment: string;
                  reference: string | null; delta_pct: number | null } | null;
 }

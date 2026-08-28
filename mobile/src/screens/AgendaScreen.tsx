@@ -10,7 +10,7 @@ import { ReadinessBar } from '../components/ReadinessBar';
 import { PlanView } from '../components/PlanView';
 import { WatchMetricsView } from '../components/WatchMetricsForm';
 import { PerformedView } from '../components/StrengthActualsForm';
-import { WodScoreSheet, WodScoreInput } from '../components/WodScoreSheet';
+import { WodScoreSheet, WodScoreInput, modeForFormatKey } from '../components/WodScoreSheet';
 import { Card, Tag } from '../components/ui';
 import { DAY_LABELS, DayCode, WEEK_LABEL, todayLocalAsUTC, localISODate } from '../schedule';
 import {
@@ -141,11 +141,13 @@ export function AgendaScreen({ profile }: { profile?: AthleteProfile | null }) {
                       </Pressable>
                     ) : null}
                   </View>
-                  {/* WOD : saisir ou corriger le score (temps/tours/reps/distance) */}
-                  {e.discipline === 'crossfit' && e.id && e.status === 'done' && (
+                  {/* WOD : saisir ou corriger le score (temps/tours/reps/distance).
+                      Disponible aussi sur une séance encore PRÉVUE — saisir le
+                      score vaut réalisation, elle bascule alors en « fait ». */}
+                  {e.discipline === 'crossfit' && e.id && (
                     <Pressable onPress={() => setEditing(e)} style={styles.scoreBtn}>
                       <Text style={styles.scoreT}>
-                        {e.score_label ? '✎ MODIFIER LE SCORE' : '＋ SAISIR LE SCORE'}
+                        {e.score_label ? '✎ MODIFIER LE SCORE' : '＋ SAISIR LE SCORE DU WOD'}
                       </Text>
                     </Pressable>
                   )}
@@ -168,13 +170,14 @@ export function AgendaScreen({ profile }: { profile?: AthleteProfile | null }) {
           visible
           title={editing.title ?? 'WOD'}
           initial={{
-            mode: (editing.wod_result?.mode as 'for_time' | 'amrap') ?? 'amrap',
+            mode: (editing.wod_result?.mode as 'for_time' | 'amrap')
+              ?? modeForFormatKey(editing.wod_format_key),
             time_sec: editing.wod_result?.time_sec ?? 0,
             reps: editing.wod_result?.reps ?? 0,
             rounds: editing.wod_result?.rounds,
             distance_m: editing.wod_result?.distance_m,
             capped: !!editing.wod_result?.capped,
-            cap_sec: editing.wod_result?.cap_sec ?? 0,
+            cap_sec: editing.wod_result?.cap_sec ?? (editing.duration_min ?? 0) * 60,
           }}
           onSubmit={submitScore}
           onClose={() => setEditing(null)} />
